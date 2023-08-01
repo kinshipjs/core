@@ -1,0 +1,7 @@
+tsup.config.js
+tsconfig.json
+.env
+./node_modules
+./node_modules/**/*
+./.github
+./.github/**/*

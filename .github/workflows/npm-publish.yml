@@ -5,9 +5,9 @@ name: '@kinshipjs/core Node.js Package'
 
 on:
   push:
-    branches: [ stable, main ]
+    branches: [ stable, main, test ]
   pull_request:
-    branches: [ stable, main ]
+    branches: [ stable, main, test ]
 
 jobs:
   build:

@@ -4,8 +4,10 @@
 name: '@kinshipjs/core Node.js Package'
 
 on:
-  release:
-    types: [published]
+  push:
+    branches: [ stable, main ]
+  pull_request:
+    branches: [ stable, main ]
 
 jobs:
   build:

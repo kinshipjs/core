@@ -71,7 +71,7 @@ export const EventTypes = {
  */
 export class KinshipContext {
     /** Table name as it appears in the database.
-     * @protected @type {string} */ _table;
+     * @protected @type {string} */ _tableName;
     /** Object containing keys that are exact names of each column of the table and values containing information about the column's configuration.
      * @protected @type {{[K in keyof TTableModel]: DescribedSchema}} */ _schema;
     /** List of constraints that are on this table.
@@ -103,7 +103,7 @@ export class KinshipContext {
      */
     constructor(adapter, table, tableOptions={}) {
         this.#adapter = adapter;
-        this._table = table;
+        this._tableName = table;
         this.#options = {
             allowTruncation: false,
             allowUpdateAll: false,
@@ -246,7 +246,7 @@ export class KinshipContext {
         // Map the records back to their original Table representation, just so Kinship can correctly work with it.
         if(this.#identification !== undefined) {
             // identify all columns that do not exist on each record with the user's identification function.
-            const newProxy = (r, table=this._table, relationships=this._relationships, schema=this._schema) => new Proxy(r, {
+            const newProxy = (r, table=this._tableName, relationships=this._relationships, schema=this._schema) => new Proxy(r, {
                 get: (t,p,r) => {
                     if (typeof p === "symbol") throw new KinshipInvalidPropertyTypeError(p);
                     if (p in relationships) {
@@ -300,7 +300,7 @@ export class KinshipContext {
             const columns = Array.from(new Set(records.flatMap(r => Object.keys(r).filter(k => isPrimitive(r[k])))));
             // map each record so all of them have the same keys, where keys that are not present have a null value.
             const values = records.map(r => Object.values({...Object.fromEntries(columns.map(c => [c,null])), ...Object.fromEntries(Object.entries(r).filter(([k,v]) => isPrimitive(v)))}))
-            const where = Where(columns[0], this._table, this._relationships, this._schema);
+            const where = Where(columns[0], this._tableName, this._relationships, this._schema);
             let chain = where.in(values.map(v => v[0]));
             for(let i = 1; i < columns.length; ++i) {
                 //@ts-ignore typescript will show as error because TTableModel is generic in this context.
@@ -378,7 +378,7 @@ export class KinshipContext {
             const whereConditions = this.#state.where._getConditions();
             // sets through explicit set values from proxy. 
             const detail = this.#adapter.serialize(scope).forUpdate({
-                table: this._table,
+                table: this._tableName,
                 columns,
                 where: whereConditions,
                 explicit: {
@@ -392,7 +392,7 @@ export class KinshipContext {
             records = Array.isArray(records) ? records : [records];
             if(records.length <= 0) return 0;
             if (pKeys.length <= 0) {
-                throw new KinshipSyntaxError(`No primary key exists on ${this._table}. Use the explicit version of this update by passing a callback instead.`);
+                throw new KinshipSyntaxError(`No primary key exists on ${this._tableName}. Use the explicit version of this update by passing a callback instead.`);
             }
             
             // get the columns that are to be updated.
@@ -403,7 +403,7 @@ export class KinshipContext {
                 .filter(k => {
                     if(this._schema[k].isVirtual) {
                         this.#emitter.emitWarning({
-                            table: this._table,
+                            table: this._tableName,
                             type: "Update",
                             message: `An attempt was made to update a virtually generated column.`,
                             dateIso: new Date().toISOString(),
@@ -413,7 +413,7 @@ export class KinshipContext {
                 }); // ignore primary key changes.
             
             // add a WHERE statement so the number of rows affected returned matches the actual rows affected, otherwise it will "affect" all rows.
-            let where = Where(pKeys[0], this._table, this._relationships, this._schema);
+            let where = Where(pKeys[0], this._tableName, this._relationships, this._schema);
             let chain = where.in(records.map(r => r[pKeys[0]]))
             for(let i = 1; i < pKeys.length; ++i) {
                 //@ts-ignore
@@ -423,7 +423,7 @@ export class KinshipContext {
             const whereConditions = where._getConditions();
     
             const detail = this.#adapter.serialize(scope).forUpdate({
-                table: this._table,
+                table: this._tableName,
                 columns,
                 where: whereConditions,
                 implicit: {
@@ -481,7 +481,7 @@ export class KinshipContext {
             //@ts-ignore ._getConditions is marked private, but is available for use within this context.
             const whereConditions = this.#state.where._getConditions();
             const detail = this.#adapter.serialize(scope).forDelete({
-                table: this._table,
+                table: this._tableName,
                 where: whereConditions
             });
             cmd = detail.cmd;
@@ -491,10 +491,10 @@ export class KinshipContext {
             records = Array.isArray(records) ? records : [records];
             if (records.length <= 0) return 0;
             if (pKeys === undefined) {
-                throw new KinshipSyntaxError(`No primary key exists on ${this._table}. Use the explicit version of this update by passing a callback instead.`);
+                throw new KinshipSyntaxError(`No primary key exists on ${this._tableName}. Use the explicit version of this update by passing a callback instead.`);
             }
             // add a WHERE statement so the number of rows affected returned matches the actual rows affected, otherwise it will "affect" all rows.
-            let where = Where(pKeys[0], this._table, this._relationships, this._schema);
+            let where = Where(pKeys[0], this._tableName, this._relationships, this._schema);
             let chain = where.in(records.map(r => r[pKeys[0]]))
             for(let i = 1; i < pKeys.length; ++i) {
                 //@ts-ignore
@@ -505,7 +505,7 @@ export class KinshipContext {
             const whereConditions = where._getConditions();
     
             const detail = this.#adapter.serialize(scope).forDelete({
-                table: this._table,
+                table: this._tableName,
                 where: whereConditions
             });
             cmd = detail.cmd;
@@ -541,7 +541,7 @@ export class KinshipContext {
             throw new KinshipOptionsError(`Truncation is disabled on this context. You can enable truncation by passing { allowTruncation: true } into "options" during construction.`);
         }
         const scope = this.#getScope();
-        const { cmd, args } = this.#adapter.serialize(scope).forTruncate({ table: this._table });
+        const { cmd, args } = this.#adapter.serialize(scope).forTruncate({ table: this._tableName });
 
         try {
             const results = this.#adapter.execute(scope).forTruncate(cmd, args);
@@ -723,7 +723,7 @@ export class KinshipContext {
      */
     where(modelCallback) {
         return this.#duplicate(ctx => {
-            const newProxy = (realTableName=ctx._table, table = ctx._table, relationships=ctx._relationships, schema=ctx._schema) => new Proxy({}, {
+            const newProxy = (realTableName=ctx._tableName, table = ctx._tableName, relationships=ctx._relationships, schema=ctx._schema) => new Proxy({}, {
                 get: (t,p,r) => {
                     if (typeof (p) === 'symbol') throw new KinshipInvalidPropertyTypeError(p);
                     if (ctx.#isRelationship(p, relationships)) {
@@ -810,7 +810,7 @@ export class KinshipContext {
                     return {
                         table: 'AGGREGATE',
                         column: c,
-                        alias: this.#adapter.syntax.escapeColumn(`$${aggr.toLowerCase()}_` + aliasUnescaped?.replace("<|", "_")),
+                        alias: this.#adapter.syntax.escapeColumn(`$${aggr.toLowerCase()}_` + aliasUnescaped?.replaceAll('<|', "_")),
                         aggregate: aggr
                     }
                 };
@@ -857,7 +857,7 @@ export class KinshipContext {
      */
     include(modelCallback) {
         return this.#duplicate(ctx => {
-            const newProxy = (table=ctx._table, relationships=ctx._relationships) => new Proxy(/** @type {any} */({}), {
+            const newProxy = (table=ctx._tableName, relationships=ctx._relationships) => new Proxy(/** @type {any} */({}), {
                 get: (t,p,r) => {
                     if (typeof(p) === 'symbol') throw new KinshipInvalidPropertyTypeError(p);
                     if (!ctx.#isRelationship(p, relationships)) throw Error(`The specified table, "${p}", does not have a configured relationship with "${table}".`);
@@ -939,7 +939,7 @@ export class KinshipContext {
      * The relationship information of the parent table.
      * @returns {this} Reference back to this context, so the user can further chain and configure more relationships.
      */
-    #configureRelationship(callback, type, table=this._table, relationships=this._relationships, prependTable=`${this._table}_`, prependColumn='', parentRelationship=null) {
+    #configureRelationship(callback, type, table=this._tableName, relationships=this._relationships, prependTable=`${this._tableName}_`, prependColumn='', parentRelationship=null) {
         const withKeys = (codeTableName, realTableName, primaryKey, foreignKey) => {
             relationships[codeTableName] = {
                 type,
@@ -1026,8 +1026,8 @@ export class KinshipContext {
      * Callback that can be used to work with the column as it is referenced.
      * @returns {any} Proxy that handles property references on a table.
      */
-    #newProxyForColumn(table = this._table, callback=(o) => o, relationships=this._relationships, schema=this._schema, realTableName=this._table){
-        if(table === undefined) table = this._table;
+    #newProxyForColumn(table = this._tableName, callback=(o) => o, relationships=this._relationships, schema=this._schema, realTableName=this._tableName){
+        if(table === undefined) table = this._tableName;
         return new Proxy({}, {
             get: (t, p, r) => {
                 if (typeof(p) === 'symbol') throw new KinshipInvalidPropertyTypeError(p);
@@ -1057,7 +1057,7 @@ export class KinshipContext {
      */
     #duplicate(callback) {
         /** @type {KinshipContext<any, any>} */
-        const ctx = new KinshipContext(this.#adapter, this._table, this.#options);
+        const ctx = new KinshipContext(this.#adapter, this._tableName, this.#options);
         ctx._promise = this._promise.then(() => {
             ctx.#emitter = this.#emitter;
             ctx._constraints = this._constraints;
@@ -1208,7 +1208,7 @@ export class KinshipContext {
      * @param {string=} table Table to get the primary key from. (default: original table name)
      * @returns {any[]} A new array of records, where duplicates by primary key are filtered out. If no primary key is defined, then `records` is returned, untouched.
      */
-    #filterForUniqueRelatedRecords(records, table=this._table) {
+    #filterForUniqueRelatedRecords(records, table=this._tableName) {
         let pKeyInfo = this.#getPrimaryKeyInfo(table);
         if(records === undefined || pKeyInfo.length <= 0) return records;
         const pKeys = pKeyInfo.map(k => k.alias);
@@ -1225,36 +1225,41 @@ export class KinshipContext {
     }
 
     /**
-     * 
-     * @param {string?} table 
+     * Gets the names of all primary keys on the table, `tableName`.
+     * @param {string?} tableName 
+     * Name of the table. If null, then it will assume the main table this context represents. (default: null)
      * @returns {(keyof TTableModel & string)[]}
+     * Array of strings that are the name of the columns marked as a primary key.
      */
-    #getPrimaryKeys(table=null) {
-        return this.#getPrimaryKeyInfo(table).map(col => col.field);
+    #getPrimaryKeys(tableName=null) {
+        return this.#getPrimaryKeyInfo(tableName).map(col => col.field);
     }
 
     /**
-     * 
-     * @param {string?} table 
+     * Returns the full information about the primary key(s) of the table.
+     * @param {string?} tableName 
+     * Name of the table. If null, then it will assume the main table this context represents. (default: null)
      * @param {Record<string, Types.Relationship<TTableModel>>} relationships 
+     * All relationships to the table, `tableName`. (not to be recursed on.)
      * @returns {DescribedSchema[]}
+     * Array of field schemas that are a Primary Key on the table, `tableName`.
      */
-    #getPrimaryKeyInfo(table = null, relationships = this._relationships) {
+    #getPrimaryKeyInfo(tableName = null, relationships = this._relationships) {
         let key = [];
-        if (table == null || table === this._table) {
+        if (tableName == null || tableName === this._tableName) {
             key = Object.values(this._schema).filter(col => col.isPrimary);
         } else {
             // covers the case where `table` equals the table name as it was declared in related configurations.
-            if (table in relationships) {
-                return Object.entries(relationships[table].schema).filter(([k,v]) => v.isPrimary).map(([k,v]) => v);
+            if (tableName in relationships) {
+                return Object.entries(relationships[tableName].schema).filter(([k,v]) => v.isPrimary).map(([k,v]) => v);
             }
             // covers the case where `table` equals the actual table name as it appears in the database.
-            const filtered = Object.values(relationships).filter(o => o.table === table);
+            const filtered = Object.values(relationships).filter(o => o.table === tableName);
             if (filtered.length > 0) {
                 return Object.entries(filtered[0].schema).filter(([k,v]) => v.isPrimary).map(([k,v]) => v);
             } else {
                 for (const k in relationships) {
-                    key = this.#getPrimaryKeyInfo(table, relationships[k].relationships);
+                    key = this.#getPrimaryKeyInfo(tableName, relationships[k].relationships);
                     if(key !== undefined) {
                         return key;
                     }
@@ -1265,16 +1270,18 @@ export class KinshipContext {
     }
 
     /**
-     * 
-     * @param {string?} table 
+     * Returns the identity key that belongs to the table, `tableName`, if one exists.
+     * @param {string?} tableName 
+     * Name of the table. If null, then it will assume the main table this context represents. (default: null)
      * @returns {DescribedSchema=}
+     * Field schema that is an identity key on the table, `tableName`.
      */
-    #getIdentityKey(table=null) {
-        const keys = this.#getPrimaryKeyInfo(table);
+    #getIdentityKey(tableName=null) {
+        const keys = this.#getPrimaryKeyInfo(tableName);
         return keys.filter(k => k.isIdentity)[0];
     }
 
-    async #insert(records, table=this._table) {
+    async #insert(records, table=this._tableName) {
         const scope = this.#getScope();
         // get an array of all unique columns that are to be inserted.
         const columns = Array.from(new Set(records.flatMap(r => Object.keys(r).filter(k => isPrimitive(r[k])))));

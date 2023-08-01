@@ -1,42 +1,53 @@
 {
-  "name": "@kinshipjs/core",
-  "version": "0.0.1-development",
-  "repository": {
-    "type": "git",
-    "url": "https://github.com/kinshipjs/core"
-  },
-  "github": "https://github.com/kinshipjs/core",
-  "homepage": "https://github.com/kinshipjs/core",
-  "description": "Database agnostic, type-safe, and syntax-friendly ORM for NodeJS users.",
-  "main": "src/index.js",
-  "scripts": {
-    "build": "npm run build:source && npm run build:types",
-    "build:source": "tsup",
-    "build:types": "tsc",
-    "test": "echo \"Error: no test specified\" && exit 1"
-  },
-  "keywords": [
-    "myorm",
-    "mysql",
-    "sqlite",
-    "mssql",
-    "postgres",
-    "database",
-    "sql",
-    "efc",
-    "dotnet"
-  ],
-  "author": "Travis R. Zuleger",
-  "license": "MIT",
-  "devDependencies": {
-    "@types/node": "^20.4.5",
-    "semantic-release": "^21.0.7",
-    "tsup": "^7.1.0",
-    "typescript": "^5.1.6"
-  },
-  "exports": {
-    ".": "./src/index.js",
-    "./utils": "./src/utils.js",
-    "./errors": "./src/exceptions.js"
-  }
+    "name": "@kinshipjs/core",
+    "version": "0.0.1-development",
+    "repository": {
+        "type": "git",
+        "url": "https://github.com/kinshipjs/core"
+    },
+    "github": "https://github.com/kinshipjs/core",
+    "homepage": "https://github.com/kinshipjs/core",
+    "description": "Database agnostic, type-safe, and syntax-friendly ORM for Node.js users.",
+    "module": "./dist/index.mjs",
+    "types": "./dist/types/index.d.ts",
+    "scripts": {
+        "build": "npm run clean && npm run build:source && npm run build:types",
+        "clean": "del /S /Q .\\dist",
+        "build:source": "tsup",
+        "build:types": "tsc",
+        "test": "echo \"Error: no test specified\" && exit 1"
+    },
+    "keywords": [
+        "myorm",
+        "mysql",
+        "sqlite",
+        "mssql",
+        "postgres",
+        "database",
+        "sql",
+        "efc",
+        "dotnet"
+    ],
+    "author": "Travis R. Zuleger",
+    "license": "MIT",
+    "devDependencies": {
+        "@types/node": "^20.4.5",
+        "semantic-release": "^21.0.7",
+        "tsup": "^7.1.0",
+        "typescript": "^5.1.6"
+    },
+    "exports": {
+        ".": {
+            "import": "./dist/index.mjs",
+            "types": "./dist/types/index.d.ts"
+        },
+        "./utils": {
+            "import": "./dist/utils.mjs",
+            "types": "./dist/types/utils.d.ts"
+        },
+        "./errors": {
+            "import": "./dist/exceptions.mjs",
+            "types": "./dist/types/exceptions.d.ts"
+        }
+    }
 }

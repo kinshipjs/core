@@ -49,10 +49,16 @@
 
 /** FromClauseProperty
  * @typedef {object} FromClauseProperty
- * @prop {string} table
+ * @prop {string} realName
+ * Real name of the table  defined by the user in the database.
  * @prop {string} alias
- * @prop {SelectClauseProperty} sourceTableKey
- * @prop {SelectClauseProperty} targetTableKey
+ * Alias of the table, configured by Kinship.
+ * @prop {string=} programmaticName
+ * Name as the user has configured it.
+ * @prop {SelectClauseProperty} refererTableKey
+ * Information about the source table key.
+ * @prop {SelectClauseProperty} referenceTableKey
+ * Information about the reference table key.
  */
 
 /** AugmentModel

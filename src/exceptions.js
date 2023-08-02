@@ -1,6 +1,6 @@
 //@ts-check
 
-const KinshipGithubURL = `https://github.com/Kinship/Kinship`;
+const KinshipGithubURL = `https://github.com/kinshipjs/core`;
 
 export class KinshipAdapterError extends Error {
     constructor(message) {

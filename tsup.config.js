@@ -15,6 +15,6 @@ export default defineConfig({
     format: ['esm'],
     treeshake: true,
     clean: true,
-    minify: true,
+    minify: false,
     sourcemap: "inline"
 });

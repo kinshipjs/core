@@ -22,6 +22,10 @@ import { CommandListener } from "./events.js";
  */
 
 /**
+ * @typedef {Omit<Omit<Types.FromClauseProperty, "referenceTableKey">, "refererTableKey">} MainTableFromClauseProperty
+ */
+
+/**
  * @template {SqlTable} T 
  * Model representing the raw table in SQL.
  * @template {SqlTable} U 
@@ -29,8 +33,8 @@ import { CommandListener } from "./events.js";
  * @typedef {object} ContextState
  * @prop {Types.SelectClauseProperty[]} select
  * Columns to retrieve from the database.
- * @prop {[Omit<Omit<Types.FromClauseProperty, "targetTableKey">, "sourceTableKey">, ...Types.FromClauseProperty[]]} from
- * Tables to retrieve columns from in the database. (The first time will always be the main table of the context.)
+ * @prop {[MainTableFromClauseProperty, ...Types.FromClauseProperty[]]} from
+ * Tables to retrieve columns from in the database. (The first index will always be the main table of the context.)
  * @prop {Types.GroupByClauseProperty[]=} groupBy
  * Columns to group by.
  * @prop {Types.SortByClauseProperty[]=} sortBy
@@ -91,7 +95,12 @@ export class KinshipContext {
      * @type {((model: TTableModel) => void)=} */ #identification;
     /** Emitter for handling events across `Kinship`.
      * @type {CommandListener} */ #emitter;
-     
+    
+     /**
+      * @type {any}
+      */
+    #referenceModel = {};
+
     /**
      * Create a new `KinshipContext` to interact with a table in your database.
      * @param {KinshipAdapter<any>} adapter 
@@ -112,26 +121,60 @@ export class KinshipContext {
         this.#state = {
             select: [],
             from: [{
-                table,
+                realName: table,
                 alias: table
             }],
         }
-        this._constraints = [];
         this._relationships = {};
         this.#identification = undefined;
         this.#emitter = new CommandListener(table);
 
-        this._promise = this.#describe(table).then(async schema => {
+        this._promise = this.#describe(table).then(schema => {
             this.#state.select = Object.values(schema).map(f => ({
                 column: this.#adapter.syntax.escapeColumn(f.field),
                 table: this.#adapter.syntax.escapeTable(f.table),
                 alias: this.#adapter.syntax.escapeColumn(f.alias)
             }));
             this._schema = /** @type {{[K in keyof TTableModel]: DescribedSchema}} */ (Object.fromEntries(Object.entries(schema).map(([k,v]) => [v.field, v])));
-            const scope = this.#getScope();
-            const { cmd, args } = this.#adapter.serialize(scope).forConstraints(table);
-            this._constraints = await this.#adapter.execute(scope).forConstraints(cmd, args);
+
+            this.#referenceModel = { ...this.#referenceModel, ...Object.fromEntries(Object.entries(this._schema).map(([k,v]) => [v.alias, k])) };
         });
+    }
+
+    /**
+     * 
+     * @param {string=} tableName 
+     * @returns {Record<string, DescribedSchema>=}
+     */
+    #getSchema(tableName, relationships=this._relationships) {
+        if(!tableName || tableName === this._tableName) return this._schema;
+        if(tableName in relationships) return relationships[tableName].schema;
+        let schema = undefined;
+        for(const t in relationships) {
+            schema = this.#getSchema(tableName, relationships[t].relationships);
+            if(schema !== undefined) {
+                return schema;
+            }
+        }
+        return schema;
+    }
+
+    #referenceModelSerialize(records) {
+        if(records.length <= 0) return;
+        // extract data for each table.
+        const _records = {};
+        for(const table of this.#state.from) {
+            const schema = this.#getSchema(table.programmaticName);
+            if(!schema) throw new KinshipInternalError();
+            const columnsAliased = Object.values(schema).map(c => c.alias);
+            _records[table.programmaticName ?? "$"] = records.map(obj =>
+                Object.fromEntries(columnsAliased.map(key =>
+                    obj.hasOwnProperty(key) && [key, obj[key]]
+                ).filter(Boolean))
+            );
+        }
+        
+        console.log(_records);
     }
 
     /**
@@ -146,6 +189,7 @@ export class KinshipContext {
      */
     async select(modelCallback=undefined) {
         await this._promise;
+        console.log(JSON.stringify(this.#referenceModel, undefined, 2));
         if(modelCallback) {
             if(this.#state.groupBy) throw Error('Cannot choose columns when a GROUP BY clause is present.');
             const selects = /** @type {Types.MaybeArray<Types.SelectClauseProperty>}*/ (/** @type {unknown} */ (modelCallback(this.#newProxyForColumn())));
@@ -158,11 +202,11 @@ export class KinshipContext {
         if (this.#state.from.length > 1 && !this.#state.groupBy) {
             for (let i = 1; i < this.#state.from.length; ++i) {
                 const table = /** @type {import("./types.js").FromClauseProperty} */(this.#state.from[i]);
-                if (!stateOfSelectsMapped.includes(table.targetTableKey.alias)) {
-                    this.#state.select.push(table.targetTableKey);
+                if (!stateOfSelectsMapped.includes(table.referenceTableKey.alias)) {
+                    this.#state.select.push(table.referenceTableKey);
                 }
-                if (!stateOfSelectsMapped.includes(table.sourceTableKey.alias)) {
-                    this.#state.select.push(table.sourceTableKey);
+                if (!stateOfSelectsMapped.includes(table.refererTableKey.alias)) {
+                    this.#state.select.push(table.refererTableKey);
                 }
             }
         }
@@ -178,6 +222,7 @@ export class KinshipContext {
         });
         try {
             const results = await this.#adapter.execute(scope).forQuery(cmd, args);
+            this.#referenceModelSerialize(results);
             const serialized = /** @type {any} */ (this.#serialize(results));
             this.#emitter.emitQuerySuccess({
                 cmd, 
@@ -866,14 +911,15 @@ export class KinshipContext {
                     const fKey = relationships[p].foreign;
                     const relatedTableAlias = relationships[p].alias;
                     ctx.#state.from.push({
-                        table: ctx.#adapter.syntax.escapeTable(relationships[p].table),
-                        alias: ctx.#adapter.syntax.escapeTable(relatedTableAlias),
-                        sourceTableKey: {
+                        realName: relationships[p].table,
+                        alias: relatedTableAlias,
+                        programmaticName: p,
+                        refererTableKey: {
                             table: ctx.#adapter.syntax.escapeTable(table),
                             column: ctx.#adapter.syntax.escapeColumn(pKey.column),
                             alias: ctx.#adapter.syntax.escapeTable(pKey.alias)
                         },
-                        targetTableKey: {
+                        referenceTableKey: {
                             table: ctx.#adapter.syntax.escapeTable(relatedTableAlias),
                             column: ctx.#adapter.syntax.escapeColumn(fKey.column),
                             alias: ctx.#adapter.syntax.escapeColumn(fKey.alias)
@@ -935,11 +981,15 @@ export class KinshipContext {
      * String to help create the alias of the related table, which will be used in the command for table references.
      * @param {string} prependColumn
      * String to help create the alias of the related table's columns, which will be used in the command for column references and serialization after querying occurred.
-     * @param {Types.Relationship<TTableModel>?} parentRelationship
-     * The relationship information of the parent table.
      * @returns {this} Reference back to this context, so the user can further chain and configure more relationships.
      */
-    #configureRelationship(callback, type, table=this._tableName, relationships=this._relationships, prependTable=`${this._tableName}_`, prependColumn='', parentRelationship=null) {
+    #configureRelationship(callback, 
+        type, 
+        table=this._tableName, 
+        relationships=this._relationships, 
+        prependTable=`${this._tableName}_`, 
+        prependColumn='',
+        referenceModel=this.#referenceModel) {
         const withKeys = (codeTableName, realTableName, primaryKey, foreignKey) => {
             relationships[codeTableName] = {
                 type,
@@ -959,32 +1009,46 @@ export class KinshipContext {
                 relationships: {},
                 constraints: []
             };
-
+            referenceModel[codeTableName] = {};
             this._promise = this._promise.then(async () => {
                 const schema = await this.#describe(realTableName);
-                relationships[codeTableName].schema = /** @type {{[K in keyof TTableModel]: DescribedSchema}} */ (Object.fromEntries(Object.entries(schema).map(([k,v]) => [v.field, {
-                    ...v,
-                    table: relationships[codeTableName].alias,
-                    alias: `${prependColumn}${codeTableName}<|${v.field}`
-                }])));
-                
-                const scope = this.#getScope();
-                const { cmd, args } = this.#adapter.serialize(scope).forConstraints(table);
-                const constraints = await this.#adapter.execute(scope).forConstraints(cmd, args);
-                if(parentRelationship != null) {
-                    parentRelationship.constraints = [...parentRelationship.constraints, ...constraints];
-                } else {
-                    this._constraints = [...this._constraints, ...constraints];
+                relationships[codeTableName].schema = /** @type {{[K in keyof TTableModel]: DescribedSchema}} */ (
+                    Object.fromEntries(
+                        Object.entries(schema).map(([k,v]) => [v.field, {
+                            ...v,
+                            table: relationships[codeTableName].alias,
+                            alias: `${prependColumn}${codeTableName}<|${v.field}`
+                        }])
+                    )
+                );
+
+                // update the reference model.
+                for(const key in relationships[codeTableName].schema) {
+                    referenceModel[codeTableName][relationships[codeTableName].schema[key].alias] = key; 
                 }
             });
 
             const andThat = {
                 andThatHasOne: (callback) => {
-                    this.#configureRelationship(callback, "1:1", realTableName, relationships[codeTableName].relationships, `${prependTable}${codeTableName}_`, `${prependColumn}${codeTableName}<|`, relationships[codeTableName]);
+                    this.#configureRelationship(callback, 
+                        "1:1", 
+                        realTableName, 
+                        relationships[codeTableName].relationships, 
+                        `${prependTable}${codeTableName}_`, 
+                        `${prependColumn}${codeTableName}<|`, 
+                        referenceModel[codeTableName]
+                    );
                     return andThat;
                 },
                 andThatHasMany: (callback) => {
-                    this.#configureRelationship(callback, "1:n", realTableName, relationships[codeTableName].relationships, `${prependTable}${codeTableName}_`, `${prependColumn}${codeTableName}<|`, relationships[codeTableName]);
+                    this.#configureRelationship(callback, 
+                        "1:n", 
+                        realTableName, 
+                        relationships[codeTableName].relationships, 
+                        `${prependTable}${codeTableName}_`, 
+                        `${prependColumn}${codeTableName}<|`, 
+                        referenceModel[codeTableName]
+                    );
                     return andThat;
                 }
             }
@@ -1059,8 +1123,8 @@ export class KinshipContext {
         /** @type {KinshipContext<any, any>} */
         const ctx = new KinshipContext(this.#adapter, this._tableName, this.#options);
         ctx._promise = this._promise.then(() => {
+            ctx.#referenceModel = this.#referenceModel;
             ctx.#emitter = this.#emitter;
-            ctx._constraints = this._constraints;
             ctx._schema = this._schema;
             ctx._relationships = this._relationships;
             // state must be deep copied, as the state will be unique to each context created between each clause function
@@ -1400,7 +1464,7 @@ function isPrimitive(value) {
  * If undefined, then no `GROUP BY` clause was given.
  * @prop {Types.SelectClauseProperty[]} select
  * Array of objects where each object represents a column to select.
- * @prop {[Omit<Omit<Types.FromClauseProperty, "targetTableKey">, "sourceTableKey">, ...Types.FromClauseProperty[]]} from
+ * @prop {[MainTableFromClauseProperty, ...Types.FromClauseProperty[]]} from
  * Array of objects where each object represents a table to join on.  
  * The first object will represent the main table the context is connected to. 
  */
@@ -1488,8 +1552,6 @@ function isPrimitive(value) {
  * Handles serialization of a truncate command and its arguments so it appropriately works for the given database connector.
  * @prop {(table: string) => { cmd: string, args: Types.ExecutionArgument[] }} forDescribe
  * Handles serialization of a describe command and its arguments so it appropriately works for the given database connector.
- * @prop {(table: string) => { cmd: string, args: Types.ExecutionArgument[] }} forConstraints
- * Handles serialization of a command that gets information about a table's constraints to other tables.
  */
 
 /** ExecutionHandlers  
@@ -1519,8 +1581,6 @@ function isPrimitive(value) {
  * Handles execution of a describe command, given the command string and respective arguments for the command string.
  * This should return an object containing {@link DescribedSchema} objects. 
  * __NOTE: `table` and `alias` can be left as empty strings, as they are handled internally in Kinship anyways.__
- * @prop {(cmd: string, args: Types.ExecutionArgument[]) => Types.MaybePromise<Types.ConstraintData[]>} forConstraints
- * Handles execution of a command that retrieves constraint data about a table, given the command string and respective arguments for the command string.
  * This should return an array containing {@link Types.ConstraintData} objects.
  */
 

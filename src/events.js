@@ -83,81 +83,108 @@ export class CommandListener extends EventEmitter {
      * Adds a listener event to the Connection Pool associated with this context 
      * whenever a Query command is successfully executed on the pool.
      * @param {import('./index.js').SuccessHandler} callback Function that executes when a query command is executed on this context.
+     * @returns {{ unsubscribe: (() => CommandListener) }} Function for the user to use to unsubscribe to the event.
      */
     onQuerySuccess(callback) {
-        this.on(`query-success-${this.tableName}`, callback);
+        const event = `query-success-${this.tableName}`;
+        this.on(event, callback);
+        return { unsubscribe: () => this.removeListener(event, callback) };
     }
 
     /**
      * Adds a listener event to the Connection Pool associated with this context 
      * whenever a Query command is successfully executed on the pool.
      * @param {import('./index.js').FailHandler} callback Function that executes when a query command is executed on this context.
+     * @returns {{ unsubscribe: (() => CommandListener) }} Function for the user to use to unsubscribe to the event.
      */
     onQueryFail(callback) {
-        this.on(`query-fail-${this.tableName}`, callback);
+        const event = `query-fail-${this.tableName}`;
+        this.on(event, callback);
+        return { unsubscribe: () => this.removeListener(event, callback) };
     }
 
     /**
      * Adds a listener event to the Connection Pool associated with this context 
      * whenever a Query command is successfully executed on the pool.
      * @param {import('./index.js').SuccessHandler} callback Function that executes when a query command is executed on this context.
+     * @returns {{ unsubscribe: (() => CommandListener) }} Function for the user to use to unsubscribe to the event.
      */
     onInsertSuccess(callback) {
-        this.on(`insert-success-${this.tableName}`, callback);
+        const event = `insert-success-${this.tableName}`;
+        this.on(event, callback);
+        return { unsubscribe: () => this.removeListener(event, callback) };
     }
 
     /**
      * Adds a listener event to the Connection Pool associated with this context 
      * whenever a Query command is successfully executed on the pool.
      * @param {import('./index.js').FailHandler} callback Function that executes when a query command is executed on this context.
+     * @returns {{ unsubscribe: (() => CommandListener) }} Function for the user to use to unsubscribe to the event.
      */
     onInsertFail(callback) {
-        this.on(`insert-fail-${this.tableName}`, callback);
+        const event = `insert-fail-${this.tableName}`;
+        this.on(event, callback);
+        return { unsubscribe: () => this.removeListener(event, callback) };
     }
 
     /**
      * Adds a listener event to the Connection Pool associated with this context 
      * whenever a Query command is successfully executed on the pool.
      * @param {import('./index.js').SuccessHandler} callback Function that executes when a query command is executed on this context.
+     * @returns {{ unsubscribe: (() => CommandListener) }} Function for the user to use to unsubscribe to the event.
      */
     onUpdateSuccess(callback) {
-        this.on(`update-success-${this.tableName}`, callback);
+        const event = `update-success-${this.tableName}`;
+        this.on(event, callback);
+        return { unsubscribe: () => this.removeListener(event, callback) };
     }
 
     /**
      * Adds a listener event to the Connection Pool associated with this context 
      * whenever a Query command is successfully executed on the pool.
      * @param {import('./index.js').FailHandler} callback Function that executes when a query command is executed on this context.
+     * @returns {{ unsubscribe: (() => CommandListener) }} Function for the user to use to unsubscribe to the event.
      */
     onUpdateFail(callback) {
-        this.on(`update-fail-${this.tableName}`, callback);
+        const event = `update-fail-${this.tableName}`;
+        this.on(event, callback);
+        return { unsubscribe: () => this.removeListener(event, callback) };
     }
 
     /**
      * Adds a listener event to the Connection Pool associated with this context 
      * whenever a Query command is successfully executed on the pool.
      * @param {import('./index.js').SuccessHandler} callback Function that executes when a query command is executed on this context.
+     * @returns {{ unsubscribe: (() => CommandListener) }} Function for the user to use to unsubscribe to the event.
      */
     onDeleteSuccess(callback) {
-        this.on(`delete-success-${this.tableName}`, callback);
+        const event = `delete-success-${this.tableName}`;
+        this.on(event, callback);
+        return { unsubscribe: () => this.removeListener(event, callback) };
     }
 
     /**
      * Adds a listener event to the Connection Pool associated with this context 
      * whenever a Query command is successfully executed on the pool.
      * @param {import('./index.js').FailHandler} callback Function that executes when a query command is executed on this context.
+     * @returns {{ unsubscribe: (() => CommandListener) }} Function for the user to use to unsubscribe to the event.
      */
     onDeleteFail(callback) {
-        this.on(`delete-fail-${this.tableName}`, callback);
+        const event = `delete-fail-${this.tableName}`;
+        this.on(event, callback);
+        return { unsubscribe: () => this.removeListener(event, callback) };
     }
 
     /**
      * Adds a listener event to the Connection Pool associated with this context
      * whenever a Warning has been internally emitted.
      * @param {import('./index.js').WarningHandler} callback 
+     * @returns {{ unsubscribe: (() => CommandListener) }} Function for the user to use to unsubscribe to the event.
      */
     onWarning(callback) {
-        this.on(`warning-${this.tableName}`, callback);
+        const event = `warning-${this.tableName}`;
+        this.on(event, callback);
+        return { unsubscribe: () => this.removeListener(event, callback) };
     }
 
     /**

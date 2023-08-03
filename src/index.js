@@ -12,6 +12,7 @@ import { deepCopy } from "./util.js";
 import { Where, WhereBuilder } from "./where-builder.js";
 import * as Types from "./types.js";
 import { CommandListener } from "./events.js";
+import { setDefaultResultOrder } from "dns";
 
 /**
  * @typedef {object} KinshipOptions
@@ -78,8 +79,6 @@ export class KinshipContext {
      * @protected @type {string} */ _tableName;
     /** Object containing keys that are exact names of each column of the table and values containing information about the column's configuration.
      * @protected @type {{[K in keyof TTableModel]: DescribedSchema}} */ _schema;
-    /** List of constraints that are on this table.
-     * @protected @type {Types.ConstraintData[]} */ _constraints;
     /** All relationships between this context and other tables.
      * @protected @type {Record<string, Types.Relationship<TTableModel>>} */ _relationships;
     /** Promise used for handling asynchronous tasks in synchronous functions.
@@ -96,11 +95,6 @@ export class KinshipContext {
     /** Emitter for handling events across `Kinship`.
      * @type {CommandListener} */ #emitter;
     
-     /**
-      * @type {any}
-      */
-    #referenceModel = {};
-
     /**
      * Create a new `KinshipContext` to interact with a table in your database.
      * @param {KinshipAdapter<any>} adapter 
@@ -110,7 +104,7 @@ export class KinshipContext {
      * @param {KinshipOptions=} tableOptions 
      * Additional options that can be passed to enable/disable certain features.
      */
-    constructor(adapter, table, tableOptions={}) {
+    constructor(adapter, table, tableOptions={}, shouldDescribe=true) {
         this.#adapter = adapter;
         this._tableName = table;
         this.#options = {
@@ -128,54 +122,19 @@ export class KinshipContext {
         this._relationships = {};
         this.#identification = undefined;
         this.#emitter = new CommandListener(table);
-
-        this._promise = this.#describe(table).then(schema => {
-            this.#state.select = Object.values(schema).map(f => ({
-                column: this.#adapter.syntax.escapeColumn(f.field),
-                table: this.#adapter.syntax.escapeTable(f.table),
-                alias: this.#adapter.syntax.escapeColumn(f.alias)
-            }));
-            this._schema = /** @type {{[K in keyof TTableModel]: DescribedSchema}} */ (Object.fromEntries(Object.entries(schema).map(([k,v]) => [v.field, v])));
-
-            this.#referenceModel = { ...this.#referenceModel, ...Object.fromEntries(Object.entries(this._schema).map(([k,v]) => [v.alias, k])) };
-        });
-    }
-
-    /**
-     * 
-     * @param {string=} tableName 
-     * @returns {Record<string, DescribedSchema>=}
-     */
-    #getSchema(tableName, relationships=this._relationships) {
-        if(!tableName || tableName === this._tableName) return this._schema;
-        if(tableName in relationships) return relationships[tableName].schema;
-        let schema = undefined;
-        for(const t in relationships) {
-            schema = this.#getSchema(tableName, relationships[t].relationships);
-            if(schema !== undefined) {
-                return schema;
-            }
+        if(shouldDescribe) {
+            this._promise = (async () => {
+                console.log(`Describing ${table}`);
+                const schema = await this.#describe(table);
+                this._schema = /** @type {{[K in keyof TTableModel]: DescribedSchema}} */ (Object.fromEntries(Object.entries(schema).map(([k,v]) => [v.field, v])));
+                console.log(`Finished describing ${table}`);
+            })();
+        } else {
+            this._promise = Promise.resolve();
         }
-        return schema;
     }
 
-    #referenceModelSerialize(records) {
-        if(records.length <= 0) return;
-        // extract data for each table.
-        const _records = {};
-        for(const table of this.#state.from) {
-            const schema = this.#getSchema(table.programmaticName);
-            if(!schema) throw new KinshipInternalError();
-            const columnsAliased = Object.values(schema).map(c => c.alias);
-            _records[table.programmaticName ?? "$"] = records.map(obj =>
-                Object.fromEntries(columnsAliased.map(key =>
-                    obj.hasOwnProperty(key) && [key, obj[key]]
-                ).filter(Boolean))
-            );
-        }
-        
-        console.log(_records);
-    }
+    // TRANSACTION FUNCTIONS (functions that interact with the database through the adapter.)
 
     /**
      * Query rows from the table using all configured clauses on the state of this context.
@@ -189,7 +148,6 @@ export class KinshipContext {
      */
     async select(modelCallback=undefined) {
         await this._promise;
-        console.log(JSON.stringify(this.#referenceModel, undefined, 2));
         if(modelCallback) {
             if(this.#state.groupBy) throw Error('Cannot choose columns when a GROUP BY clause is present.');
             const selects = /** @type {Types.MaybeArray<Types.SelectClauseProperty>}*/ (/** @type {unknown} */ (modelCallback(this.#newProxyForColumn())));
@@ -222,8 +180,9 @@ export class KinshipContext {
         });
         try {
             const results = await this.#adapter.execute(scope).forQuery(cmd, args);
-            this.#referenceModelSerialize(results);
+            const bm = benchmark();
             const serialized = /** @type {any} */ (this.#serialize(results));
+            console.log(`Serialization took: ${(bm.end()).toFixed(3)} ms`);
             this.#emitter.emitQuerySuccess({
                 cmd, 
                 args,
@@ -627,6 +586,8 @@ export class KinshipContext {
         return schema;
     }
 
+    // INTERMEDIATE FUNCTIONS (functions that assist transaction functions)
+
     /**
      * Alias your table to a different return type.  
      * 
@@ -684,8 +645,6 @@ export class KinshipContext {
         });
 	}
 
-    map = this.alias;
-
     /**
      * Upon inserting, give a default value to a column if the respective property does not exist in the record(s).
      * @param {(model: TTableModel) => void} callback 
@@ -728,7 +687,7 @@ export class KinshipContext {
         return this;
     }
 
-    identify = this.default;
+    // CLAUSE FUNCTIONS (functions that influence the results of the transaction functions)
 
     /**
      * Limit the number of rows to retrieve.
@@ -742,8 +701,6 @@ export class KinshipContext {
         });
     }
 
-    limit = this.take;
-
     /**
      * Skip a number of rows before retrieving.
      * __WARNING: Depending on the adapter being used, you may need to use `.take()` in conjunction with this function.__
@@ -756,8 +713,6 @@ export class KinshipContext {
             ctx.#state.offset = n;
         });
     }
-
-    offset = this.skip;
 
     /**
      * Filter the query results given a column or columns' comparative qualities to some value or values.  
@@ -795,13 +750,6 @@ export class KinshipContext {
         });
     }
 
-    get not() {
-        this.#state.negated = true;
-        return this;
-    }
-
-    filter = this.where;
-
     /**
      * Specify the columns to sort on.  
      * __NOTE: columns used for sorting are done in the order that is specified.__
@@ -821,8 +769,6 @@ export class KinshipContext {
             ctx.#state.sortBy = /** @type {import("./types.js").SortByClauseProperty[]} */ (Array.isArray(sorts) ? sorts : [sorts]);
         });
     }
-
-    sort = this.sortBy;
 
     /**
      * Specify the columns to group the results on.
@@ -874,8 +820,6 @@ export class KinshipContext {
             ctx.#state.groupBy = ctx.#state.select.filter(col => !("aggregate" in col));
         });
     }
-
-    group = this.groupBy;
 
     /**
      * Specify the columns to select from all queries.
@@ -945,7 +889,7 @@ export class KinshipContext {
         });
     }
 
-    join = this.include;
+    // PREPARATIONAL FUNCTIONS (functions that prepare the context)
 
     /**
      * Configure a one-to-one relationship between the table represented in this context and related tables.
@@ -967,6 +911,290 @@ export class KinshipContext {
         return this.#configureRelationship(modelCallback, "1:n");
     }
 
+    // LOGGING FUNCTIONS (functions that can be used by the User to)
+
+    /**
+     * Specify a function to be called when a successful transactional event occurs on the context.
+     * @param {SuccessHandler} callback Callback to add to the event handler.
+     * @param {EventTypes=} eventType Type of event. If undefined, then all success events handle the callback (delete/insert/query/update)
+     * @returns {{ unsubscribe: (() => CommandListener) }} Function for the user to use to unsubscribe to the event.
+     */
+    handleSuccess(callback, eventType=undefined) {
+        switch(eventType) {
+            case EventTypes.DELETE: return this.#emitter.onDeleteSuccess(callback);
+            case EventTypes.INSERT: return this.#emitter.onInsertSuccess(callback);
+            case EventTypes.QUERY: return this.#emitter.onQuerySuccess(callback);
+            case EventTypes.UPDATE: return this.#emitter.onUpdateSuccess(callback);
+            default:
+                return {
+                    unsubscribe: () => {
+                        this.#emitter.onDeleteSuccess(callback).unsubscribe();
+                        this.#emitter.onInsertSuccess(callback).unsubscribe();
+                        this.#emitter.onQuerySuccess(callback).unsubscribe();
+                        return this.#emitter.onUpdateSuccess(callback).unsubscribe();
+                    }
+                }
+        }
+    }
+
+    /**
+     * 
+     * Specify a function to be called when a failed transactional event occurs on the context.
+     * @param {FailHandler} callback Callback to add to the event handler.
+     * @param {EventTypes=} eventType Type of event. If undefined, then all failure events handle the callback (delete/insert/query/update)
+     * @returns {{ unsubscribe: (() => CommandListener) }} Function for the user to use to unsubscribe to the event.
+     */
+    handleFail(callback, eventType=undefined) {
+        switch(eventType) {
+            case EventTypes.DELETE: return this.#emitter.onDeleteFail(callback);
+            case EventTypes.INSERT: return this.#emitter.onInsertFail(callback);
+            case EventTypes.QUERY: return this.#emitter.onQueryFail(callback);
+            case EventTypes.UPDATE: return this.#emitter.onUpdateFail(callback);
+            default:
+                return {
+                    unsubscribe: () => {
+                        this.#emitter.onDeleteFail(callback).unsubscribe();
+                        this.#emitter.onInsertFail(callback).unsubscribe();
+                        this.#emitter.onQueryFail(callback).unsubscribe();
+                        return this.#emitter.onUpdateFail(callback).unsubscribe();
+                    }
+                }
+        }
+    }
+
+    /**
+     * Specify a function to be called when a warning event occurs on the context.
+     * @param {WarningHandler} callback Callback to add to the event handler.
+     * @returns {{ unsubscribe: (() => CommandListener) }} Function for the user to use to unsubscribe to the event.
+     */
+    handleWarning(callback) {
+        return this.#emitter.onWarning(callback);
+    }
+
+    // SYNONYMS
+
+    map = this.alias;
+    identify = this.default;
+    limit = this.take;
+    offset = this.skip;
+    filter = this.where;
+    sort = this.sortBy;
+    group = this.groupBy;
+    join = this.include;
+    onSuccess = this.handleSuccess;
+    onFail = this.handleFail;
+    onWarning = this.handleWarning;
+
+    // GETTERS
+
+    /**
+     * Negate the next `.where()` clause function call.
+     */
+    get not() {
+        this.#state.negated = true;
+        return this;
+    }
+
+    /**
+     * Get the schema of the table. (this will return a promise.)
+     */
+    get schema() {
+        return this._promise.then(() => {
+            return this._schema;
+        });
+    }
+
+    // PRIVATE functions
+
+    /**
+     * Returns a function to be used in a JavaScript `<Array>.map()` function that recursively maps relating records into a single record.
+     * @param {any[]} records All records returned from a SQL query.
+     * @param {any} record Record that is being worked on (this is handled recursively)
+     * @param {string} prepend String to prepend onto the key for the original record's value.
+     * @returns {(record: any, n?: number) => TTableModel} Function for use in a JavaScript `<Array>.map()` function for use on an array of the records filtered to only uniques by main primary key.
+     */
+    #map(records, record=records[0], prepend="", relationships=this._relationships) {
+        return (r) => {
+            /** @type {any} */
+            const mapping = {};
+            const processedTables = new Set();
+            for(const key in record) {
+                if(key.startsWith("$")) {
+                    mapping[key] = r[key];
+                    continue;
+                }
+                const [table] = key.split('<|');
+                if(processedTables.has(table)) {
+                    continue;
+                }
+                processedTables.add(table);
+                if(table === key) {
+                    const actualKey = prepend + key;
+                    if (r[actualKey] != null || prepend == '') {
+                        mapping[key] = r[actualKey];
+                    }
+                    continue;
+                }
+
+                // alter `record` so keys at this leaf are removed, and all keys altered to prepare for the next leaf.
+                const entries = Object.keys(record)
+                    .filter(k => k.startsWith(table + '<|'))
+                    .map(k => [k.substring(table.length+2), {}]);
+                const map = this.#map(records, Object.fromEntries(entries), prepend + table + '<|', relationships[table].relationships);
+                if (relationships[table].type === "1:1" || this.#state.groupBy) {
+                    const _r = map(r);
+                    mapping[table] = Object.keys(_r).length <= 0 ? null : _r;
+                } else {
+                    const pKey = relationships[table].primary.alias;
+                    const fKey = relationships[table].foreign.alias;
+                    const uniquelyRelatedRecords = this.#filterForUniqueRelatedRecords(records.filter((_r) => r[pKey] === _r[fKey]), table);
+                    // recursively map related records in case there are any further nested relationships.
+                    mapping[table] = uniquelyRelatedRecords.map(map);
+                }
+            }
+    
+            return mapping;
+        }
+    }
+
+    /**
+     * Serializes a given array of records, `records`, into object notation that a User would expect.
+     * @param {any[]} records Records to filter.
+     * @returns {TTableModel[]} Records, serialized into objects that a user would expect.
+     */
+    #serialize(records) {
+        if (records.length <= 0 || this.#state.from.length === 1) return records;
+        const map = this.#map(records);
+        // group by is specific where each record returned will be its own result and will not be serialized like normal.
+        if(this.#state.groupBy) {
+            return records.map(map);
+        }
+        return this.#filterForUniqueRelatedRecords(records).map(map);
+    }
+
+    /**
+     * Filters out duplicates of records that have the same primary key.
+     * @param {any[]} records Records to filter.
+     * @param {string=} table Table to get the primary key from. (default: original table name)
+     * @returns {any[]} A new array of records, where duplicates by primary key are filtered out. If no primary key is defined, then `records` is returned, untouched.
+     */
+    #filterForUniqueRelatedRecords(records, table=this._tableName) {
+        let pKeyInfo = this.#getPrimaryKeyInfo(table);
+        if(records === undefined || pKeyInfo.length <= 0) return records;
+        const pKeys = pKeyInfo.map(k => k.alias);
+        const uniques = new Set();
+        return records.filter(r => {
+            // if(pKeys.filter(k => !(k in r)).length > 0) return true; // @TODO: This may need to be added back in ?
+            const fullKeyValue = pKeys.map(k => r[k]).join(',');
+            return !uniques.has(fullKeyValue) 
+                && !!uniques.add(fullKeyValue);
+        });
+    }
+
+    /**
+     * Gets the names of all primary keys on the table, `tableName`.
+     * @param {string?} tableName 
+     * Name of the table. If null, then it will assume the main table this context represents. (default: null)
+     * @returns {(keyof TTableModel & string)[]}
+     * Array of strings that are the name of the columns marked as a primary key.
+     */
+    #getPrimaryKeys(tableName=null) {
+        return this.#getPrimaryKeyInfo(tableName).map(col => col.field);
+    }
+
+    #primaryKeyCache = {};
+    /**
+     * Returns the full information about the primary key(s) of the table.
+     * @param {string?} tableName 
+     * Name of the table. If null, then it will assume the main table this context represents. (default: null)
+     * @param {Record<string, Types.Relationship<TTableModel>>} relationships 
+     * All relationships to the table, `tableName`. (not to be recursed on.)
+     * @returns {DescribedSchema[]}
+     * Array of field schemas that are a Primary Key on the table, `tableName`.
+     */
+    #getPrimaryKeyInfo(tableName = null, relationships = this._relationships) {
+        tableName = tableName ?? this._tableName;
+        if(tableName in this.#primaryKeyCache) {
+            return this.#primaryKeyCache[tableName];
+        }
+        let key = [];
+        if (tableName === this._tableName) {
+            key = Object.values(this._schema).filter(col => col.isPrimary);
+        } else {
+            // covers the case where `table` equals the table name as it was declared in related configurations.
+            if (tableName in relationships) {
+                return Object.entries(relationships[tableName].schema).filter(([k,v]) => v.isPrimary).map(([k,v]) => v);
+            }
+            // covers the case where `table` equals the actual table name as it appears in the database.
+            const filtered = Object.values(relationships).filter(o => o.table === tableName);
+            if (filtered.length > 0) {
+                return Object.entries(filtered[0].schema).filter(([k,v]) => v.isPrimary).map(([k,v]) => v);
+            } else {
+                for (const k in relationships) {
+                    key = this.#getPrimaryKeyInfo(tableName, relationships[k].relationships);
+                    if(key !== undefined) {
+                        return key;
+                    }
+                }
+            }
+        }
+        this.#primaryKeyCache[tableName] = key;
+        return key;
+    }
+
+    /**
+     * Returns the identity key that belongs to the table, `tableName`, if one exists.
+     * @param {string?} tableName 
+     * Name of the table. If null, then it will assume the main table this context represents. (default: null)
+     * @returns {DescribedSchema=}
+     * Field schema that is an identity key on the table, `tableName`.
+     */
+    #getIdentityKey(tableName=null) {
+        const keys = this.#getPrimaryKeyInfo(tableName);
+        return keys.filter(k => k.isIdentity)[0];
+    }
+
+    async #insert(records, table=this._tableName) {
+        const scope = this.#getScope();
+        // get an array of all unique columns that are to be inserted.
+        const columns = Array.from(new Set(records.flatMap(r => Object.keys(r).filter(k => isPrimitive(r[k])))));
+        // map each record so all of them have the same keys, where keys that are not present have a null value.
+        const values = records.map(r => Object.values({...Object.fromEntries(columns.map(c => [c,null])), ...Object.fromEntries(Object.entries(r).filter(([k,v]) => isPrimitive(v)))}))
+        const { cmd, args }  = this.#adapter.serialize(scope).forInsert({ table, columns, values });
+
+        try {
+            const results = await this.#adapter.execute(scope).forInsert(cmd, args);
+            this.#emitter.emitInsertSuccess({
+                cmd,
+                args,
+                results
+            });
+
+            return results;
+        } catch(err) {
+            this.#emitter.emitInsertFail({
+                cmd,
+                args,
+                err
+            });
+            throw err;
+        }
+    }
+
+    /**
+     * 
+     * @returns {AdapterScope}
+     */
+    #getScope() {
+        return { 
+            KinshipAdapterError: (msg) => new KinshipAdapterError(msg), 
+            Where,
+            ErrorTypes: {
+                NON_UNIQUE_KEY: () => new KinshipNonUniqueKeyError()
+            }
+        };
+    }
+    
     /**
      * Configures a one-to-one or one-to-many relationship (specified by `type`) within the current `table`.
      * @param {Types.HasOneCallback<TTableModel>|Types.HasManyCallback<TTableModel>} callback
@@ -989,7 +1217,7 @@ export class KinshipContext {
         relationships=this._relationships, 
         prependTable=`${this._tableName}_`, 
         prependColumn='',
-        referenceModel=this.#referenceModel) {
+    ) {
         const withKeys = (codeTableName, realTableName, primaryKey, foreignKey) => {
             relationships[codeTableName] = {
                 type,
@@ -1009,8 +1237,9 @@ export class KinshipContext {
                 relationships: {},
                 constraints: []
             };
-            referenceModel[codeTableName] = {};
-            this._promise = this._promise.then(async () => {
+            this._promise = (async () => {
+                await this._promise;
+                console.log(`Configuring relationship on ${table} with ${realTableName}.`);
                 const schema = await this.#describe(realTableName);
                 relationships[codeTableName].schema = /** @type {{[K in keyof TTableModel]: DescribedSchema}} */ (
                     Object.fromEntries(
@@ -1021,12 +1250,8 @@ export class KinshipContext {
                         }])
                     )
                 );
-
-                // update the reference model.
-                for(const key in relationships[codeTableName].schema) {
-                    referenceModel[codeTableName][relationships[codeTableName].schema[key].alias] = key; 
-                }
-            });
+                console.log(`Finished configuring relationship on ${table} with ${realTableName}.`);
+            })();
 
             const andThat = {
                 andThatHasOne: (callback) => {
@@ -1035,8 +1260,7 @@ export class KinshipContext {
                         realTableName, 
                         relationships[codeTableName].relationships, 
                         `${prependTable}${codeTableName}_`, 
-                        `${prependColumn}${codeTableName}<|`, 
-                        referenceModel[codeTableName]
+                        `${prependColumn}${codeTableName}<|`
                     );
                     return andThat;
                 },
@@ -1046,8 +1270,7 @@ export class KinshipContext {
                         realTableName, 
                         relationships[codeTableName].relationships, 
                         `${prependTable}${codeTableName}_`, 
-                        `${prependColumn}${codeTableName}<|`, 
-                        referenceModel[codeTableName]
+                        `${prependColumn}${codeTableName}<|`
                     );
                     return andThat;
                 }
@@ -1121,9 +1344,10 @@ export class KinshipContext {
      */
     #duplicate(callback) {
         /** @type {KinshipContext<any, any>} */
-        const ctx = new KinshipContext(this.#adapter, this._tableName, this.#options);
-        ctx._promise = this._promise.then(() => {
-            ctx.#referenceModel = this.#referenceModel;
+        const ctx = new KinshipContext(this.#adapter, this._tableName, this.#options, false);
+        ctx._promise = (async () => {
+            console.log(`Duplicating context.`);
+            await this._promise;
             ctx.#emitter = this.#emitter;
             ctx._schema = this._schema;
             ctx._relationships = this._relationships;
@@ -1133,7 +1357,8 @@ export class KinshipContext {
             ctx.#state.where = this.#state.where?._clone();
             callback(ctx);
             ctx._schema = this._schema;
-        });
+            console.log(`Finished duplicating context.`);
+        })();
         return ctx;
     }
 
@@ -1153,251 +1378,46 @@ export class KinshipContext {
         }
         return table in this._relationships;
     }
-
-    /**
-     * 
-     * @param {SuccessHandler} callback 
-     * @param {EventTypes=} eventType 
-     */
-    handleSuccess(callback, eventType=undefined) {
-        switch(eventType) {
-            case EventTypes.DELETE: this.#emitter.onDeleteSuccess(callback); break;
-            case EventTypes.INSERT: this.#emitter.onInsertSuccess(callback); break;
-            case EventTypes.QUERY: this.#emitter.onQuerySuccess(callback); break;
-            case EventTypes.UPDATE: this.#emitter.onUpdateSuccess(callback); break;
-            default:
-                this.#emitter.onDeleteSuccess(callback);
-                this.#emitter.onInsertSuccess(callback);
-                this.#emitter.onQuerySuccess(callback);
-                this.#emitter.onUpdateSuccess(callback);
-        }
-        return this;
-    }
-
-    onSuccess = this.handleSuccess;
-
-    /**
-     * 
-     * @param {FailHandler} callback 
-     * @param {EventTypes=} eventType 
-     */
-    handleFail(callback, eventType=undefined) {
-        switch(eventType) {
-            case EventTypes.DELETE: this.#emitter.onDeleteFail(callback); break;
-            case EventTypes.INSERT: this.#emitter.onInsertFail(callback); break;
-            case EventTypes.QUERY: this.#emitter.onQueryFail(callback); break;
-            case EventTypes.UPDATE: this.#emitter.onUpdateFail(callback); break;
-            default:
-                this.#emitter.onDeleteFail(callback);
-                this.#emitter.onInsertFail(callback);
-                this.#emitter.onQueryFail(callback);
-                this.#emitter.onUpdateFail(callback);
-        }
-        return this;
-    }
-
-    onFail = this.handleFail;
-
-    /**
-     * 
-     * @param {WarningHandler} callback 
-     */
-    handleWarning(callback) {
-        this.#emitter.onWarning(callback);
-        return this;
-    }
-
-    onWarning = this.handleWarning;
-
-    /**
-     * Returns a function to be used in a JavaScript `<Array>.map()` function that recursively maps relating records into a single record.
-     * @param {any[]} records All records returned from a SQL query.
-     * @param {any} record Record that is being worked on (this is handled recursively)
-     * @param {string} prepend String to prepend onto the key for the original record's value.
-     * @returns {(record: any, n?: number) => TTableModel} Function for use in a JavaScript `<Array>.map()` function for use on an array of the records filtered to only uniques by main primary key.
-     */
-    #map(records, record=records[0], prepend="", relationships=this._relationships) {
-        return (r) => {
-            /** @type {any} */
-            const mapping = {};
-            const processedTables = new Set();
-            for(const key in record) {
-                if(key.startsWith("$")) {
-                    mapping[key] = r[key];
-                    continue;
-                }
-                const [table] = key.split('<|');
-                if(processedTables.has(table)) continue;
-                processedTables.add(table);
-                if(table === key) {
-                    if (r[`${prepend}${key}`] != null || prepend == '') {
-                        mapping[key] = r[`${prepend}${key}`];
-                    }
-                } else {
-                    const entries = Object.keys(record).map(k => k.startsWith(`${table}<|`) ? [k.replace(`${table}<|`, ""), {}] : [null, null]).filter(([k]) => k != null);
-                    const map = this.#map(records, Object.fromEntries(entries), `${prepend}${table}<|`, relationships[table].relationships);
-                    if (relationships[table].type === "1:1" || this.#state.groupBy) {
-                        const _r = map(r);
-                        mapping[table] = Object.keys(_r).length <= 0 ? null : _r;
-                    } else {
-                        const pKey = relationships[table].primary.alias;
-                        const fKey = relationships[table].foreign.alias;
-                        mapping[table] = this.#filterForUniqueRelatedRecords(records.filter(_r => r[pKey] === _r[fKey]), table).map(map);
-                    }
-                }
-            }
-    
-            return mapping;
-        }
-    }
-
-    /**
-     * Serializes a given array of records, `records`, into object notation that a User would expect.
-     * @param {any[]} records Records to filter.
-     * @returns {TTableModel[]} Records, serialized into objects that a user would expect.
-     */
-    #serialize(records) {
-        if (records.length <= 0) return records;
-        const map = this.#map(records);
-        // group by is specific where each record returned will be its own result and will not be serialized like normal.
-        if(this.#state.groupBy) {
-            return records.map(map);
-        }
-        return this.#filterForUniqueRelatedRecords(records).map(map);
-    }
-
-    /**
-     * Filters out duplicates of records that have the same primary key.
-     * @param {any[]} records Records to filter.
-     * @param {string=} table Table to get the primary key from. (default: original table name)
-     * @returns {any[]} A new array of records, where duplicates by primary key are filtered out. If no primary key is defined, then `records` is returned, untouched.
-     */
-    #filterForUniqueRelatedRecords(records, table=this._tableName) {
-        let pKeyInfo = this.#getPrimaryKeyInfo(table);
-        if(records === undefined || pKeyInfo.length <= 0) return records;
-        const pKeys = pKeyInfo.map(k => k.alias);
-        const uniques = new Set();
-        return records.filter(r => {
-            if(pKeys.filter(k => !(k in r)).length > 0) return true;
-            const fullKeyValue = pKeys.map(k => r[k]).join(',');
-            if(uniques.has(fullKeyValue)) {
-                return false;
-            }
-            uniques.add(fullKeyValue);
-            return true;
-        });
-    }
-
-    /**
-     * Gets the names of all primary keys on the table, `tableName`.
-     * @param {string?} tableName 
-     * Name of the table. If null, then it will assume the main table this context represents. (default: null)
-     * @returns {(keyof TTableModel & string)[]}
-     * Array of strings that are the name of the columns marked as a primary key.
-     */
-    #getPrimaryKeys(tableName=null) {
-        return this.#getPrimaryKeyInfo(tableName).map(col => col.field);
-    }
-
-    /**
-     * Returns the full information about the primary key(s) of the table.
-     * @param {string?} tableName 
-     * Name of the table. If null, then it will assume the main table this context represents. (default: null)
-     * @param {Record<string, Types.Relationship<TTableModel>>} relationships 
-     * All relationships to the table, `tableName`. (not to be recursed on.)
-     * @returns {DescribedSchema[]}
-     * Array of field schemas that are a Primary Key on the table, `tableName`.
-     */
-    #getPrimaryKeyInfo(tableName = null, relationships = this._relationships) {
-        let key = [];
-        if (tableName == null || tableName === this._tableName) {
-            key = Object.values(this._schema).filter(col => col.isPrimary);
-        } else {
-            // covers the case where `table` equals the table name as it was declared in related configurations.
-            if (tableName in relationships) {
-                return Object.entries(relationships[tableName].schema).filter(([k,v]) => v.isPrimary).map(([k,v]) => v);
-            }
-            // covers the case where `table` equals the actual table name as it appears in the database.
-            const filtered = Object.values(relationships).filter(o => o.table === tableName);
-            if (filtered.length > 0) {
-                return Object.entries(filtered[0].schema).filter(([k,v]) => v.isPrimary).map(([k,v]) => v);
-            } else {
-                for (const k in relationships) {
-                    key = this.#getPrimaryKeyInfo(tableName, relationships[k].relationships);
-                    if(key !== undefined) {
-                        return key;
-                    }
-                }
-            }
-        }
-        return key;
-    }
-
-    /**
-     * Returns the identity key that belongs to the table, `tableName`, if one exists.
-     * @param {string?} tableName 
-     * Name of the table. If null, then it will assume the main table this context represents. (default: null)
-     * @returns {DescribedSchema=}
-     * Field schema that is an identity key on the table, `tableName`.
-     */
-    #getIdentityKey(tableName=null) {
-        const keys = this.#getPrimaryKeyInfo(tableName);
-        return keys.filter(k => k.isIdentity)[0];
-    }
-
-    async #insert(records, table=this._tableName) {
-        const scope = this.#getScope();
-        // get an array of all unique columns that are to be inserted.
-        const columns = Array.from(new Set(records.flatMap(r => Object.keys(r).filter(k => isPrimitive(r[k])))));
-        // map each record so all of them have the same keys, where keys that are not present have a null value.
-        const values = records.map(r => Object.values({...Object.fromEntries(columns.map(c => [c,null])), ...Object.fromEntries(Object.entries(r).filter(([k,v]) => isPrimitive(v)))}))
-        const { cmd, args }  = this.#adapter.serialize(scope).forInsert({ table, columns, values });
-
-        try {
-            const results = await this.#adapter.execute(scope).forInsert(cmd, args);
-            this.#emitter.emitInsertSuccess({
-                cmd,
-                args,
-                results
-            });
-
-            return results;
-        } catch(err) {
-            this.#emitter.emitInsertFail({
-                cmd,
-                args,
-                err
-            });
-            throw err;
-        }
-    }
-
-    /**
-     * 
-     * @returns {AdapterScope}
-     */
-    #getScope() {
-        return { 
-            KinshipAdapterError: (msg) => new KinshipAdapterError(msg), 
-            Where,
-            ErrorTypes: {
-                NON_UNIQUE_KEY: () => new KinshipNonUniqueKeyError()
-            }
-        };
-    }
-
-    /**
-     * Get the schema of the table. (this will return a promise.)
-     */
-    get schema() {
-        return this._promise.then(() => {
-            return this._schema;
-        })
-    }
 }
 
 function isPrimitive(value) {
     return value == null || typeof value !== "object" || value instanceof Date;
+}
+
+/**
+ * @overload
+ * @returns {{ end: () => number }}
+ * 
+ * @overload
+ * @param {() => void} callback
+ * @returns {number}
+ * 
+ * @param {(() => void)=} callback
+ * @returns {{ end: (unit?: "ms"|"sec"|"mu") => number }|number}
+ */
+function benchmark(callback=undefined) {
+    function microsecondsNow() {
+        const hrTime = process.hrtime();
+        return hrTime[0] * 1000000 + hrTime[1] / 1000;
+    }
+    if(callback) {
+        const start = microsecondsNow();
+        callback();
+        const end = microsecondsNow();
+        return end-start;
+    }
+    const start = microsecondsNow();
+    return {
+        end: (unit="ms") => {
+            const end = microsecondsNow();
+            switch(unit) {
+                case "ms": return (end-start)/1000;
+                case "mu": return (end-start);
+                case "sec": return (end-start) / 1000 / 1000;
+                default: return end-start;
+            }
+        }
+    }
 }
 
 // Exported types

@@ -8,6 +8,7 @@ import * as Types from './types.js';
  * @template {Types.SqlTable} TTableModel
  * @template {keyof TOriginalModel} TColumn
  * @template {Types.SqlTable} [TOriginalModel=TTableModel]
+ * @param {import('./index.js').KinshipAdapter<any>} adapter
  * @param {TColumn} column
  * @param {string} table
  * @param {Types.WhereChain} chain
@@ -15,8 +16,8 @@ import * as Types from './types.js';
  * @param {Record<string, import('./index.js').DescribedSchema>} schema
  * @returns {WhereBuilder<TTableModel, TColumn, TOriginalModel>}
  */
-export function Where(column, table, relationships, schema, chain="WHERE") {
-    return new WhereBuilder(column, table, relationships, schema, chain);
+export function Where(adapter, column, table, relationships, schema, chain="WHERE") {
+    return new WhereBuilder(adapter, column, table, relationships, schema, chain);
 }
 
 /**
@@ -32,16 +33,19 @@ export class WhereBuilder {
     /** @type {any} */ #relationships;
     /** @type {boolean} */ #negated;
     /** @type {Record<string, import('./index.js').DescribedSchema>} */ #schema;
+    /** @type {import('./index.js').KinshipAdapter<any>} */ #adapter;
     
 
     /**
+     * @param {import('./index.js').KinshipAdapter<any>} adapter
      * @param {keyof TOriginalModel} column 
      * @param {string} table
      * @param {any} relationships
      * @param {Record<string, import('./index.js').DescribedSchema>} schema
      * @param {Types.WhereChain} chain
      */
-    constructor(column, table, relationships, schema, chain="WHERE") {
+    constructor(adapter, column, table, relationships, schema, chain="WHERE") {
+        this.#adapter = adapter;
         // @ts-ignore
         this.#current = { chain, property: column, table }
         this.#table = table;
@@ -69,7 +73,7 @@ export class WhereBuilder {
      * @type {Types.Condition<TOriginalModel, TColumn>} 
      */
     equals(value) {
-        this.#current.value = value;
+        this.#current.value = /** @type {any} */ (value) instanceof Date ? this.#adapter.syntax.dateString(value) : value;
         this.#current.operator = "=";
         this.#insert();
         return this.#chain();
@@ -80,7 +84,7 @@ export class WhereBuilder {
      * @type {Types.Condition<TOriginalModel, TColumn>} 
      */
     notEquals(value) {
-        this.#current.value = value;
+        this.#current.value = /** @type {any} */ (value) instanceof Date ? this.#adapter.syntax.dateString(value) : value;
         this.#current.operator = "<>";
         this.#insert();
         return this.#chain();
@@ -91,7 +95,7 @@ export class WhereBuilder {
      * @type {Types.Condition<TOriginalModel, TColumn>} 
      */
     lessThan(value) {
-        this.#current.value = value;
+        this.#current.value = /** @type {any} */ (value) instanceof Date ? this.#adapter.syntax.dateString(value) : value;
         this.#current.operator = "<";
         this.#insert();
         return this.#chain();
@@ -102,7 +106,7 @@ export class WhereBuilder {
      * @type {Types.Condition<TOriginalModel, TColumn>} 
      */
     lessThanOrEqualTo(value) {
-        this.#current.value = value;
+        this.#current.value = /** @type {any} */ (value) instanceof Date ? this.#adapter.syntax.dateString(value) : value;
         this.#current.operator = "<=";
         this.#insert();
         return this.#chain();
@@ -113,7 +117,7 @@ export class WhereBuilder {
      * @type {Types.Condition<TOriginalModel, TColumn>} 
      */
     greaterThan(value) {
-        this.#current.value = value;
+        this.#current.value = /** @type {any} */ (value) instanceof Date ? this.#adapter.syntax.dateString(value) : value;
         this.#current.operator = ">";
         this.#insert();
         return this.#chain();
@@ -124,7 +128,7 @@ export class WhereBuilder {
      * @type {Types.Condition<TOriginalModel, TColumn>} 
      */
     greaterThanOrEqualTo(value) {
-        this.#current.value = value;
+        this.#current.value = /** @type {any} */ (value) instanceof Date ? this.#adapter.syntax.dateString(value) : value;
         this.#current.operator = ">=";
         this.#insert();
         return this.#chain();
@@ -141,7 +145,10 @@ export class WhereBuilder {
     between(value1, value2) {
         if(typeof value1 !== "number") throw new KinshipInvalidPropertyTypeError(value1, "number");
         if(typeof value2 !== "number") throw new KinshipInvalidPropertyTypeError(value2, "number");
-        this.#current.value = [value1, value2];
+        this.#current.value = [
+            /** @type {any} */ (value1) instanceof Date ? this.#adapter.syntax.dateString(value1) : value1,
+            /** @type {any} */ (value2) instanceof Date ? this.#adapter.syntax.dateString(value2) : value2
+        ];
         this.#current.operator = "BETWEEN";
         this.#insert();
         return this.#chain();
@@ -154,7 +161,7 @@ export class WhereBuilder {
      * @returns {Types.Chain<TOriginalModel>} A group of methods for optional chaining of conditions.
      */
     in(values) {
-        this.#current.value = values;
+        this.#current.value = values.map(value => /** @type {any} */ (value) instanceof Date ? this.#adapter.syntax.dateString(value) : value);
         this.#current.operator = "IN";
         this.#insert();
         return this.#chain();
@@ -218,7 +225,7 @@ export class WhereBuilder {
      * @returns {WhereBuilder<any,any>}
      */
     _clone() {
-        const where = Where(this.#current.property, this.#table, this.#relationships, this.#schema, this.#current.chain);
+        const where = Where(this.#adapter, this.#current.property, this.#table, this.#relationships, this.#schema, this.#current.chain);
         where._conditions = this._conditions;
         return where;
     }
@@ -237,7 +244,7 @@ export class WhereBuilder {
                             return newProxy(relationships[p].alias, relationships[p].relationships, relationships[p].schema, relationships[p].table);
                         }
                         if (!(p in schema)) throw new KinshipColumnDoesNotExistError(p, realTableName);
-                        return Where(p, table, this.#relationships, this.#schema, "AND");
+                        return Where(this.#adapter, p, table, this.#relationships, this.#schema, "AND");
                     }
                 });
                 const wb = modelCallback(newProxy(this.#table));
@@ -253,7 +260,7 @@ export class WhereBuilder {
                             return newProxy(relationships[p].alias, relationships[p].relationships, relationships[p].schema, relationships[p].table);
                         }
                         if (!(p in schema)) throw new KinshipColumnDoesNotExistError(p, realTableName);
-                        return Where(p, table, this.#relationships, this.#schema, "OR");
+                        return Where(this.#adapter, p, table, this.#relationships, this.#schema, "OR");
                     }
                 });
                 const wb = modelCallback(newProxy());

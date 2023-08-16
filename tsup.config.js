@@ -1,10 +1,5 @@
 import { defineConfig } from 'tsup';
 export default defineConfig({
-    entryPoints: [
-        'src/index.js',
-        'src/exceptions.js',
-        'src/utils.js',
-    ],
     entry: {
         index: "src/index.js",
         errors: "src/exceptions.js",

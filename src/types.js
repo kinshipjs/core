@@ -142,16 +142,16 @@
  * Transforms a string or union thereof that resembles some finitely nested properties inside of `TOriginal` model 
  * into its actual representation as shown in `TOriginal`. 
  * @template {SqlTable} TOriginal
- * @template {string|symbol|number} TSerializedKey
- * @typedef {Contains<TSerializedKey, "_"> extends never 
- *   ? TSerializedKey extends keyof TOriginal 
- *     ? {[K in TSerializedKey]: TOriginal[TSerializedKey]} 
+ * @template {string|symbol|number} TSerializedKeyTypes
+ * @typedef {Contains<TSerializedKeyTypes, "_"> extends never 
+ *   ? TSerializedKeyTypes extends keyof TOriginal 
+ *     ? {[K in TSerializedKeyTypes]: TOriginal[TSerializedKeyTypes]} 
  *     : never
- *   : {[K in Car<TSerializedKey> as K extends keyof TOriginal ? K : never]: K extends keyof TOriginal 
+ *   : {[K in Car<TSerializedKeyTypes> as K extends keyof TOriginal ? K : never]: K extends keyof TOriginal 
  *     ? TOriginal[K] extends (infer R extends SqlTable)[]|undefined
- *       ? ReconstructObject<R, Cdr<TSerializedKey>> 
+ *       ? ReconstructObject<R, Cdr<TSerializedKeyTypes>>[] 
  *       : TOriginal[K] extends SqlTable|undefined
- *         ? ReconstructObject<Exclude<TOriginal[K], undefined>, Cdr<TSerializedKey>> 
+ *         ? ReconstructObject<Exclude<TOriginal[K], undefined>, Cdr<TSerializedKeyTypes>> 
  *         : TOriginal[K]
  *     : never} 
  * } ReconstructObject
@@ -553,7 +553,14 @@
 /**
  * @template {SqlTable} TTableModel
  * @template {SqlTable} [TOriginalModel=TTableModel]
- * @typedef {{[K in keyof Required<TTableModel>]: TTableModel[K] extends (infer T extends SqlTable)[]|undefined ? ChainObject<Required<T>, TOriginalModel> : TTableModel[K] extends SqlTable|undefined ? ChainObject<Exclude<TTableModel[K], undefined>, TOriginalModel> : import('./where-builder.js').WhereBuilder<TOriginalModel, K extends symbol ? never : K>}} ChainObject
+ * @typedef {{[K in keyof Required<TTableModel>]: 
+ *      TTableModel[K] extends SQLPrimitive|undefined 
+ *          ? import('./where-builder.js').WhereBuilder<TOriginalModel, K & string>
+ *          : TTableModel[K] extends (infer T extends SqlTable)[]|undefined 
+    *          ? ChainObject<Required<T>, TOriginalModel> 
+    *          : TTableModel[K] extends SqlTable|undefined 
+    *              ? ChainObject<Exclude<TTableModel[K], undefined>, TOriginalModel> 
+    *              : never}} ChainObject
  */
 
 /**

@@ -91,7 +91,9 @@ export class KinshipContext {
     /** Options passed in by the user that determine certain behaviors in `Kinship`.
      * @type {KinshipOptions} */ #options;
     /** Function used to identify a default value for unspecified columns.
-     * @type {((model: TTableModel) => void)=} */ #identification;
+     * @type {(model: TTableModel, args: any) => import("./types.js").MaybePromise<void>} */ #identification;
+    /** Function used to identify a default value for unspecified columns.
+     * @type {() => import("./types.js").MaybePromise<any>} */ #middleware;
     /** Emitter for handling events across `Kinship`.
      * @type {CommandListener} */ #emitter;
     
@@ -120,14 +122,19 @@ export class KinshipContext {
             }],
         }
         this._relationships = {};
-        this.#identification = undefined;
+        this.#identification = () => {};
+        this.#middleware = () => ({});
         this.#emitter = new CommandListener(table);
         if(shouldDescribe) {
             this._promise = (async () => {
-                console.log(`Describing ${table}`);
                 const schema = await this.#describe(table);
                 this._schema = /** @type {{[K in keyof TTableModel]: DescribedSchema}} */ (Object.fromEntries(Object.entries(schema).map(([k,v]) => [v.field, v])));
-                console.log(`Finished describing ${table}`);
+                this.#state.select = Object.values(this._schema).map(v => ({
+                    table: v.table,
+                    alias: this.#adapter.syntax.escapeColumn(v.field),
+                    column: v.field,
+                    aliasUnescaped: v.field
+                }))
             })();
         } else {
             this._promise = Promise.resolve();
@@ -180,9 +187,7 @@ export class KinshipContext {
         });
         try {
             const results = await this.#adapter.execute(scope).forQuery(cmd, args);
-            const bm = benchmark();
             const serialized = /** @type {any} */ (this.#serialize(results));
-            console.log(`Serialization took: ${(bm.end()).toFixed(3)} ms`);
             this.#emitter.emitQuerySuccess({
                 cmd, 
                 args,
@@ -248,30 +253,34 @@ export class KinshipContext {
         records = Array.isArray(records) ? records : [records];
         if (records.length <= 0) return [];
         // Map the records back to their original Table representation, just so Kinship can correctly work with it.
-        if(this.#identification !== undefined) {
-            // identify all columns that do not exist on each record with the user's identification function.
-            const newProxy = (r, table=this._tableName, relationships=this._relationships, schema=this._schema) => new Proxy(r, {
-                get: (t,p,r) => {
-                    if (typeof p === "symbol") throw new KinshipInvalidPropertyTypeError(p);
-                    if (p in relationships) {
-                        return newProxy(t[p], relationships[p].table, relationships[p].relationships, relationships[p].schema);
-                    }
-                    if (!(p in schema)) throw new KinshipColumnDoesNotExistError(p, table);
-                    return t[p];
-                },
-                set: (t,p,v) => {
-                    if (typeof p === "symbol") throw new KinshipInvalidPropertyTypeError(p);
-                    if (!(p in this._schema)) throw new KinshipColumnDoesNotExistError(p, table);
-                    if(!this._schema[p].isIdentity && !(p in t)) {
-                        //@ts-ignore `p` will belong in `t`, as it is pre-checked to see if p is in schema.
-                        t[p] = v;
-                        return true;
-                    }
+        
+        // identify all columns that do not exist on each record with the user's identification function.
+        const newProxy = (r, table=this._tableName, relationships=this._relationships, schema=this._schema) => new Proxy(r, {
+            get: (t,p,r) => {
+                if (typeof p === "symbol") throw new KinshipInvalidPropertyTypeError(p);
+                if (p in relationships) {
+                    return newProxy(t[p], relationships[p].table, relationships[p].relationships, relationships[p].schema);
+                }
+                if (!(p in schema)) throw new KinshipColumnDoesNotExistError(p, table);
+                return t[p];
+            },
+            set: (t,p,v) => {
+                if (typeof p === "symbol") throw new KinshipInvalidPropertyTypeError(p);
+                if (!(p in this._schema)) throw new KinshipColumnDoesNotExistError(p, table);
+                if(!this._schema[p].isIdentity && !(p in t)) {
+                    //@ts-ignore `p` will belong in `t`, as it is pre-checked to see if p is in schema.
+                    t[p] = v;
                     return true;
                 }
-            });
-            // set user specified default values
-            records.forEach(r => this.#identification?.call(this, newProxy(r)));
+                return true;
+            }
+        });
+        // set user specified default values
+        const args = await this.#middleware();
+        for(let i = 0; i < records.length; ++i) {
+            args.$$itemNumber = i;
+            const r = records[i];
+            this.#identification(r, args);
         }
         // set database specified default values (this is mapped as we also remove keys that should not exist during the insert.)
         const recs = records.map(r => {
@@ -304,7 +313,7 @@ export class KinshipContext {
             const columns = Array.from(new Set(records.flatMap(r => Object.keys(r).filter(k => isPrimitive(r[k])))));
             // map each record so all of them have the same keys, where keys that are not present have a null value.
             const values = records.map(r => Object.values({...Object.fromEntries(columns.map(c => [c,null])), ...Object.fromEntries(Object.entries(r).filter(([k,v]) => isPrimitive(v)))}))
-            const where = Where(columns[0], this._tableName, this._relationships, this._schema);
+            const where = Where(this.#adapter, columns[0], this._tableName, this._relationships, this._schema);
             let chain = where.in(values.map(v => v[0]));
             for(let i = 1; i < columns.length; ++i) {
                 //@ts-ignore typescript will show as error because TTableModel is generic in this context.
@@ -366,14 +375,19 @@ export class KinshipContext {
                     // Only change columns that are within the schema.
                     if(!(p in this._schema)) return false;
                     columns.push(p);
-                    values.push(v);
+                    values.push(/** @type {any} */ v instanceof Date ? this.#adapter.syntax.dateString(v) : v);
                     return true;
                 }
             });
             let o = records(newProxy());
             // sets through returned object.
             if(o !== undefined) {
-                o = /** @type {Partial<TTableModel>} */ (Object.fromEntries(Object.entries(o).filter(([k,v]) => !pKeys.includes(k)))); 
+                o = /** @type {Partial<TTableModel>} */ (Object.fromEntries(
+                    Object.entries(o)
+                        .map(([k, value]) => [
+                            k, 
+                            /** @type {any} */ (value) instanceof Date ? this.#adapter.syntax.dateString(value) : value
+                        ]).filter(([k,v]) => !pKeys.includes(k)))); 
                 columns = Object.keys(o);
                 values = Object.values(o);
             }
@@ -417,7 +431,7 @@ export class KinshipContext {
                 }); // ignore primary key changes.
             
             // add a WHERE statement so the number of rows affected returned matches the actual rows affected, otherwise it will "affect" all rows.
-            let where = Where(pKeys[0], this._tableName, this._relationships, this._schema);
+            let where = Where(this.#adapter, pKeys[0], this._tableName, this._relationships, this._schema);
             let chain = where.in(records.map(r => r[pKeys[0]]))
             for(let i = 1; i < pKeys.length; ++i) {
                 //@ts-ignore
@@ -498,7 +512,7 @@ export class KinshipContext {
                 throw new KinshipSyntaxError(`No primary key exists on ${this._tableName}. Use the explicit version of this update by passing a callback instead.`);
             }
             // add a WHERE statement so the number of rows affected returned matches the actual rows affected, otherwise it will "affect" all rows.
-            let where = Where(pKeys[0], this._tableName, this._relationships, this._schema);
+            let where = Where(this.#adapter, pKeys[0], this._tableName, this._relationships, this._schema);
             let chain = where.in(records.map(r => r[pKeys[0]]))
             for(let i = 1; i < pKeys.length; ++i) {
                 //@ts-ignore
@@ -563,6 +577,14 @@ export class KinshipContext {
             });
             throw err;
         }
+    }
+
+    /**
+     * @param {string} sqlCmd
+     * @param {SQLPrimitive[]} sqlArgs
+     */
+    async execute(sqlCmd, ...sqlArgs) {
+        return this.#adapter.execute(this.#getScope()).forQuery(sqlCmd, sqlArgs);
     }
 
     /**
@@ -647,11 +669,14 @@ export class KinshipContext {
 
     /**
      * Upon inserting, give a default value to a column if the respective property does not exist in the record(s).
-     * @param {(model: TTableModel) => void} callback 
-     * Callback that gives context to the record being inserted. Set the value you wish to default in the cases where the property does not exist.  
-     * __NOTE: A proxy protects already set values from being updated to the default value, as well as database identity columns. (e.g., MySQL's AUTO_INCREMENT)
-     * You can freely use this function to only set keys if they do not already exist on the record.__  
-     * __NOTE: Existing values on `model` will only be of values BEFORE the insert occurs.__
+     * @param {(model: TTableModel, args: any & { $$itemNumber: number }) => import("./types.js").MaybePromise<void>} callback 
+     * Callback that gives context to the record being inserted.  
+     * Set the value you wish to default in the cases where the property does not exist.  
+     * @param {(() => import("./types.js").MaybePromise<any>)=} middleware
+     * Middleware function that you can use to give context to more arguments 
+     * in `args` in your `callback` function parameter.  
+     * This function is useful if an argument you rely on in `callback` is static 
+     * and would be the same across all records. 
      * @returns {this}
      * @example
      * ```ts
@@ -659,32 +684,61 @@ export class KinshipContext {
      *   a?: number; // auto increment
      *   b: string;
      *   c?: boolean;
-     *   d?: Date; 
+     *   d?: Date;
+     *   extraId?: string; // resembles something like "Id-123456"
      * };
      * 
      * const ctx = new KinshipContext<Foo>(adapter, "Foo");
-     * ctx.default(m => {
+     * 
+     * // `$$itemNumber` is always available
+     * ctx.default((m, { lastInsertId, $$itemNumber }) => {
+     *   const newId = parseInt(lastInsertId.replace("Id-", "") ?? "0");
      *   m.c = false;
      *   m.d = new Date();
-     * });
-     * 
-     * const oneWeekAgo = new Date();
-     * oneWeekAgo.setDate(oneWeekAgo.getDate() - 7);
-     * ctx.insert([
-     *   { b: 'test 1' },
-     *   { b: 'test 2', c: true },
-     *   { b: 'test 3', d: null }
-     * ]).then(async results => {
-     *   console.log(results); // will show: [dates would be objects.]
-     *   // { a: 1, b: 'test 1', c: false, d: "Mon Jun 19 2023 10:45:30 GMT-0500 (Central Daylight Time)" }
-     *   // { a: 2, b: 'test 2', c: true, d: "Mon Jun 19 2023 10:45:30 GMT-0500 (Central Daylight Time)" }
-     *   // { a: 3, b: 'test 3', c: false, d: null }
+     *   m.extraId = `Id-${(newId + 1 + $$itemNumber).toString().padStart(6, '0')}`;
+     * }, async () => {
+     *   const [lastId] = await ctx.sortBy(m => m.Id.desc()).limit(1).select(m => m.extraId);
+     *   return {
+     *     lastInsertId: lastId
+     *   };
      * });
      * ```
      */
-    default(callback) {
+    default(callback, middleware=undefined) {
+        this.#middleware = middleware ?? this.#middleware;
         this.#identification = callback;
         return this;
+    }
+
+    #beforeInsert;
+
+    /**
+     * 
+     * @param {(m: TTableModel) => void} callback 
+     */
+    beforeInsert(callback) {
+        this.#beforeInsert = callback;
+        return this;
+    }
+
+    afterInsert(callback) {
+
+    }
+
+    beforeUpdate(callback) {
+
+    }
+
+    afterUpdate(callback) {
+
+    }
+
+    beforeDelete(callback) {
+
+    }
+
+    afterDelete(callback) {
+
     }
 
     // CLAUSE FUNCTIONS (functions that influence the results of the transaction functions)
@@ -736,6 +790,7 @@ export class KinshipContext {
                         return ctx.#state.where._append(field, `AND${ctx.#state.negated ? ' NOT' : ''}`);
                     }
                     return ctx.#state.where = Where(
+                        ctx.#adapter,
                         ctx.#adapter.syntax.escapeColumn(field), 
                         ctx.#adapter.syntax.escapeTable(table), 
                         ctx._relationships,
@@ -917,7 +972,7 @@ export class KinshipContext {
      * Specify a function to be called when a successful transactional event occurs on the context.
      * @param {SuccessHandler} callback Callback to add to the event handler.
      * @param {EventTypes=} eventType Type of event. If undefined, then all success events handle the callback (delete/insert/query/update)
-     * @returns {{ unsubscribe: (() => CommandListener) }} Function for the user to use to unsubscribe to the event.
+     * @returns {() => void} Function for the user to use to unsubscribe to the event.
      */
     handleSuccess(callback, eventType=undefined) {
         switch(eventType) {
@@ -926,14 +981,17 @@ export class KinshipContext {
             case EventTypes.QUERY: return this.#emitter.onQuerySuccess(callback);
             case EventTypes.UPDATE: return this.#emitter.onUpdateSuccess(callback);
             default:
-                return {
-                    unsubscribe: () => {
-                        this.#emitter.onDeleteSuccess(callback).unsubscribe();
-                        this.#emitter.onInsertSuccess(callback).unsubscribe();
-                        this.#emitter.onQuerySuccess(callback).unsubscribe();
-                        return this.#emitter.onUpdateSuccess(callback).unsubscribe();
-                    }
+                let deleteUnsubscribe = this.#emitter.onDeleteSuccess(callback);
+                let insertUnsubscribe = this.#emitter.onInsertSuccess(callback);
+                let queryUnsubscribe = this.#emitter.onQuerySuccess(callback);
+                let updateUnsubscribe = this.#emitter.onUpdateSuccess(callback);
+                return () => {
+                    deleteUnsubscribe();
+                    insertUnsubscribe();
+                    queryUnsubscribe();
+                    updateUnsubscribe();
                 }
+                
         }
     }
 
@@ -942,7 +1000,7 @@ export class KinshipContext {
      * Specify a function to be called when a failed transactional event occurs on the context.
      * @param {FailHandler} callback Callback to add to the event handler.
      * @param {EventTypes=} eventType Type of event. If undefined, then all failure events handle the callback (delete/insert/query/update)
-     * @returns {{ unsubscribe: (() => CommandListener) }} Function for the user to use to unsubscribe to the event.
+     * @returns {() => void} Function for the user to use to unsubscribe to the event.
      */
     handleFail(callback, eventType=undefined) {
         switch(eventType) {
@@ -951,13 +1009,15 @@ export class KinshipContext {
             case EventTypes.QUERY: return this.#emitter.onQueryFail(callback);
             case EventTypes.UPDATE: return this.#emitter.onUpdateFail(callback);
             default:
-                return {
-                    unsubscribe: () => {
-                        this.#emitter.onDeleteFail(callback).unsubscribe();
-                        this.#emitter.onInsertFail(callback).unsubscribe();
-                        this.#emitter.onQueryFail(callback).unsubscribe();
-                        return this.#emitter.onUpdateFail(callback).unsubscribe();
-                    }
+                let deleteUnsubscribe = this.#emitter.onDeleteFail(callback);
+                let insertUnsubscribe = this.#emitter.onInsertFail(callback);
+                let queryUnsubscribe = this.#emitter.onQueryFail(callback);
+                let updateUnsubscribe = this.#emitter.onUpdateFail(callback);
+                return () => {
+                    deleteUnsubscribe();
+                    insertUnsubscribe();
+                    queryUnsubscribe();
+                    updateUnsubscribe();
                 }
         }
     }
@@ -965,7 +1025,7 @@ export class KinshipContext {
     /**
      * Specify a function to be called when a warning event occurs on the context.
      * @param {WarningHandler} callback Callback to add to the event handler.
-     * @returns {{ unsubscribe: (() => CommandListener) }} Function for the user to use to unsubscribe to the event.
+     * @returns {() => CommandListener} Function for the user to use to unsubscribe to the event.
      */
     handleWarning(callback) {
         return this.#emitter.onWarning(callback);
@@ -1159,7 +1219,11 @@ export class KinshipContext {
         // get an array of all unique columns that are to be inserted.
         const columns = Array.from(new Set(records.flatMap(r => Object.keys(r).filter(k => isPrimitive(r[k])))));
         // map each record so all of them have the same keys, where keys that are not present have a null value.
-        const values = records.map(r => Object.values({...Object.fromEntries(columns.map(c => [c,null])), ...Object.fromEntries(Object.entries(r).filter(([k,v]) => isPrimitive(v)))}))
+        const values = records.map(r => Object.values({
+                ...Object.fromEntries(columns.map(c => [c,null])), 
+                ...Object.fromEntries(Object.entries(r).filter(([k,v]) => isPrimitive(v)))
+            }).map(value => /** @type {any} */ (value) instanceof Date ? this.#adapter.syntax.dateString(value) : value)
+        );
         const { cmd, args }  = this.#adapter.serialize(scope).forInsert({ table, columns, values });
 
         try {
@@ -1231,7 +1295,7 @@ export class KinshipContext {
                 foreign: {
                     table: realTableName,
                     column: foreignKey,
-                    alias: `${prependColumn}${codeTableName}<|${primaryKey}`
+                    alias: `${prependColumn}${codeTableName}<|${foreignKey}`
                 },
                 schema: /** @type {{[K in keyof TTableModel]: DescribedSchema}} */ ({}),
                 relationships: {},
@@ -1239,7 +1303,6 @@ export class KinshipContext {
             };
             this._promise = (async () => {
                 await this._promise;
-                console.log(`Configuring relationship on ${table} with ${realTableName}.`);
                 const schema = await this.#describe(realTableName);
                 relationships[codeTableName].schema = /** @type {{[K in keyof TTableModel]: DescribedSchema}} */ (
                     Object.fromEntries(
@@ -1250,7 +1313,6 @@ export class KinshipContext {
                         }])
                     )
                 );
-                console.log(`Finished configuring relationship on ${table} with ${realTableName}.`);
             })();
 
             const andThat = {
@@ -1346,7 +1408,6 @@ export class KinshipContext {
         /** @type {KinshipContext<any, any>} */
         const ctx = new KinshipContext(this.#adapter, this._tableName, this.#options, false);
         ctx._promise = (async () => {
-            console.log(`Duplicating context.`);
             await this._promise;
             ctx.#emitter = this.#emitter;
             ctx._schema = this._schema;
@@ -1357,7 +1418,6 @@ export class KinshipContext {
             ctx.#state.where = this.#state.where?._clone();
             callback(ctx);
             ctx._schema = this._schema;
-            console.log(`Finished duplicating context.`);
         })();
         return ctx;
     }
@@ -1382,42 +1442,6 @@ export class KinshipContext {
 
 function isPrimitive(value) {
     return value == null || typeof value !== "object" || value instanceof Date;
-}
-
-/**
- * @overload
- * @returns {{ end: () => number }}
- * 
- * @overload
- * @param {() => void} callback
- * @returns {number}
- * 
- * @param {(() => void)=} callback
- * @returns {{ end: (unit?: "ms"|"sec"|"mu") => number }|number}
- */
-function benchmark(callback=undefined) {
-    function microsecondsNow() {
-        const hrTime = process.hrtime();
-        return hrTime[0] * 1000000 + hrTime[1] / 1000;
-    }
-    if(callback) {
-        const start = microsecondsNow();
-        callback();
-        const end = microsecondsNow();
-        return end-start;
-    }
-    const start = microsecondsNow();
-    return {
-        end: (unit="ms") => {
-            const end = microsecondsNow();
-            switch(unit) {
-                case "ms": return (end-start)/1000;
-                case "mu": return (end-start);
-                case "sec": return (end-start) / 1000 / 1000;
-                default: return end-start;
-            }
-        }
-    }
 }
 
 // Exported types
@@ -1624,10 +1648,15 @@ function benchmark(callback=undefined) {
  * @typedef {object} AdapterScope
  * @prop {(message: string) => KinshipAdapterError} KinshipAdapterError  
  * Throw an error if it is an unexpected error that occurs within the custom adapter.
- * @prop {{ NON_UNIQUE_KEY: () => KinshipNonUniqueKeyError }} ErrorTypes
+ * @prop {typeof ErrorTypes} ErrorTypes
  * @prop {typeof Where} Where
  * Situationally create new WHERE clause conditions.
  */
+
+/** @enum {() => Error} */
+const ErrorTypes = {
+    NON_UNIQUE_KEY: () => new KinshipNonUniqueKeyError()
+}
 
 /** AdapterOptions  
  * 
@@ -1651,6 +1680,8 @@ function benchmark(callback=undefined) {
  * @prop {(s: string) => string} escapeColumn
  * Escapes a column in the command to protect against SQL injections.  
  * `s` is the column to escape.
+ * @prop {(date: Date) => string} dateString
+ * Conversion function of a JavaScript date to a respective valid string date.
  */
 
 /** KinshipAdapter  

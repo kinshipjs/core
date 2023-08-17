@@ -7,7 +7,7 @@ import { KinshipExecutionHandler } from "./exec-handler";
 
 export class KinshipQueryHandler extends KinshipExecutionHandler {
     /**
-     * @template {import("../context/base.js").Table} TAliasModel
+     * @template {import("../models/sql.js").Table} TAliasModel
      * @param {any} state
      * @param {TAliasModel[]} records
      * @param {...any} args
@@ -96,3 +96,33 @@ export class KinshipQueryHandler extends KinshipExecutionHandler {
         });
     }
 }
+
+/**
+ * Object to carry data tied to various information about a column being selected.
+ * @typedef {import("../context/base.js").ColumnDetails} SelectClauseProperty
+ */
+
+/**
+ * Model representing selected columns.
+ * @template {import("../models/sql.js").Table} TTableModel
+ * @typedef {{[K in keyof Partial<TTableModel> as import("../models/string").Join<TTableModel, K & string>]: SelectClauseProperty}} SelectedColumnsModel
+ */
+
+/**
+ * Model parameter that is passed into the callback function for `.select`.  
+ * 
+ * __NOTE: This is a superficial type to help augment the AliasModel of the context so Users can expect different results in TypeScript.__  
+ * __Real return value: {@link SelectClauseProperty}__
+ * @template {import("../models/sql.js").Table} TTableModel
+ * @typedef {import("../models/superficial").AugmentAllValues<TTableModel>} SpfSelectCallbackModel
+ */
+
+
+/**
+ * @template {import("../models/sql.js").Table} TTableModel
+ * @template {import("../models/sql.js").Table} TAliasModel
+ * @template {SelectedColumnsModel<TTableModel>|TAliasModel} [TSelectedColumns=TAliasModel]
+ * @callback SelectCallbackModel
+ * @param {SpfSelectCallbackModel<TTableModel>} model
+ * @returns {MaybeArray<keyof TSelectedColumns>}
+ */

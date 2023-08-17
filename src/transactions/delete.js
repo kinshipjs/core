@@ -4,11 +4,11 @@ import { isPrimitive } from "../dev-util";
 import { KinshipColumnDoesNotExistError, KinshipInvalidPropertyTypeError, KinshipSyntaxError } from "../exceptions";
 import { KinshipBase } from "../context/base.js";
 import { KinshipExecutionHandler } from "./exec-handler";
-import { Where } from "../where-builder";
+import { Where } from "../clauses/where.js";
 
-export class KinshipQueryHandler extends KinshipExecutionHandler {
+export class KinshipDeleteHandler extends KinshipExecutionHandler {
     /**
-     * @template {import("../context/base.js").Table} TAliasModel
+     * @template {import("../models/sql.js").Table} TAliasModel
      * @param {any} state
      * @param {TAliasModel[]} records
      * @returns {Promise<{ numRowsAffected: number, records: TAliasModel[] }>}
@@ -53,12 +53,7 @@ export class KinshipQueryHandler extends KinshipExecutionHandler {
             throw new KinshipSyntaxError(`No primary key exists on ${this.kinshipBase.tableName}. Use the explicit version of this update by passing a callback instead.`);
         }
         // add a WHERE statement so the number of rows affected returned matches the actual rows affected, otherwise it will "affect" all rows.
-        let where = Where(this.kinshipBase.adapter, 
-            pKeys[0], 
-            this.kinshipBase.tableName, 
-            this.kinshipBase.relationships, 
-            this.kinshipBase.schema
-        );
+        let where = Where(this.kinshipBase, pKeys[0]);
         let chain = where.in(records.map(r => r[pKeys[0]]))
         for(let i = 1; i < pKeys.length; ++i) {
             //@ts-ignore

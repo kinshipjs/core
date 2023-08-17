@@ -3,21 +3,22 @@
 import { KinshipColumnDoesNotExistError, KinshipInvalidPropertyTypeError } from "../exceptions";
 import { KinshipExecutionHandler } from "./exec-handler";
 import { getAllValues, getUniqueColumns } from "../context/util";
-import { Where, WhereBuilder } from "../where-builder";
+import { Where, WhereBuilder } from "../clauses/where.js";
 
 export class KinshipInsertHandler extends KinshipExecutionHandler {
     /**
-     * @template {import("../context/base.js").Table} TTableModel
+     * @template {import("../models/sql.js").Table} TTableModel
      * @param {any} state
      * @param {TTableModel[]} records
-     * @returns {Promise<{ numRowsAffected: number, records: TTableModel[], whereClause: WhereBuilder<TTableModel, string, TTableModel>|undefined }>}
+     * @returns {Promise<{ numRowsAffected: number, records: TTableModel[], whereClause?: WhereBuilder<TTableModel> }>}
      */
     async _execute(state, records) {
         const { cmd, args } = this.kinshipBase.handleAdapterSerialize().forInsert(this.#getDetail(records));
         try {
             const insertIds = await this.kinshipBase.handleAdapterExecute().forQuery(cmd, args);
             this.#fixIdentityKeys(records, insertIds);
-            const whereClause = this.#getWhereClauseIfVirtualColumnsExist(records);
+            /** @type {WhereBuilder<TTableModel>} */
+            const whereClause = /** @type {any} */ (this.#getWhereClauseIfVirtualColumnsExist(records));
             return {
                 numRowsAffected: 0,
                 records,
@@ -73,13 +74,7 @@ export class KinshipInsertHandler extends KinshipExecutionHandler {
         }
         const columns = getUniqueColumns(records);
         const values = getAllValues(records);
-        const where = Where(
-            this.kinshipBase.adapter, 
-            columns[0], 
-            this.kinshipBase.tableName, 
-            this.kinshipBase.relationships, 
-            this.kinshipBase.schema
-        );
+        const where = Where(this.kinshipBase, columns[0]);
         let chain = where.in(values.map(v => v[0]));
         for(let i = 1; i < columns.length; ++i) {
             //@ts-ignore typescript will show as error because TTableModel is generic in this context.

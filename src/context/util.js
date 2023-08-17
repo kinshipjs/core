@@ -1,8 +1,9 @@
+//@ts-check
 /**
  * Given an object that could be an array or itself, augment it so it has to be an array.  
  * __NOTE: Will not work on an array of arrays.__
  * @template T
- * @param {MaybeArray<T>} o 
+ * @param {import("../models/maybe").MaybeArray<T>} o 
  * @returns {T[]}
  */
 export function assertAsArray(o) {
@@ -13,7 +14,7 @@ export function assertAsArray(o) {
 
 /**
  * Given an array of records, get all properties that are unique across all records.
- * @template {Table} TAliasModel
+ * @template {import("../models/sql").Table} TAliasModel
  * @param {TAliasModel[]} records 
  * @returns {string[]}
  */
@@ -27,7 +28,7 @@ export function getUniqueColumns(records) {
 /**
  * Given an array of records and an array of columns of which are all unique column names across all records, 
  * get all respective values to each property specified from columns as one array.
- * @template {Table} TAliasModel
+ * @template {import("../models/sql").Table} TAliasModel
  * @param {TAliasModel[]} records 
  * @param {string[]} columns
  */

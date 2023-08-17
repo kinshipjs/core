@@ -4,6 +4,7 @@ import { isPrimitive } from "../dev-util.js";
 import { KinshipBase } from "../context/base.js";
 import { assertAsArray, getAllValues, getUniqueColumns } from "../context/util.js";
 import { KinshipInternalError } from "../exceptions.js";
+import { WhereBuilder } from "../clauses/where.js";
 
 export class KinshipExecutionHandler {
     /** @type {KinshipBase} */ kinshipBase;
@@ -25,16 +26,15 @@ export class KinshipExecutionHandler {
 
     /**
      * Handles the execution of a command and its respective triggers if any exist.
-     * @template {import("../context/base.js").Table} T
+     * @template {import("../models/sql.js").Table} T
      * @param {any} state
-     * @param {import("../context/base.js").MaybeArray<T>|Function} records
+     * @param {import("../models/maybe.js").MaybeArray<T>|Function|undefined} records
      * @param {...any} args
-     * @returns {Promise<{ numRowsAffected: number, records: T[]}>}
+     * @returns {Promise<{ numRowsAffected: number, records: T[], whereClause?: WhereBuilder<T>}>}
      */
     async handle(state, records, ...args) {
-        if(typeof records === 'function') {
-            var recsForTrigger = [];
-        } else {
+        let recsForTrigger = [];
+        if (typeof records !== 'function' && records !== undefined) {
             recsForTrigger = records = /** @type {T[]} */ (assertAsArray(records));
             if(records.length <= 0) {
                 return {
@@ -61,7 +61,7 @@ export class KinshipExecutionHandler {
      * If a property is set on the record within the trigger, then the property will only get set if the property key
      * does not already exist.  
      * If you wish to override this, then you may prepend `__` to the property you wish to change.
-     * @template {import("../context/base.js").Table} TAliasModel
+     * @template {import("../models/sql.js").Table} TAliasModel
      * Type of the model that the table represents.
      * @param {TriggerCallback<TAliasModel>} callback
      * @param {TriggerHookCallback=} hook
@@ -83,7 +83,7 @@ export class KinshipExecutionHandler {
      * If a property is set on the record within the trigger, then the property will only get set if the property key
      * does not already exist.  
      * If you wish to override this, then you may prepend `__` to the property you wish to change.
-     * @template {import("../context/base.js").Table} TAliasModel
+     * @template {import("../models/sql.js").Table} TAliasModel
      * Type of the model that the table represents.
      * @param {TriggerCallback<TAliasModel>} callback
      * @param {TriggerHookCallback=} hook
@@ -99,7 +99,7 @@ export class KinshipExecutionHandler {
     }
 
     /**
-     * @template {import("../context/base.js").Table} TAliasModel
+     * @template {import("../models/sql.js").Table} TAliasModel
      * Type of the model that the table represents.
      * @param {TAliasModel[]} records
      */
@@ -109,7 +109,7 @@ export class KinshipExecutionHandler {
     }
 
     /**
-     * @template {import("../context/base.js").Table} TAliasModel
+     * @template {import("../models/sql.js").Table} TAliasModel
      * Type of the model that the table represents.
      * @param {TAliasModel[]} records
      */
@@ -118,31 +118,12 @@ export class KinshipExecutionHandler {
         await Promise.all(records.map(async r => await this.#after(r, args)));
     }
 
-    getEmitEventType(isFail=undefined) {
-        if(isFail) {
-            switch(this.constructor.name) {
-                case "KinshipDeleteHandler": return `emitDeleteFail`;
-                case "KinshipInsertHandler": return `emitInsertFail`;
-                case "KinshipQueryHandler": return `emitQueryFail`;
-                case "KinshipUpdateHandler": return `emitUpdateFail`;
-            }
-        } else {
-            switch(this.constructor.name) {
-                case "KinshipDeleteHandler": return `emitDeleteSuccess`;
-                case "KinshipInsertHandler": return `emitInsertSuccess`;
-                case "KinshipQueryHandler": return `emitQuerySuccess`;
-                case "KinshipUpdateHandler": return `emitUpdateSuccess`;
-            }
-        }
-        throw new KinshipInternalError();
-    }
-
     /**
      * @protected
-     * @template {import("../context/base.js").Table} TAliasModel
+     * @template {import("../models/sql.js").Table} TAliasModel
      * Type of the model that the table represents.
      * @param {any} state
-     * @param {TAliasModel[]|Function} records
+     * @param {TAliasModel[]|Function|undefined} records
      * @param {...any} args
      * @returns {Promise<{ numRowsAffected: number, records: TAliasModel[]}>}
      */
@@ -159,14 +140,14 @@ class KinshipImplementationError extends Error {
 }
 
 /** 
- * @template {import("../context/base.js").Table} T 
+ * @template {import("../models/sql.js").Table} T 
  * @typedef {{[K in keyof T as `__${K & string}`]: T[K]}} TriggerModelSetProperties
  */
 
 /**
  * Callback used as a trigger when a record is inserted/updated/deleted.  
  * This is called for every row that is inserted/updated/deleted before or after, based on what is specified.
- * @template {import("../context/base.js").Table} TModel 
+ * @template {import("../models/sql.js").Table} TModel 
  * Model of the table that the record is represented as. 
  * @callback TriggerCallback
  * @param {TModel & TriggerModelSetProperties<TModel>} model
@@ -174,11 +155,11 @@ class KinshipImplementationError extends Error {
  * @param {{[key: string]: any} & { $$itemNumber: number }} hookArgs
  * Data that is retrieved from the hook.  
  * `$$itemNumber` is a static number that represents the position of the item in the array.
- * @returns {import("../context/base.js").MaybePromise<void>}
+ * @returns {import("../models/maybe.js").MaybePromise<void>}
  * Promise of void or void.
  */
 
 /**
  * @callback TriggerHookCallback
- * @returns {import("../context/base.js").MaybePromise<any>}
+ * @returns {import("../models/maybe.js").MaybePromise<any>}
  */

@@ -61,12 +61,12 @@ export class KinshipBase {
     }
 
     /**
-     * @template {Table} TTableModel
+     * @template {import("../models/sql.js").Table} TTableModel
      * Checks to see if `table` is a relationship with the provided table
      * @param {string} table 
-     * Table to check to see if it is a relationship.
+     * import("../models/sql.js").Table to check to see if it is a relationship.
      * @param {Record<string, import("../types.js").Relationship<TTableModel>>=} relationships
-     * Table to check to see if the argument, `table`, is a relationship with.  
+     * import("../models/sql.js").Table to check to see if the argument, `table`, is a relationship with.  
      * If `lastTable` is falsy, or unprovided, then `lastTable` defaults to the main table in this context.
      * @returns {boolean}
      * True if the argument, `lastTable`, with this context has a relationship with `table`, otherwise false.
@@ -92,8 +92,8 @@ export class KinshipBase {
 
     /**
      * 
-     * @param {SQLPrimitive} value 
-     * @returns {SQLPrimitive}
+     * @param {import("../models/sql.js").SQLPrimitive} value 
+     * @returns {import("../models/sql.js").SQLPrimitive}
      */
     toAdapterDateString(value) {
         if(value instanceof Date) {
@@ -116,7 +116,15 @@ const ErrorTypes = {
  * @param {boolean} requeryAfterUpdate
  */
 
-/** @template T @typedef {T[]|T} MaybeArray */
-/** @template T @typedef {Promise<T>|T} MaybePromise */
-/** @typedef {number|bigint|boolean|string|Date} SQLPrimitive */
-/** @typedef {{[key: string]: SQLPrimitive}} Table */
+
+
+/**
+ * Details on a column.
+ * @typedef {object} ColumnDetails
+ * @prop {string} table
+ * import("../models/sql.js").Table the column belongs to (escaped)
+ * @prop {string} column
+ * Column of the table (escaped)
+ * @prop {string} alias
+ * Alias of the column (escaped)
+ */

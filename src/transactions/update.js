@@ -8,7 +8,7 @@ import { Where } from "../where-builder";
 
 export class KinshipUpdateHandler extends KinshipExecutionHandler {
     /**
-     * @template {import("../context/base.js").Table} TTableModel
+     * @template {import("../models/sql.js").Table} TTableModel
      * @param {any} state
      * @param {TTableModel[]|((m: TTableModel) => Partial<TTableModel>|void)} records
      * @returns {Promise<{ numRowsAffected: number, records: TTableModel[] }>}
@@ -44,7 +44,7 @@ export class KinshipUpdateHandler extends KinshipExecutionHandler {
      *   m.b = 3;
      * });
      * ```
-     * @template {import("../context/base.js").Table} TTableModel
+     * @template {import("../models/sql.js").Table} TTableModel
      * @param {any} state 
      * @param {((m: TTableModel) => Partial<TTableModel>|void)} callback 
      * @returns {import("..").SerializationUpdateHandlerData}
@@ -76,7 +76,7 @@ export class KinshipUpdateHandler extends KinshipExecutionHandler {
      * ```ts
      * ctx.update([{ id: 1, a: 1, b: 2 }, { id: 2, a: 2, b: 3 }])
      * ```
-     * @template {import("../context/base.js").Table} TTableModel
+     * @template {import("../models/sql.js").Table} TTableModel
      * @param {TTableModel[]} records 
      * @returns {import("..").SerializationUpdateHandlerData}
      */
@@ -104,7 +104,7 @@ export class KinshipUpdateHandler extends KinshipExecutionHandler {
     /**
      * Gets the WHERE clause conditions that assist the update statement so the number of rows affected
      * come back accurately.
-     * @template {import("../context/base.js").Table} TTableModel
+     * @template {import("../models/sql.js").Table} TTableModel
      * @param {TTableModel[]} records
      * @returns {import("../types").WhereClausePropertyArray}
      */

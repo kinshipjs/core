@@ -116,8 +116,6 @@ const ErrorTypes = {
  * @param {boolean} requeryAfterUpdate
  */
 
-
-
 /**
  * Details on a column.
  * @typedef {object} ColumnDetails

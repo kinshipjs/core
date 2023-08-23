@@ -8,7 +8,7 @@ import { Where } from "../where-builder";
 
 export class KinshipUpdateHandler extends KinshipExecutionHandler {
     /**
-     * @template {import("../models/sql.js").Table} TTableModel
+     * @template {object|undefined} TTableModel
      * @param {any} state
      * @param {TTableModel[]|((m: TTableModel) => Partial<TTableModel>|void)} records
      * @returns {Promise<{ numRowsAffected: number, records: TTableModel[] }>}
@@ -44,7 +44,7 @@ export class KinshipUpdateHandler extends KinshipExecutionHandler {
      *   m.b = 3;
      * });
      * ```
-     * @template {import("../models/sql.js").Table} TTableModel
+     * @template {object|undefined} TTableModel
      * @param {any} state 
      * @param {((m: TTableModel) => Partial<TTableModel>|void)} callback 
      * @returns {import("..").SerializationUpdateHandlerData}
@@ -76,9 +76,9 @@ export class KinshipUpdateHandler extends KinshipExecutionHandler {
      * ```ts
      * ctx.update([{ id: 1, a: 1, b: 2 }, { id: 2, a: 2, b: 3 }])
      * ```
-     * @template {import("../models/sql.js").Table} TTableModel
+     * @template {object|undefined} TTableModel
      * @param {TTableModel[]} records 
-     * @returns {import("..").SerializationUpdateHandlerData}
+     * @returns {SerializationUpdateHandlerData}
      */
     #implicit(records) {
         const pKeys = this.kinshipBase.getPrimaryKeys();
@@ -104,7 +104,7 @@ export class KinshipUpdateHandler extends KinshipExecutionHandler {
     /**
      * Gets the WHERE clause conditions that assist the update statement so the number of rows affected
      * come back accurately.
-     * @template {import("../models/sql.js").Table} TTableModel
+     * @template {object|undefined} TTableModel
      * @param {TTableModel[]} records
      * @returns {import("../types").WhereClausePropertyArray}
      */
@@ -141,3 +141,39 @@ export class KinshipUpdateHandler extends KinshipExecutionHandler {
         });
     }
 }
+
+/** SerializationUpdateHandlerExplicitData  
+ * 
+ * Object model type for data used in explicit update transactions.
+ * @typedef {object} SerializationUpdateHandlerExplicitData
+ * @prop {(object|undefined)} values Used in an `explicit transaction`.  
+ * Object representing what columns will be updated from the command.  
+ * If this is undefined, then `objects` should be used.
+ */
+
+/** SerializationUpdateHandlerImplicitData  
+ * 
+ * Object model type for data used in implicit update transactions.
+ * @typedef {object} SerializationUpdateHandlerImplicitData
+ * @prop {(object|undefined)[]} objects Used in an `implicit transaction`.  
+ * Array of objects that represent the table in the context that should be updated from the command.
+ * If this is undefined, then `updateObject` should be used.  
+ * __NOTE: If the table has an identity key, then the primary key will be stripped out before being passed into the execution handler function.__
+ * @prop {string[]} primaryKeys
+ * Primary key of the table.
+ */
+
+/** SerializationUpdateHandlerData  
+ * 
+ * Data passed for the scope of the custom adapter to help serialize an update command.
+ * @typedef {object} SerializationUpdateHandlerData
+ * @prop {string} table
+ * Table the update is occurring on.
+ * @prop {string[]} columns
+ * Columns to be updated.  
+ * @prop {import("../clauses/where.js").WhereClausePropertyArray} where
+ * Recursively nested array of objects where each object represents a condition.  
+ * If the element is an array, then that means the condition is nested with the last element from that array.
+ * @prop {SerializationUpdateHandlerExplicitData=} explicit
+ * @prop {SerializationUpdateHandlerImplicitData=} implicit
+ */

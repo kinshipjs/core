@@ -7,7 +7,7 @@ import { KinshipExecutionHandler } from "./exec-handler";
 
 export class KinshipQueryHandler extends KinshipExecutionHandler {
     /**
-     * @template {import("../models/sql.js").Table} TAliasModel
+     * @template {object|undefined} TAliasModel
      * @param {any} state
      * @param {TAliasModel[]} records
      * @param {...any} args
@@ -104,8 +104,8 @@ export class KinshipQueryHandler extends KinshipExecutionHandler {
 
 /**
  * Model representing selected columns.
- * @template {import("../models/sql.js").Table} TTableModel
- * @typedef {{[K in keyof Partial<TTableModel> as import("../models/string").Join<TTableModel, K & string>]: SelectClauseProperty}} SelectedColumnsModel
+ * @template {object|undefined} TTableModel
+ * @typedef {{[K in keyof Partial<TTableModel> as K]: SelectClauseProperty}} SelectedColumnsModel
  */
 
 /**
@@ -113,14 +113,21 @@ export class KinshipQueryHandler extends KinshipExecutionHandler {
  * 
  * __NOTE: This is a superficial type to help augment the AliasModel of the context so Users can expect different results in TypeScript.__  
  * __Real return value: {@link SelectClauseProperty}__
- * @template {import("../models/sql.js").Table} TTableModel
- * @typedef {import("../models/superficial").AugmentAllValues<TTableModel>} SpfSelectCallbackModel
+ * @template {object|undefined} TTableModel
+ * @typedef {AugmentAllValues<TTableModel>} SpfSelectCallbackModel
  */
+
+/** AugmentAllValues  
+ * Augments the type, `T`, so that all nested properties have string values reflecting their own key and their parent(s).  
+ * (e.g., { Foo: { Bar: "" } } becomes { Foo: { Bar: "Foo_Bar" } })
+ * @template {object|undefined} T
+ * @typedef {{[K in keyof T]-?: K}} AugmentAllValues
+*/
 
 
 /**
- * @template {import("../models/sql.js").Table} TTableModel
- * @template {import("../models/sql.js").Table} TAliasModel
+ * @template {object|undefined} TTableModel
+ * @template {object|undefined} TAliasModel
  * @template {SelectedColumnsModel<TTableModel>|TAliasModel} [TSelectedColumns=TAliasModel]
  * @callback SelectCallbackModel
  * @param {SpfSelectCallbackModel<TTableModel>} model

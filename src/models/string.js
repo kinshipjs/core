@@ -15,30 +15,32 @@
  */
 
 /**
- * Recursively joins all nested objects keys to get a union of all combinations of strings with each key.
- * @template {import("./sql.js").Table} T
- * @template {keyof T & string} [TKey=keyof T & string]
- * @typedef {undefined extends T
- *      ? never
- *      : T[TKey] extends (infer R extends import("./sql.js").Table)[]|undefined
- *          ? T extends T[TKey]
- *              ? never
- *              : `${TKey}_${Join<R>}`
- *          : T[TKey] extends import("./sql.js").Table|undefined
- *              ? `${TKey}_${Join<T[TKey]>}`
- *              : never} Join
- */
-
-/**
  * Grabs the first element in the String, separated by "_".
  * @template {string|symbol|number} K
- * @typedef {K extends `${infer A}_${infer B}` ? A : K} Car
+ * @template {string} [TSeparator='$$']
+ * @typedef {K extends `${infer A}${TSeparator}${infer B}` ? A : K} Car
  */
 
 /**
  * Grabs the remaining elements in the String, separated by "_".
  * @template {string|symbol|number} K
- * @typedef {K extends `${infer B}_${infer A}` ? A : never} Cdr
+ * @template {string} [TSeparator='$$']
+ * @typedef {K extends `${infer B}${TSeparator}${infer A}` ? A : never} Cdr
  */
+
+/** Join
+ * Recursively joins all nested objects keys to get a union of all combinations of strings with each key.
+ * @template {object|undefined} T
+ * @template {keyof T & string} [TKey=keyof T & string]
+ * @typedef {undefined extends T
+*      ? never
+*      : T[TKey] extends (infer R extends object)[]|undefined
+*          ? T extends T[TKey]
+*              ? never
+*              : `${TKey}_${Join<R>}`
+*          : T[TKey] extends object|undefined
+*              ? `${TKey}_${Join<T[TKey]>}`
+*              : never} Join
+*/
 
 export default {};

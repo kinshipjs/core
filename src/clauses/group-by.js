@@ -43,13 +43,11 @@ export class GroupByBuilder {
 
 /**
  * Creates an aggregated column for the count of distinct rows of some column, `col`, passed in.
- * @template {import("../models/sql.js").Table} T
- * Model representation of the table the context represents.
- * @template {keyof T} K
+ * @template {string} K
  * Key's name being worked on in this aggregate. (inferred from `col`)
  * @param {K} col
  * Name of the column being worked on in this aggregate.
- * @returns {`$count_${K & string}`}
+ * @returns {`$count_${K}`}
  * The new property key that will exist in all records queried.
  */
 function count(col) {
@@ -58,9 +56,7 @@ function count(col) {
 
 /**
  * Creates an aggregated column for the average of some column, `col`, passed in.
- * @template {import("../models/sql.js").Table} T
- * Model representation of the table the context represents.
- * @template {keyof T} K
+ * @template {string} K
  * Key's name being worked on in this aggregate. (inferred from `col`)
  * @param {K} col
  * Name of the column being worked on in this aggregate.
@@ -73,9 +69,7 @@ function avg(col) {
 
 /**
  * Creates an aggregated column for the maximum of some column, `col`, passed in.
- * @template {import("../models/sql.js").Table} T
- * Model representation of the table the context represents.
- * @template {keyof T} K
+ * @template {string} K
  * Key's name being worked on in this aggregate. (inferred from `col`)
  * @param {K} col
  * Name of the column being worked on in this aggregate.
@@ -88,9 +82,7 @@ function max(col) {
 
 /**
  * Creates an aggregated column for the minimum of some column, `col`, passed in.
- * @template {import("../models/sql.js").Table} T
- * Model representation of the table the context represents.
- * @template {keyof T} K
+ * @template {string} K
  * Key's name being worked on in this aggregate. (inferred from `col`)
  * @param {K} col
  * Name of the column being worked on in this aggregate.
@@ -103,9 +95,7 @@ function min(col) {
 
 /**
  * Creates an aggregated column for the sum of some column, `col`, passed in.
- * @template {import("../models/sql.js").Table} T
- * Model representation of the table the context represents.
- * @template {keyof T} K
+ * @template {string} K
  * Key's name being worked on in this aggregate. (inferred from `col`)
  * @param {K} col
  * Name of the column being worked on in this aggregate.
@@ -123,14 +113,14 @@ function sum(col) {
 
 /**
  * Model representing grouped columns, including aggregates.
- * @template {import("../models/sql.js").Table} TTableModel
+ * @template {object|undefined} TTableModel
  * @typedef {{[K in keyof Partial<TTableModel>]: GroupByClauseProperty}
  *  & Partial<{ $total: GroupByClauseProperty }>
- *  & Partial<{[K in keyof TTableModel as `$count_${import("../models/string").Join<TTableModel, K & string>}`]: GroupByClauseProperty}>
- *  & Partial<{[K in keyof TTableModel as `$avg_${import("../models/string").Join<TTableModel, K & string>}`]: GroupByClauseProperty}>
- *  & Partial<{[K in keyof TTableModel as `$max_${import("../models/string").Join<TTableModel, K & string>}`]: GroupByClauseProperty}>
- *  & Partial<{[K in keyof TTableModel as `$min_${import("../models/string").Join<TTableModel, K & string>}`]: GroupByClauseProperty}>
- *  & Partial<{[K in keyof TTableModel as `$sum_${import("../models/string").Join<TTableModel, K & string>}`]: GroupByClauseProperty}>} GroupedColumnsModel
+ *  & Partial<{[K in keyof TTableModel as `$count_${import("../models/string.js").Join<TTableModel, K & string>}`]: GroupByClauseProperty}>
+ *  & Partial<{[K in keyof TTableModel as `$avg_${import("../models/string.js").Join<TTableModel, K & string>}`]: GroupByClauseProperty}>
+ *  & Partial<{[K in keyof TTableModel as `$max_${import("../models/string.js").Join<TTableModel, K & string>}`]: GroupByClauseProperty}>
+ *  & Partial<{[K in keyof TTableModel as `$min_${import("../models/string.js").Join<TTableModel, K & string>}`]: GroupByClauseProperty}>
+ *  & Partial<{[K in keyof TTableModel as `$sum_${import("../models/string.js").Join<TTableModel, K & string>}`]: GroupByClauseProperty}>} GroupedColumnsModel
  */
 
 /**
@@ -145,23 +135,17 @@ function sum(col) {
  */
 
 /**
- * Augments the type, `T`, so that all nested properties have string values reflecting their own key and their parent(s).  
- * (e.g., { Foo: { Bar: "" } } becomes { Foo: { Bar: "Foo_Bar" } })
- * @template {import("../models/sql.js").Table} T
- * @template {string} [TPre=``]
- * @template {string} [TSeparator=`_`]
- * @typedef {{[K in keyof T]-?: T[K] extends (infer R extends import("../models/sql.js").Table)[]|undefined 
- *   ? AugmentAllValues<R, `${TPre}${K & string}${TSeparator}`> 
- *   : T[K] extends import("../models/sql.js").Table|undefined 
- *     ? AugmentAllValues<T[K], `${TPre}${K & string}${TSeparator}`> 
- *     : `${TPre}${K & string}`}} AugmentAllValues
- */
-
-/**
  * Model parameter that is passed into the callback function for `.groupBy`.  
  * 
  * __NOTE: This is a superficial type to help augment the AliasModel of the context so Users can expect different results in TypeScript.__  
  * __Real return value: {@link GroupByClauseProperty}__
- * @template {import("../models/sql.js").Table} TTableModel
+ * @template {object|undefined} TTableModel
  * @typedef {AugmentAllValues<TTableModel>} SpfGroupByCallbackModel
  */
+
+/** AugmentAllValues  
+ * Augments the type, `T`, so that all nested properties have string values reflecting their own key and their parent(s).  
+ * (e.g., { Foo: { Bar: "" } } becomes { Foo: { Bar: "Foo_Bar" } })
+ * @template {object|undefined} T
+ * @typedef {{[K in keyof T]-?: K}} AugmentAllValues
+*/

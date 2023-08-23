@@ -9,9 +9,9 @@ import { KinshipUpdateHandler } from "../transactions/update.js";
 
 /**
  * Establishes a connection directly to a table within your database.
- * @template {import("../models/sql.js").Table} TTableModel
+ * @template {object|undefined} TTableModel
  * Type of the model that represents the table and its columns, in their exact form.
- * @template {import("../models/sql.js").Table} [TAliasModel=TTableModel]
+ * @template {object|undefined} [TAliasModel=TTableModel]
  * Type of the model, `TTableModel`, which will be augmented as new clauses are called.
  */
 export class KinshipContext {
@@ -105,12 +105,15 @@ export class KinshipContext {
 
     /**
      * Queries selected columns or all columns from the context using a built state.
-     * @template {(SelectedColumnsModel<TTableModel>)|TAliasModel} [TSelectedColumns=TAliasModel]
+     * @template {SelectedColumnsModel<TAliasModel>} [TSelectedColumns=SelectedColumnsModel<TAliasModel>]
      * Type that represents the selected columns.
-     * @param {((model: import("../transactions/query.js").SpfSelectCallbackModel<TTableModel>) 
-     *      => import("../models/maybe.js").MaybeArray<TSelectedColumns>)=} callback
+     * @param {((model: import("../transactions/query.js").SpfSelectCallbackModel<TAliasModel>) => 
+     *  import("../models/maybe.js").MaybeArray<keyof TSelectedColumns>)=} callback
      * Callback model that allows the user to select which columns to grab.
-     * @returns {Promise<ReconstructSqlTable<TTableModel, TSelectedColumns>[]>} Rows queried from the database serialized into a user-friendly format.
+     * @returns {Promise<(TSelectedColumns extends TAliasModel 
+     *  ? TAliasModel 
+     *  : import("../models/superficial.js").Isolate<TTableModel, keyof TSelectedColumns>)[]>}
+     * Rows queried from the database serialized into a user-friendly format.
      */
     async select(callback=undefined) {
         const { records } = await this.#query.handle(this.#state, /** @type {Function} */ (callback));
@@ -155,17 +158,33 @@ export class KinshipContext {
     }
 
     /* -------------------------Public Clause Functions------------------------- */
+
+    /**
+     * Queries selected columns or all columns from the context using a built state.
+     * @template {SelectedColumnsModel<TAliasModel>} [TSelectedColumns=SelectedColumnsModel<TAliasModel>]
+     * Type that represents the selected columns.
+     * @param {(model: import("../transactions/query.js").SpfSelectCallbackModel<TAliasModel>) => 
+     *  import("../models/maybe.js").MaybeArray<keyof TSelectedColumns>} callback
+     * Callback model that allows the user to select which columns to grab.
+     * @returns {KinshipContext<TTableModel, import("../models/superficial.js").Isolate<TTableModel, keyof TSelectedColumns>>}
+     * Rows queried from the database serialized into a user-friendly format.
+     */
+    choose(callback) {
+        const ctx = this.#newContext();
+        return /** @type {any} */ (ctx.#choose(callback)); 
+    }
+
     /**
      * Specify the columns to group the results on.
      * @template {import("../clauses/group-by.js").GroupedColumnsModel<TTableModel>} TGroupedColumns
      * Used internally for typescript to create a new `TAliasModel` on the returned context, which will change the scope of what the user will see in further function calls.
      * @param {(model: import("../clauses/group-by.js").SpfGroupByCallbackModel<TTableModel>, aggregates: import("../clauses/group-by.js").Aggregates) => import("../models/maybe.js").MaybeArray<keyof TGroupedColumns>} callback
      * Property reference callback that is used to determine which column or columns should be selected and grouped on in future queries.
-     * @returns {KinshipContext<ReconstructSqlTable<TTableModel, TGroupedColumns>, ReconstructSqlTable<TTableModel, TGroupedColumns>>} A new context with the state of the context this occurred in addition with a new state of a GROUP BY clause.
+     * @returns {KinshipContext<TTableModel, import("../models/superficial.js").Isolate<TTableModel, keyof TGroupedColumns>>} A new context with the state of the context this occurred in addition with a new state of a GROUP BY clause.
      */
     groupBy(callback) {
         const ctx = this.#newContext();
-        return ctx.#groupBy();  
+        return /** @type {any} */ (ctx.#groupBy());  
     }
 
     /**
@@ -200,6 +219,11 @@ export class KinshipContext {
     }
 
     /* -------------------------Private Clause Functions------------------------- */
+
+    #choose(callback) {
+        this.#state.select = callback();
+        return this;
+    }
 
     #groupBy() {
         return this;
@@ -332,8 +356,8 @@ export class KinshipContext {
 
     /**
      * Creates a new context with the initial state set to the state of this state.
-     * @template {import("../models/sql.js").Table} [T=TTableModel]
-     * @template {import("../models/sql.js").Table} [U=TAliasModel]
+     * @template {object|undefined} [T=TTableModel]
+     * @template {object|undefined} [U=TAliasModel]
      * @returns {KinshipContext<T, U>}
      */
     #newContext() {
@@ -346,48 +370,7 @@ export class KinshipContext {
 
 /** 
  * Model representing selected columns.
- * @template {import("../models/sql.js").Table} TTableModel
- * @typedef {{[K in keyof Partial<TTableModel> as import("../models/string.js").Join<TTableModel, K & string>]: 
+ * @template {object|undefined} TTableModel
+ * @typedef {{[K in keyof Partial<TTableModel> as K]: 
  *      import("../transactions/query.js").SelectClauseProperty}} SelectedColumnsModel
  */
-
-/**
- * Transforms a string or union thereof that resembles some finitely nested properties inside of `TOriginal` model 
- * into its actual representation as shown in `TOriginal`. 
- * @template {import("../models/sql.js").Table} TOriginal
- * @template {string} TSerializedKey
- * @typedef {import("../models/string.js").Contains<TSerializedKey, "_"> extends never
- *   ? TSerializedKey extends keyof TOriginal  
- *     ? {[K in TSerializedKey]: TOriginal[TSerializedKey]} 
- *     : never
- *   : ReconstructNestedObject<TOriginal, TSerializedKey>
- * } ReconstructObject
- */
-
-/**
- * @template {import("../models/sql.js").Table} TOriginal
- * @template {string} TSerializedKey
- * @typedef {{[K in import("../models/string.js").Car<TSerializedKey> as K extends keyof TOriginal ? K : never]: ReconstructNestedObjectValue<TOriginal, TSerializedKey, K>}} ReconstructNestedObject
- */
-
-/**
- * @template {import("../models/sql.js").Table} TOriginal
- * @template {string} TSerializedKey
- * @template {string} K
- * @typedef {TOriginal[K] extends (infer U extends import("../models/sql.js").Table)[]|undefined
- *       ? ReconstructObject<U, import("../models/string.js").Cdr<TSerializedKey>>[] 
- *       : TOriginal[K] extends import("../models/sql.js").Table|undefined
- *         ? ReconstructObject<Exclude<TOriginal[K], undefined>, import("../models/string.js").Cdr<TSerializedKey>> 
- *         : TOriginal[K]} ReconstructNestedObjectValue
- */
-
-/**
- * Transforms an object, `T`, with non-object value properties where each property key can be mapped back to `TOriginal` 
- * using {@link ReconstructObject<TOriginal, keyof T>}
- * @template {import("../models/sql.js").Table} TOriginal
- * @template {import("../models/sql.js").Table} T
- * @typedef {{[K in keyof T as import("../models/string.js").StartsWith<K, "$">]: number} 
- *      & ReconstructObject<TOriginal, keyof T & string>
- * } ReconstructSqlTable
- */
-

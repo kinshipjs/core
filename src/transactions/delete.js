@@ -8,7 +8,7 @@ import { Where } from "../clauses/where.js";
 
 export class KinshipDeleteHandler extends KinshipExecutionHandler {
     /**
-     * @template {import("../models/sql.js").Table} TAliasModel
+     * @template {object|undefined} TAliasModel
      * @param {any} state
      * @param {TAliasModel[]} records
      * @returns {Promise<{ numRowsAffected: number, records: TAliasModel[] }>}

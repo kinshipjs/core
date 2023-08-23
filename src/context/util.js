@@ -14,7 +14,7 @@ export function assertAsArray(o) {
 
 /**
  * Given an array of records, get all properties that are unique across all records.
- * @template {import("../models/sql").Table} TAliasModel
+ * @template {object|undefined} TAliasModel
  * @param {TAliasModel[]} records 
  * @returns {string[]}
  */
@@ -28,12 +28,12 @@ export function getUniqueColumns(records) {
 /**
  * Given an array of records and an array of columns of which are all unique column names across all records, 
  * get all respective values to each property specified from columns as one array.
- * @template {import("../models/sql").Table} TAliasModel
+ * @template {object|undefined} TAliasModel
  * @param {TAliasModel[]} records 
  * @param {string[]} columns
  */
 export function getAllValues(records, columns=getUniqueColumns(records)) {
-    return records.map(r => Object.assign(r, ...columns.map(c => ({[c]: r[c] ?? null})))); 
+    return records.map(r => Object.assign(/** @type {any} */(r), ...columns.map(c => ({[c]: r[c] ?? null})))); 
 }
 
 /**

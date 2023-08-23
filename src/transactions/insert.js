@@ -7,7 +7,7 @@ import { Where, WhereBuilder } from "../clauses/where.js";
 
 export class KinshipInsertHandler extends KinshipExecutionHandler {
     /**
-     * @template {import("../models/sql.js").Table} TTableModel
+     * @template {object|undefined} TTableModel
      * @param {any} state
      * @param {TTableModel[]} records
      * @returns {Promise<{ numRowsAffected: number, records: TTableModel[], whereClause?: WhereBuilder<TTableModel> }>}

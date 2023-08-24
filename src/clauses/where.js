@@ -9,22 +9,24 @@ import {
 
 /**
  * Initializes the first parts of a WhereBuilder given the column name and table name.
- * @template {import("../models/sql.js").Table} TTableModel
+ * @template {object} TTableModel
  * @template {keyof TOriginalModel} TColumn
- * @template {import("../models/sql.js").Table} [TOriginalModel=TTableModel]
+ * @template {object} [TOriginalModel=TTableModel]
  * @param {KinshipBase} kinshipBase
  * @param {TColumn} column
+ * @param {string} aliasedTableName
+ * @param {"WHERE"|"WHERE NOT"} chain
  * @returns {WhereBuilder<TTableModel, TColumn, TOriginalModel>}
  */
-export function Where(kinshipBase, column) {
-    return new WhereBuilder(kinshipBase, column, "WHERE");
+export function Where(kinshipBase, column, aliasedTableName=kinshipBase.tableName, chain="WHERE") {
+    return new WhereBuilder(kinshipBase, column, chain);
 }
 
 /**
  * Assists in building a WHERE clause.
- * @template {import("../models/sql.js").Table} TTableModel import("../models/sql.js").Table model that the WHERE clause is being built for.
+ * @template {object} TTableModel import("../models/sql.js").Table model that the WHERE clause is being built for.
  * @template {keyof TOriginalModel} TColumn Initial column type for when the WhereBuilder is created.
- * @template {import("../models/sql.js").Table} [TOriginalModel=TTableModel] Used to keep track of the original model when nesting conditions.
+ * @template {object} [TOriginalModel=TTableModel] Used to keep track of the original model when nesting conditions.
  */
 export class WhereBuilder {
     /** @private @type {WhereClausePropertyArray} */ _conditions; // not marked with # because it needs access to other objects from within.
@@ -63,7 +65,7 @@ export class WhereBuilder {
      * @type {Condition<TOriginalModel, TColumn>} 
      */
     equals(value) {
-        this.#current.value = /** @type {any} */ (value) instanceof Date ? this.#kinshipBase.adapter.syntax.dateString(value) : value;
+        this.#current.value = /** @type {import('../models/types.js').DataType} */ (value instanceof Date ? this.#kinshipBase.adapter.syntax.dateString(value) : value);
         this.#current.operator = "=";
         this.#insert();
         return this.#chain();
@@ -74,7 +76,7 @@ export class WhereBuilder {
      * @type {Condition<TOriginalModel, TColumn>} 
      */
     notEquals(value) {
-        this.#current.value = /** @type {any} */ (value) instanceof Date ? this.#kinshipBase.adapter.syntax.dateString(value) : value;
+        this.#current.value = /** @type {import('../models/types.js').DataType} */ (value instanceof Date ? this.#kinshipBase.adapter.syntax.dateString(value) : value);
         this.#current.operator = "<>";
         this.#insert();
         return this.#chain();
@@ -85,7 +87,7 @@ export class WhereBuilder {
      * @type {Condition<TOriginalModel, TColumn>} 
      */
     lessThan(value) {
-        this.#current.value = /** @type {any} */ (value) instanceof Date ? this.#kinshipBase.adapter.syntax.dateString(value) : value;
+        this.#current.value = /** @type {import('../models/types.js').DataType} */ (value instanceof Date ? this.#kinshipBase.adapter.syntax.dateString(value) : value);
         this.#current.operator = "<";
         this.#insert();
         return this.#chain();
@@ -96,7 +98,7 @@ export class WhereBuilder {
      * @type {Condition<TOriginalModel, TColumn>} 
      */
     lessThanOrEqualTo(value) {
-        this.#current.value = /** @type {any} */ (value) instanceof Date ? this.#kinshipBase.adapter.syntax.dateString(value) : value;
+        this.#current.value = /** @type {import('../models/types.js').DataType} */ (value instanceof Date ? this.#kinshipBase.adapter.syntax.dateString(value) : value);
         this.#current.operator = "<=";
         this.#insert();
         return this.#chain();
@@ -107,7 +109,7 @@ export class WhereBuilder {
      * @type {Condition<TOriginalModel, TColumn>} 
      */
     greaterThan(value) {
-        this.#current.value = /** @type {any} */ (value) instanceof Date ? this.#kinshipBase.adapter.syntax.dateString(value) : value;
+        this.#current.value = /** @type {import('../models/types.js').DataType} */ (value instanceof Date ? this.#kinshipBase.adapter.syntax.dateString(value) : value);
         this.#current.operator = ">";
         this.#insert();
         return this.#chain();
@@ -118,7 +120,7 @@ export class WhereBuilder {
      * @type {Condition<TOriginalModel, TColumn>} 
      */
     greaterThanOrEqualTo(value) {
-        this.#current.value = /** @type {any} */ (value) instanceof Date ? this.#kinshipBase.adapter.syntax.dateString(value) : value;
+        this.#current.value = /** @type {import('../models/types.js').DataType} */ (value instanceof Date ? this.#kinshipBase.adapter.syntax.dateString(value) : value);
         this.#current.operator = ">=";
         this.#insert();
         return this.#chain();
@@ -151,7 +153,10 @@ export class WhereBuilder {
      * @returns {Chain<TOriginalModel>} A group of methods for optional chaining of conditions.
      */
     in(values) {
-        this.#current.value = values.map(value => /** @type {any} */(value) instanceof Date ? this.#kinshipBase.adapter.syntax.dateString(value) : value);
+        this.#current.value = /** @type {import("../models/types.js").DataType[]} */ (values.map(value => value instanceof Date 
+            ? this.#kinshipBase.adapter.syntax.dateString(value) 
+            : value
+        ));
         this.#current.operator = "IN";
         this.#insert();
         return this.#chain();
@@ -340,33 +345,31 @@ export class WhereBuilder {
     gteq = this.greaterThanOrEqualTo;
 }
 
-/** WhereChain  
+/**
  * @typedef {"WHERE"|"WHERE NOT"|"AND"|"AND NOT"|"OR"|"OR NOT"} WhereChain 
  */
 
-/** WhereCondition  
+/**
  * @typedef {"="|"<>"|"<"|">"|"<="|">="|"IN"|"LIKE"|"IS"|"IS NOT"|"BETWEEN"} WhereCondition 
  */
 
-/** WhereClausePropertyArray  
- * 
+/**
  * @typedef {[WhereClauseProperty, ...(WhereClauseProperty|WhereClausePropertyArray)[]]} WhereClausePropertyArray 
  */
 
-/** WhereClauseProperty  
- * 
+/**
  * @typedef {object} WhereClauseProperty
  * @prop {string} table
  * @prop {string} property
  * @prop {WhereChain} chain
- * @prop {import('../models/maybe.js').MaybeArray<import('../models/sql.js').SQLPrimitive|null>} value
+ * @prop {import('../models/maybe.js').MaybeArray<import("../models/types.js").DataType|null>} value
  * @prop {WhereCondition} operator
  */
 
 /**
  * Object to chain AND and OR conditions onto a WHERE clause.
- * @template {import("../models/sql.js").Table} TTableModel
- * @template {import("../models/sql.js").Table} [TOriginalModel=TTableModel]
+ * @template {object} TTableModel
+ * @template {object} [TOriginalModel=TTableModel]
  * @typedef {Object} Chain
  * @prop {(modelCallback: ChainCallback<TTableModel, TOriginalModel>) => Chain<TTableModel, TOriginalModel>} and 
  * Apply an AND chain to your WHERE clause.
@@ -375,29 +378,29 @@ export class WhereBuilder {
  */
 
 /**
- * @template {import("../models/sql.js").Table} TTableModel
- * @template {import("../models/sql.js").Table} [TOriginalModel=TTableModel]
+ * @template {object} TTableModel
+ * @template {object} [TOriginalModel=TTableModel]
  * @callback ChainCallback
  * @param {ChainObject<TTableModel, TOriginalModel>} model
  * @returns {any}
  */
 
 /**
- * @template {import("../models/sql.js").Table} TTableModel
- * @template {import("../models/sql.js").Table} [TOriginalModel=TTableModel]
+ * @template {object} TTableModel
+ * @template {object} [TOriginalModel=TTableModel]
  * @typedef {{[K in keyof Required<TTableModel>]: 
- *      TTableModel[K] extends import('../models/sql.js').SQLPrimitive|undefined 
- *          ? WhereBuilder<TOriginalModel, K & string>
- *          : TTableModel[K] extends (infer T extends import("../models/sql.js").Table)[]|undefined 
+ *      TTableModel[K] extends object|undefined
+ *          ? WhereBuilder<TOriginalModel, K & keyof TOriginalModel>
+ *          : TTableModel[K] extends (infer T extends object)[]|undefined 
     *          ? ChainObject<Required<T>, TOriginalModel> 
-    *          : TTableModel[K] extends import("../models/sql.js").Table|undefined 
+    *          : TTableModel[K] extends object|undefined 
     *              ? ChainObject<Exclude<TTableModel[K], undefined>, TOriginalModel> 
     *              : never}} ChainObject
  */
 
 /**
  * Function definition for every type of condition to be created in a WHERE clause.
- * @template {import("../models/sql.js").Table} TTableModel
+ * @template {object} TTableModel
  * @template {keyof TTableModel} TColumn
  * @callback Condition
  * @param {undefined extends TTableModel[TColumn] ? TTableModel[TColumn]|null : TTableModel[TColumn]} value
@@ -408,6 +411,6 @@ export class WhereBuilder {
 
 /** 
  * Function used to help initialize building a WHERE clause.
- * @template {import("../models/sql.js").Table} TTableModel 
+ * @template {object} TTableModel
  * @typedef {(m: {[K in keyof TTableModel]: WhereBuilder<TTableModel, K>}) => void} WhereBuilderFunction 
  */

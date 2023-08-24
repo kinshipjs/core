@@ -1,19 +1,17 @@
 //@ts-check
 
-import { isPrimitive } from "../dev-util.js";
 import { KinshipBase } from "../context/base.js";
-import { assertAsArray, getAllValues, getUniqueColumns } from "../context/util.js";
-import { KinshipInternalError } from "../exceptions.js";
+import { assertAsArray } from "../context/util.js";
 import { WhereBuilder } from "../clauses/where.js";
 
 export class KinshipExecutionHandler {
     /** @type {KinshipBase} */ kinshipBase;
 
     /** @type {TriggerCallback<any>} */ #before;
-    /** @type {TriggerHookCallback} */ #beforeHook;
+    /** @type {TriggerBeforeHookCallback} */ #beforeHook;
 
     /** @type {TriggerCallback<any>} */ #after;
-    /** @type {TriggerHookCallback} */ #afterHook;
+    /** @type {TriggerAfterHookCallback} */ #afterHook;
     
     /**
      * Construct a new Execution handler that will handle the before and after triggers, 
@@ -64,7 +62,7 @@ export class KinshipExecutionHandler {
      * @template {object|undefined} TAliasModel
      * Type of the model that the table represents.
      * @param {TriggerCallback<TAliasModel>} callback
-     * @param {TriggerHookCallback=} hook
+     * @param {TriggerBeforeHookCallback=} hook
      * @returns {this}
      */
     before(callback, hook) {
@@ -86,7 +84,7 @@ export class KinshipExecutionHandler {
      * @template {object|undefined} TAliasModel
      * Type of the model that the table represents.
      * @param {TriggerCallback<TAliasModel>} callback
-     * @param {TriggerHookCallback=} hook
+     * @param {TriggerAfterHookCallback=} hook
      * @returns {this}
      */
     after(callback, hook) {
@@ -114,7 +112,7 @@ export class KinshipExecutionHandler {
      * @param {TAliasModel[]} records
      */
     async #applyAfter(records) {
-        const args = await this.#afterHook();
+        const args = await this.#afterHook(records.length);
         await Promise.all(records.map(async r => await this.#after(r, args)));
     }
 
@@ -160,6 +158,12 @@ class KinshipImplementationError extends Error {
  */
 
 /**
- * @callback TriggerHookCallback
+ * @callback TriggerBeforeHookCallback
+ * @returns {import("../models/maybe.js").MaybePromise<any>}
+ */
+
+/**
+ * @callback TriggerAfterHookCallback
+ * @param {number} numRecords
  * @returns {import("../models/maybe.js").MaybePromise<any>}
  */

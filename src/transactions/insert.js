@@ -74,7 +74,7 @@ export class KinshipInsertHandler extends KinshipExecutionHandler {
         }
         const columns = getUniqueColumns(records);
         const values = getAllValues(records);
-        const where = Where(this.kinshipBase, columns[0]);
+        const where = /** @type {typeof Where<any, any>} */ (Where)(this.kinshipBase, columns[0]);
         let chain = where.in(values.map(v => v[0]));
         for(let i = 1; i < columns.length; ++i) {
             //@ts-ignore typescript will show as error because TTableModel is generic in this context.

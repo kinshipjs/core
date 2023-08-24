@@ -1,10 +1,46 @@
 //@ts-check
 
-import { KinshipInternalError } from "../exceptions";
+import { KinshipBase } from "../context/base.js";
+import { assertAsArray } from "../context/util.js";
+import { KinshipColumnDoesNotExistError, KinshipInternalError, KinshipInvalidPropertyTypeError } from "../exceptions.js";
 
 export class GroupByBuilder {
-    constructor(kinshipBase) {
+    /** @type {KinshipBase} */ #base;
 
+    /**
+     * @param {KinshipBase} kinshipBase 
+     */
+    constructor(kinshipBase) {
+        this.#base = kinshipBase;
+    }
+
+    /**
+     * Specify the columns to group the results on.
+     * @template {object} TTableModel
+     * @template {import("../clauses/group-by.js").GroupedColumnsModel<TTableModel>} TGroupedColumns
+     * Used internally for typescript to create a new `TAliasModel` on the returned context, which will change the scope of what the user will see in further function calls.
+     * @param {(model: import("../clauses/group-by.js").SpfGroupByCallbackModel<TTableModel>, aggregates: import("../clauses/group-by.js").Aggregates) => import("../models/maybe.js").MaybeArray<keyof TGroupedColumns>} callback
+     * Property reference callback that is used to determine which column or columns should be selected and grouped on in future queries.
+     * @returns {{ select: GroupByClauseProperty[], groupBy: GroupByClauseProperty[] }} 
+     * State for group by. 
+     */
+    getState(callback) {
+        const data = assertAsArray(callback(this.#newProxy(), {
+            avg: this.#getAggregateData("AVG"),
+            count: this.#getAggregateData("COUNT"),
+            min: this.#getAggregateData("MIN"),
+            max: this.#getAggregateData("MAX"),
+            sum: this.#getAggregateData("SUM"),
+            total: this.#getAggregateData("TOTAL"),
+        }));
+
+        /** @type {GroupByClauseProperty[]} */
+        const props = /** @type {any} */ (data);
+
+        return {
+            select: props,
+            groupBy: props.filter(col => !("aggregate" in col))
+        };
     }
 
     /**
@@ -32,6 +68,29 @@ export class GroupByBuilder {
                 aggregate: aggr
             }
         };
+    }
+
+    #newProxy(table = this.#base.tableName, 
+        relationships=this.#base.relationships, 
+        schema=this.#base.schema, 
+        realTableName=this.#base.tableName
+    ) {
+        if(table === undefined) table = this.#base.tableName;
+        return new Proxy({}, {
+            get: (t, p, r) => {
+                if (typeof(p) === 'symbol') throw new KinshipInvalidPropertyTypeError(p);
+                if (this.#base.isRelationship(p, relationships)) {
+                    return this.#newProxy(relationships[p].alias, relationships[p].relationships, relationships[p].schema, relationships[p].table);
+                }
+                if(!(p in schema)) throw new KinshipColumnDoesNotExistError(p, realTableName);
+                const { field, alias } = schema[p];
+                return {
+                    table,
+                    column: field,
+                    alias,
+                };
+            }
+        });
     }
 }
 

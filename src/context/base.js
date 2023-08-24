@@ -1,7 +1,7 @@
 //@ts-check
 import { CommandListener } from "../events.js";
 import { KinshipAdapterError, KinshipNonUniqueKeyError } from "../exceptions.js";
-import { Where } from "../where-builder.js";
+import { Where } from "../clauses/where.js"
 
 export class KinshipBase {
     /** @type {import("../index.js").KinshipAdapter<any>} */ adapter;

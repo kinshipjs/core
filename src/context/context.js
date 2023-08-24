@@ -6,18 +6,9 @@ import { KinshipInsertHandler } from "../transactions/insert.js";
 import { KinshipQueryHandler } from "../transactions/query.js";
 import { KinshipUpdateHandler } from "../transactions/update.js";
 import { KinshipColumnDoesNotExistError, KinshipInvalidPropertyTypeError } from "../exceptions.js";
-import { Where } from "../clauses/where.js";
+import { Where, WhereBuilder } from "../clauses/where.js";
 import { GroupByBuilder } from "../clauses/group-by.js";
-
-/**
- * Various builders that assist building the state of the context.
- * @template {object} TTableModel
- * @template {object} TAliasModel
- * @typedef {object} Builders
- * @prop {GroupByBuilder} groupBy
- * prop {SelectBuilder} select
- * prop {SortByBuilder} sortBy
- */
+import { OrderByBuilder } from "../clauses/order-by.js";
 
 /**
  * Establishes a connection directly to a table within your database.
@@ -28,51 +19,86 @@ import { GroupByBuilder } from "../clauses/group-by.js";
  */
 export class KinshipContext {
     /* -------------------------Private Properties------------------------- */
+    // Properties to maintain a flow and state of the context.
+
     /** @type {KinshipBase} */ #base;
-    /** @type {KinshipDeleteHandler} */ #delete;
-    /** @type {any} */ #initialState;
-    /** @type {KinshipInsertHandler} */ #insert;
-    /** @type {KinshipQueryHandler} */ #query;
-    /** @type {KinshipUpdateHandler} */ #update;
-    /** @type {any} */ #state;
     /** @type {Builders<TTableModel, TAliasModel>} */ #builders;
+    /** @type {Handlers} */ #handlers;
+    /** @type {State} */ #initialState;
+    /** @type {State} */ #state;
 
     /* -------------------------Constructor------------------------- */
     
+    // for some reason, when this is overloaded, errors end up existing with type inferrence.
+    // /**
+    //  * @overload
+    //  * Create a brand new KinshipContext.
+    //  * @param {import("../old/index.js").KinshipAdapter<any>} adapter
+    //  * Kinship adapter used to connect to your database. 
+    //  * @param {string} tableName 
+    //  * Name of the table that is being connected to.
+    //  */
+    // /**
+    //  * @overload
+    //  * Create a brand new KinshipContext with additional options.
+    //  * @param {import("../old/index.js").KinshipAdapter<any>} adapter
+    //  * Kinship adapter used to connect to your database. 
+    //  * @param {string} tableName 
+    //  * Name of the table that is being connected to.
+    //  * @param {import("./base.js").KinshipOptions} options
+    //  * Optional additional configurations. 
+    //  */
+    // /**
+    //  * @overload
+    //  * Create a new `KinshipContext` with a base state of another `KinshipContext`.  
+    //  * __NOTE: In most cases, this overload would not be used, as every clause that is built will automatically return a new context
+    //  * updated with the appropriate base state.__
+    //  * @param {KinshipContext} context
+    //  * Existing `KinshipContext` object to base this new context off of.
+    //  */
     /**
-     * Instantiate a new KinshipContext.
-     * @param {import("../old/index.js").KinshipAdapter<any>} adapter
+     * Create a brand new KinshipContext.
+     * @param {import("../old/index.js").KinshipAdapter<any>|KinshipContext} adapter
      * Kinship adapter used to connect to your database. 
-     * @param {string} tableName 
+     * @param {string=} tableName 
      * Name of the table that is being connected to.
      * @param {import("./base.js").KinshipOptions=} options
      * Optional additional configurations. 
      */
-    constructor(adapter, tableName, options=undefined) {
+    constructor(adapter, tableName=undefined, options=undefined) {
         if(adapter instanceof KinshipContext) {
+            // when an existing KinshipContext is passed in, then this new context will be based off that context.
             this.#base = adapter.#base;
-            this.#delete = adapter.#delete;
-            this.#insert = adapter.#insert;
-            this.#query = adapter.#query;
-            this.#update = adapter.#update;
-            this.#state = this.#initialState = adapter.#state;
             this.#builders = adapter.#builders;
+            this.#handlers = adapter.#handlers;
+            this.#state = this.#initialState = adapter.#state;
         } else {
+            if(typeof tableName !== "string") {
+                throw Error(`The parameter, \`tableName\` must be a valid string.`);
+            }
             this.#base = new KinshipBase(adapter, tableName, options);
-            this.#delete = new KinshipDeleteHandler(this.#base);
-            this.#insert = new KinshipInsertHandler(this.#base);
-            this.#query = new KinshipQueryHandler(this.#base);
-            this.#update = new KinshipUpdateHandler(this.#base);
+            this.#handlers = {
+                delete: new KinshipDeleteHandler(this.#base),
+                insert: new KinshipInsertHandler(this.#base),
+                query: new KinshipQueryHandler(this.#base),
+                update: new KinshipUpdateHandler(this.#base)
+            };
             this.#initialState = {};
             this.#state = {};
             this.#builders = {
-                groupBy: new GroupByBuilder(this.#base)
-            }
+                groupBy: new GroupByBuilder(this.#base),
+                orderBy: new OrderByBuilder(this.#base)
+            };
         }
     }
 
     /* -------------------------Transaction Functions------------------------- */
+    // Users can perform some transaction with the database using the state of the context.
 
+    /**
+     * Retrieve the number of rows returned from the built clause.
+     * @returns {Promise<number>}
+     */
     async count() {
         return 0;
     }
@@ -95,7 +121,7 @@ export class KinshipContext {
      * @returns {Promise<number>} Number of rows affected.
      */
     async delete(records=undefined) {
-        const { numRowsAffected } = await this.#delete.handle(this.#state, records);
+        const { numRowsAffected } = await this.#handlers.delete.handle(this.#state, records);
         return numRowsAffected;
     }
 
@@ -108,7 +134,7 @@ export class KinshipContext {
      * Default values include virtual columns, database defaults, and user defined defaults.
      */
     async insert(records) {
-        const { numRowsAffected, whereClause, ...data } = await this.#insert.handle(this.#state, records);
+        const { numRowsAffected, whereClause, ...data } = await this.#handlers.insert.handle(this.#state, records);
         // If this is not undefined, then the handler determined that virtual columns exist, so we must requery
         if(whereClause) { 
             const ctx = this.#newContext();
@@ -133,7 +159,7 @@ export class KinshipContext {
      * Rows queried from the database serialized into a user-friendly format.
      */
     async select(callback=undefined) {
-        const { records } = await this.#query.handle(this.#state, /** @type {Function} */ (callback));
+        const { records } = await this.#handlers.query.handle(this.#state, /** @type {Function} */ (callback));
         this.#resetState();
         return /** @type {any} */ (records);
     }
@@ -169,15 +195,17 @@ export class KinshipContext {
      * @returns {Promise<number>}
      */
     async update(records) {
-        const { numRowsAffected }  = await this.#update.handle(this.#state, records);
+        const { numRowsAffected }  = await this.#handlers.update.handle(this.#state, records);
         this.#resetState();
         return numRowsAffected;
     }
 
     /* -------------------------Public Clause Functions------------------------- */
+    // Users can add clauses to their built queries.
 
     /**
-     * Queries selected columns or all columns from the context using a built state.
+     * Queries selected columns or all columns from the context using a built state.  
+     * This method will override any previous `.choose()` calls.
      * @template {import("../clauses/choose.js").SelectedColumnsModel<TAliasModel>} [TSelectedColumns=import("../clauses/choose.js").SelectedColumnsModel<TAliasModel>]
      * Type that represents the selected columns.
      * @param {(model: import("../clauses/choose.js").SpfSelectCallbackModel<TAliasModel>) => 
@@ -192,7 +220,8 @@ export class KinshipContext {
     }
 
     /**
-     * Specify the columns to group the results on.
+     * Specify the columns to group the results on.  
+     * This method will override any previous `.groupBy()` calls.
      * @template {import("../clauses/group-by.js").GroupedColumnsModel<TTableModel>} TGroupedColumns
      * Used internally for typescript to create a new `TAliasModel` on the returned context, which will change the scope of what the user will see in further function calls.
      * @param {(model: import("../clauses/group-by.js").SpfGroupByCallbackModel<TTableModel>, aggregates: import("../clauses/group-by.js").Aggregates) => import("../models/maybe.js").MaybeArray<keyof TGroupedColumns>} callback
@@ -205,7 +234,8 @@ export class KinshipContext {
     }
 
     /**
-     * Skip some number of rows before retrieving.
+     * Skip some number of rows before retrieving.  
+     * This method will override any previous `.skip()` calls.
      * @param {number} numberOfRecords Number of rows to skip.
      * @returns {KinshipContext<TTableModel, TAliasModel>}
      */
@@ -215,13 +245,25 @@ export class KinshipContext {
         return ctx.#skip(numberOfRecords);  
     }
 
+    /**
+     * Specify the columns to sort on (in the exact order).  
+     * This method will stack, meaning it will not override previous `.sortBy()` calls.   
+     * @param {(model: import("../clauses/order-by.js").SortByCallbackModel<TTableModel>) 
+     *   => import("../models/maybe.js").MaybeArray<
+     *      import("../clauses/order-by.js").SortByClauseProperty
+     *      |import("../clauses/order-by.js").SortByCallbackModelProp
+     * >} callback
+     * Property reference callback that is used to determine which column or columns will be used to sort the queried rows
+     * @returns {KinshipContext<TTableModel, TAliasModel>} A new context with the state of the context this occurred in addition with a new state of an ORDER BY clause.
+     */
     sortBy(callback) {
         const ctx = this.#newContext();
-        return ctx.#sortBy();
+        return ctx.#sortBy(callback);
     }
     
     /**
-     * Limit the number of rows to retrieve.
+     * Limit the number of rows to retrieve.  
+     * This method will override any previous `.take()` calls.
      * @param {number} numberOfRecords Number of rows to take.
      * @returns {KinshipContext<TTableModel, TAliasModel>}
      */
@@ -231,6 +273,8 @@ export class KinshipContext {
     }
 
     /**
+     * Filter what rows are returned from your query.  
+     * This method will stack, meaning it will not override previous `.where()` calls.   
      * @param {(model: import("../clauses/where.js").ChainObject<TAliasModel>) => void} callback
      * @returns {KinshipContext<TTableModel, TAliasModel>} 
      */
@@ -240,12 +284,15 @@ export class KinshipContext {
     }
 
     /* -------------------------Private Clause Functions------------------------- */
+    // Private functions for use with their corresponding public Clause Function.
 
+    /** Sets the state for `this.#state.select` through a `SelectBuilder`. */
     #choose(callback) {
         this.#state.select = callback();
         return this;
     }
 
+    /** Sets the state for `this.#state.groupBy` through a `GroupByBuilder`. */
     #groupBy(callback) {
         const { select, groupBy } = this.#builders.groupBy.getState(callback);
         this.#state.select = select;
@@ -253,29 +300,25 @@ export class KinshipContext {
         return this;
     }
 
-    /**
-     * Adds `numberOfRecords` to the `offset` property in `#state`.
-     * @param {number} numberOfRecords
-     * @returns {KinshipContext<TTableModel, TAliasModel>}
-     */
+    /** Sets the state for `this.#state.offset`. */
     #skip(numberOfRecords) {
         this.#state.offset = numberOfRecords;
         return this;
     }
-
-    #sortBy() {
+    
+    /** Sets the state for `this.#state.orderBy` through a `SortByBuilder`. */
+    #sortBy(callback) {
+        this.#state.orderBy = [...(this.#state.orderBy ?? []), ...this.#builders.orderBy.getState(callback)];
         return this;
     }
 
-    /**
-     * Adds `numberOfRecords` to the `limit` property in `#state`.
-     * @param {number} numberOfRecords 
-     */
+    /** Sets the state for `this.#state.limit`. */
     #take(numberOfRecords) {
         this.#state.limit = numberOfRecords;
         return this;
     }
 
+    /** Sets the state for `this.#state.where` through a `WhereBuilder`. */
     #where(callback) {
         const newProxy = (realTableName=this.#base.tableName, 
             table=realTableName,
@@ -312,6 +355,7 @@ export class KinshipContext {
     }
 
     /* -------------------------Configuration Functions------------------------- */
+    // Users can configure one-to-one and one-to-many relationships on this context.
 
     hasOne() {
 
@@ -322,6 +366,8 @@ export class KinshipContext {
     }
 
     /* -------------------------Trigger Handlers------------------------- */
+    // Users can use `Trigger Handlers` to define behavior before and after a command is executed, 
+    // essentially creating a middleware for each record passing through the context.
  
     /**
      * Set a trigger for every record that gets deleted within the context, __after__ the delete occurs.  
@@ -332,7 +378,7 @@ export class KinshipContext {
      * Function that is called once before the trigger and establishes static arguments to be available to `callback` within the `...args` parameter.
      */
     afterDelete(callback, hook=undefined) {
-        this.#update.after(callback, hook);
+        this.#handlers.delete.after(callback, hook);
         return this;
     }
 
@@ -344,7 +390,7 @@ export class KinshipContext {
      * Function that is called once before the trigger and establishes static arguments to be available to `callback` within the `...args` parameter.
      */
     afterInsert(callback, hook=undefined) {
-        this.#update.after(callback, hook);
+        this.#handlers.insert.after(callback, hook);
         return this;
     }
 
@@ -357,7 +403,7 @@ export class KinshipContext {
      * Function that is called once before the trigger and establishes static arguments to be available to `callback` within the `...args` parameter.
      */
     afterUpdate(callback, hook=undefined) {
-        this.#update.after(callback, hook);
+        this.#handlers.update.after(callback, hook);
         return this;
     }
 
@@ -370,7 +416,7 @@ export class KinshipContext {
      * Function that is called once before the trigger and establishes static arguments to be available to `callback` within the `...hookArgs` parameter.
      */
     beforeDelete(callback, hook=undefined) {
-        this.#update.before(callback, hook);
+        this.#handlers.delete.before(callback, hook);
         return this;
     }
 
@@ -382,7 +428,7 @@ export class KinshipContext {
      * Function that is called once before the trigger and establishes static arguments to be available to `callback` within the `...args` parameter.
      */
     beforeInsert(callback, hook=undefined) {
-        this.#update.before(callback, hook);
+        this.#handlers.insert.before(callback, hook);
         return this;
     }
 
@@ -395,11 +441,12 @@ export class KinshipContext {
      * Function that is called once before the trigger and establishes static arguments to be available to `callback` within the `...args` parameter.
      */
     beforeUpdate(callback, hook=undefined) {
-        this.#update.before(callback, hook);
+        this.#handlers.update.before(callback, hook);
         return this;
     }
     
     /* -------------------------Event Functions------------------------- */
+    // Users can use `Event Functions` to define behavior for when a command succeeds/fails.
 
     onSuccess() {
 
@@ -410,13 +457,16 @@ export class KinshipContext {
     }
 
     /* -------------------------Private Functions------------------------- */
+    // Extra private functions that are essential for many functions within this context.
 
     /**
      * Resets the `state` of the context back to `initialState`.
      */
     async #resetState() {
         this.#state = JSON.parse(JSON.stringify(this.#initialState));
-        this.#state.where = this.#initialState.where._clone();
+        this.#state.where = this.#initialState.where
+            //@ts-ignore _clone is marked private, but is available for usage here.
+            ?._clone();
     }
 
     /**
@@ -433,9 +483,9 @@ export class KinshipContext {
     }
 
     /* -------------------------Disposable Functions------------------------- */
-
     // for TS 5.2, the `using` and `await using` keywords are implemented. 
     // If an adapter has to be disposed of (I.O.W., it was defined by the adapter developer) then they are handled here. 
+
     [Symbol.dispose]() {
         if(this.#base.adapter.dispose) {
             this.#base.adapter.dispose();
@@ -448,3 +498,34 @@ export class KinshipContext {
         }
     }
 }
+
+/**
+ * Various builders that assist building the state of the context.
+ * @template {object} TTableModel
+ * @template {object} TAliasModel
+ * @typedef {object} Builders
+ * @prop {GroupByBuilder} groupBy
+ * @prop {OrderByBuilder} orderBy
+ * prop {SelectBuilder} select
+ */
+
+/**
+ * @typedef {object} Handlers
+ * @prop {KinshipDeleteHandler} delete
+ * @prop {KinshipInsertHandler} insert
+ * @prop {KinshipQueryHandler} query
+ * @prop {KinshipUpdateHandler} update
+ */
+
+/**
+ * Object that manages the state of clauses within this context.
+ * @typedef {object} State
+ * @prop {import("../clauses/include.js").FromClauseProperties=} from
+ * @prop {import("../clauses/group-by.js").GroupByClauseProperty[]=} groupBy
+ * @prop {boolean=} negated
+ * @prop {number=} limit
+ * @prop {number=} offset
+ * @prop {import("../clauses/order-by.js").SortByClauseProperty[]=} orderBy
+ * @prop {import("../clauses/order-by.js").Column[]=} select
+ * @prop {WhereBuilder=} where
+ */

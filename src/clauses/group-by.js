@@ -4,6 +4,43 @@ import { KinshipBase } from "../context/base.js";
 import { assertAsArray } from "../context/util.js";
 import { KinshipColumnDoesNotExistError, KinshipInternalError, KinshipInvalidPropertyTypeError } from "../exceptions.js";
 
+/**
+ * 
+ * @param {"AVG"|"COUNT"|"MIN"|"MAX"|"SUM"|"TOTAL"} aggr
+ * @returns {(col?: any) => any} 
+ */
+function getAggregateData(aggr) {
+    return (col) => {
+        if (aggr === "TOTAL") return {
+            table: 'AGGREGATE',
+            column: 'COUNT(*)',
+            alias: `$total`,
+            aggregate: aggr
+        }
+        if (col === undefined) throw new KinshipInternalError();
+        const { table, column, alias } = /** @type {import("../context/base").ColumnDetails} */ (col);
+        const c = aggr === 'COUNT'
+            ? `COUNT(DISTINCT ${table}.${column})`
+            : `${aggr}(${table}.${column})`;
+        return {
+            table: 'AGGREGATE',
+            column: c,
+            alias: `$${aggr.toLowerCase()}_` + alias?.replace(/\<\|/g, "_"),
+            aggregate: aggr
+        }
+    };
+}
+
+/** @type {Aggregates} */
+const aggregates = {
+    avg: getAggregateData("AVG"),
+    count: getAggregateData("COUNT"),
+    min: getAggregateData("MIN"),
+    max: getAggregateData("MAX"),
+    sum: getAggregateData("SUM"),
+    total: getAggregateData("TOTAL"),
+};
+
 export class GroupByBuilder {
     /** @type {KinshipBase} */ #base;
 
@@ -25,14 +62,7 @@ export class GroupByBuilder {
      * State for group by. 
      */
     getState(callback) {
-        const data = assertAsArray(callback(this.#newProxy(), {
-            avg: this.#getAggregateData("AVG"),
-            count: this.#getAggregateData("COUNT"),
-            min: this.#getAggregateData("MIN"),
-            max: this.#getAggregateData("MAX"),
-            sum: this.#getAggregateData("SUM"),
-            total: this.#getAggregateData("TOTAL"),
-        }));
+        const data = assertAsArray(callback(this.#newProxy(), aggregates));
 
         /** @type {GroupByClauseProperty[]} */
         const props = /** @type {any} */ (data);
@@ -40,33 +70,6 @@ export class GroupByBuilder {
         return {
             select: props,
             groupBy: props.filter(col => !("aggregate" in col))
-        };
-    }
-
-    /**
-     * 
-     * @param {"AVG"|"COUNT"|"MIN"|"MAX"|"SUM"|"TOTAL"} aggr
-     * @returns {(col?: any) => any} 
-     */
-    #getAggregateData(aggr) {
-        return (col) => {
-            if (aggr === "TOTAL") return {
-                table: 'AGGREGATE',
-                column: 'COUNT(*)',
-                alias: `$total`,
-                aggregate: aggr
-            }
-            if (col === undefined) throw new KinshipInternalError();
-            const { table, column, alias } = /** @type {import("../context/base").ColumnDetails} */ (col);
-            const c = aggr === 'COUNT'
-                ? `COUNT(DISTINCT ${table}.${column})`
-                : `${aggr}(${table}.${column})`;
-            return {
-                table: 'AGGREGATE',
-                column: c,
-                alias: `$${aggr.toLowerCase()}_` + alias?.replace(/\<\|/g, "_"),
-                aggregate: aggr
-            }
         };
     }
 

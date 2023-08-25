@@ -1,6 +1,5 @@
 // @ts-check
 import EventEmitter from "events";
-import * as Types from './types.js';
 
 /**
  * @typedef {object} SuccessEventDetail
@@ -84,7 +83,7 @@ export class CommandListener extends EventEmitter {
     /**
      * Adds a listener event to the Connection Pool associated with this context 
      * whenever a Query command is successfully executed on the pool.
-     * @param {import('./index.js').SuccessHandler} callback Function that executes when a query command is executed on this context.
+     * @param {SuccessHandler} callback Function that executes when a query command is executed on this context.
      * @returns {() => CommandListener} Function for the user to use to unsubscribe to the event.
      */
     onQuerySuccess(callback) {
@@ -96,7 +95,7 @@ export class CommandListener extends EventEmitter {
     /**
      * Adds a listener event to the Connection Pool associated with this context 
      * whenever a Query command is successfully executed on the pool.
-     * @param {import('./index.js').FailHandler} callback Function that executes when a query command is executed on this context.
+     * @param {FailHandler} callback Function that executes when a query command is executed on this context.
      * @returns {() => CommandListener} Function for the user to use to unsubscribe to the event.
      */
     onQueryFail(callback) {
@@ -108,7 +107,7 @@ export class CommandListener extends EventEmitter {
     /**
      * Adds a listener event to the Connection Pool associated with this context 
      * whenever a Query command is successfully executed on the pool.
-     * @param {import('./index.js').SuccessHandler} callback Function that executes when a query command is executed on this context.
+     * @param {SuccessHandler} callback Function that executes when a query command is executed on this context.
      * @returns {() => CommandListener} Function for the user to use to unsubscribe to the event.
      */
     onInsertSuccess(callback) {
@@ -120,7 +119,7 @@ export class CommandListener extends EventEmitter {
     /**
      * Adds a listener event to the Connection Pool associated with this context 
      * whenever a Query command is successfully executed on the pool.
-     * @param {import('./index.js').FailHandler} callback Function that executes when a query command is executed on this context.
+     * @param {FailHandler} callback Function that executes when a query command is executed on this context.
      * @returns {() => CommandListener} Function for the user to use to unsubscribe to the event.
      */
     onInsertFail(callback) {
@@ -132,7 +131,7 @@ export class CommandListener extends EventEmitter {
     /**
      * Adds a listener event to the Connection Pool associated with this context 
      * whenever a Query command is successfully executed on the pool.
-     * @param {import('./index.js').SuccessHandler} callback Function that executes when a query command is executed on this context.
+     * @param {SuccessHandler} callback Function that executes when a query command is executed on this context.
      * @returns {() => CommandListener} Function for the user to use to unsubscribe to the event.
      */
     onUpdateSuccess(callback) {
@@ -144,7 +143,7 @@ export class CommandListener extends EventEmitter {
     /**
      * Adds a listener event to the Connection Pool associated with this context 
      * whenever a Query command is successfully executed on the pool.
-     * @param {import('./index.js').FailHandler} callback Function that executes when a query command is executed on this context.
+     * @param {FailHandler} callback Function that executes when a query command is executed on this context.
      * @returns {() => CommandListener} Function for the user to use to unsubscribe to the event.
      */
     onUpdateFail(callback) {
@@ -156,7 +155,7 @@ export class CommandListener extends EventEmitter {
     /**
      * Adds a listener event to the Connection Pool associated with this context 
      * whenever a Query command is successfully executed on the pool.
-     * @param {import('./index.js').SuccessHandler} callback Function that executes when a query command is executed on this context.
+     * @param {SuccessHandler} callback Function that executes when a query command is executed on this context.
      * @returns {() => CommandListener} Function for the user to use to unsubscribe to the event.
      */
     onDeleteSuccess(callback) {
@@ -168,7 +167,7 @@ export class CommandListener extends EventEmitter {
     /**
      * Adds a listener event to the Connection Pool associated with this context 
      * whenever a Query command is successfully executed on the pool.
-     * @param {import('./index.js').FailHandler} callback Function that executes when a query command is executed on this context.
+     * @param {FailHandler} callback Function that executes when a query command is executed on this context.
      * @returns {() => CommandListener} Function for the user to use to unsubscribe to the event.
      */
     onDeleteFail(callback) {
@@ -180,7 +179,7 @@ export class CommandListener extends EventEmitter {
     /**
      * Adds a listener event to the Connection Pool associated with this context
      * whenever a Warning has been internally emitted.
-     * @param {import('./index.js').WarningHandler} callback 
+     * @param {WarningHandler} callback 
      * @returns {() => CommandListener} Function for the user to use to unsubscribe to the event.
      */
     onWarning(callback) {
@@ -254,7 +253,7 @@ export class CommandListener extends EventEmitter {
     }
 
     /**
-     * @param {Types.OnWarningData} detail Details of the warning.
+     * @param {OnWarningData} detail Details of the warning.
      * @returns {boolean} True if the event was emitted, false otherwise.
      */
     emitWarning(detail) {
@@ -270,7 +269,7 @@ export class CommandListener extends EventEmitter {
         args.forEach(a => {
             cmdRaw = cmdRaw.replace("?", Array.isArray(a) ? `(${a.reduce((x,s) => `${s}, ${x}`, '')})` : typeof a === "string" || a instanceof Date ? `"${a}"` : a);
         });
-        /** @type {Types.OnSuccessData} */
+        /** @type {OnSuccessData} */
         const detail = {
             dateIso: new Date().toISOString(),
             cmdRaw,
@@ -295,7 +294,7 @@ export class CommandListener extends EventEmitter {
                 }
             });
         }
-        /** @type {Types.OnFailData} */
+        /** @type {OnFailData} */
         const detail = {
             dateIso: new Date().toISOString(),
             cmdRaw,
@@ -306,3 +305,76 @@ export class CommandListener extends EventEmitter {
         return detail;
     }
 }
+
+
+/** SuccessHandler  
+ * 
+ * Callback function on a Connection Pool handled by the emission of when a context sends a command to be executed.
+ * @callback SuccessHandler
+ * @param {OnSuccessData} data 
+ * Data that was passed from the event emission.
+ */
+
+/** FailHandler  
+ * 
+ * Callback function on a Connection Pool handled by the emission of when a context sends a command and that command fails.
+ * @callback FailHandler
+ * @param {OnFailData} data 
+ * Data that was passed from the event emission.
+ */
+
+/** WarningHandler  
+ * 
+ * Callback function on a Connection Pool handled by the emission of when a context sends a command to be executed.
+ * @callback WarningHandler
+ * @param {OnSuccessData} data 
+ * Data that was passed from the event emission.
+ */
+
+/** OnSuccessData  
+ * 
+ * Data passed into the `OnSuccess` functions so the User has context to metadata during a command execution when it is successful.
+ * @typedef OnSuccessData
+ * @prop {number?} affectedRows 
+ * Number of affected rows
+ * @prop {string} dateIso 
+ * Date in ISO string format
+ * @prop {string} cmdRaw 
+ * Command in its raw format, including arguments.
+ * @prop {string} cmdSanitized 
+ * Command in its sanitized format.
+ * @prop {any[]} args 
+ * Arguments that were passed in with the sanitized format.
+ * @prop {any[]?} resultsInSqlRowFormat
+ * Results directly from the adapter, or otherwise SQL rows
+ */
+
+/** OnFailData  
+ * 
+ * Data passed into the `OnFail` functions so the User has context to metadata during a command execution when it has failed.
+ * @typedef OnFailData
+ * @prop {Error} error 
+ * Thrown error
+ * @prop {string} dateIso 
+ * Date in ISO string format
+ * @prop {string=} cmdRaw 
+ * Command in its raw format, including arguments.
+ * @prop {string=} cmdSanitized 
+ * Command in its sanitized format.
+ * @prop {any[]=} args 
+ * Arguments that were passed in with the sanitized format.
+ */
+
+/** OnWarningData  
+ * 
+ * Data passed into the `OnWarning` functions so the User has context to metadata from a command executed outside expected conditions.
+ * @typedef OnWarningData
+ * @prop {string} dateIso 
+ * Date in ISO string format
+ * @prop {string} type 
+ * Type of command executed
+ * @prop {string} table
+ * Table the command was executed on.
+ * @prop {string} message
+ * Message from Kinship
+ */

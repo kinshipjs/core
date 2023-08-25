@@ -1,7 +1,7 @@
 //@ts-check
 
-import { KinshipColumnDoesNotExistError, KinshipInvalidPropertyTypeError, KinshipSyntaxError } from "../exceptions";
-import { KinshipExecutionHandler } from "./exec-handler";
+import { KinshipColumnDoesNotExistError, KinshipInvalidPropertyTypeError, KinshipSyntaxError } from "../exceptions.js";
+import { KinshipExecutionHandler } from "./exec-handler.js";
 import { Where } from "../clauses/where.js";
 
 export class KinshipDeleteHandler extends KinshipExecutionHandler {

@@ -33,7 +33,10 @@ export function getUniqueColumns(records) {
  * @param {string[]} columns
  */
 export function getAllValues(records, columns=getUniqueColumns(records)) {
-    return records.map(r => Object.assign(/** @type {any} */(r), ...columns.map(c => ({[c]: r[c] ?? null})))); 
+    return records.map(r => Object.values({
+        ...Object.fromEntries(columns.map(c => [c,null])), 
+        ...Object.fromEntries(Object.entries(/** @type {any} */ (r)).filter(([k,v]) => isPrimitive(v)))
+    }))
 }
 
 /**

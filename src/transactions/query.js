@@ -1,12 +1,12 @@
 //@ts-check
 
-import { KinshipColumnDoesNotExistError, KinshipInvalidPropertyTypeError } from "../exceptions";
-import { KinshipExecutionHandler } from "./exec-handler";
+import { KinshipColumnDoesNotExistError, KinshipInvalidPropertyTypeError } from "../exceptions.js";
+import { KinshipExecutionHandler } from "./exec-handler.js";
 
 export class KinshipQueryHandler extends KinshipExecutionHandler {
     /**
      * @template {object|undefined} TAliasModel
-     * @param {any} state
+     * @param {import("../context/context.js").AdapterReadyState} state
      * @param {TAliasModel[]} records
      * @param {...any} args
      * @returns {Promise<{ numRowsAffected: number, records: TAliasModel[] }>}
@@ -14,18 +14,11 @@ export class KinshipQueryHandler extends KinshipExecutionHandler {
     async _execute(state, records, ...[callback]) {
         state = this.#useCallbackToSelectColumns(state, callback);
         state = this.#assertPrimaryKeysExist(state);
-        const { cmd, args } = this.kinshipBase.handleAdapterSerialize().forQuery({
-            select: state.select,
-            from: state.from,
-            //@ts-ignore `._getConditions` is marked private so the User does not see the function.
-            where: state?.where?._getConditions(),
-            group_by: state.groupBy,
-            order_by: state.sortBy,
-            limit: state.limit,
-            offset: state.offset
-        });
+        const detail = this.#getDetail(state);
+        const { cmd, args } = this.kinshipBase.handleAdapterSerialize().forQuery(detail);
         try {
             records = await this.kinshipBase.handleAdapterExecute().forQuery(cmd, args);
+            //todo: serialize records.
             this.kinshipBase.listener.emitQuerySuccess({ cmd, args, results: records });
             return {
                 numRowsAffected: 0,
@@ -37,6 +30,12 @@ export class KinshipQueryHandler extends KinshipExecutionHandler {
         }
     }
 
+    /**
+     * 
+     * @param {import("../context/context.js").AdapterReadyState} state 
+     * @param {*} callback 
+     * @returns {import("../context/context.js").AdapterReadyState}
+     */
     #useCallbackToSelectColumns(state, callback) {
         if(state.groupBy) {
             this.kinshipBase.listener.emitWarning({
@@ -55,11 +54,16 @@ export class KinshipQueryHandler extends KinshipExecutionHandler {
         return state;
     }
 
+    /**
+     * 
+     * @param {import("../context/context.js").AdapterReadyState} state 
+     * @returns 
+     */
     #assertPrimaryKeysExist(state) {
         const stateOfSelectsMapped = state.select.map(s => s.alias);
         if (state.from.length > 1 && !state.groupBy) {
             for (let i = 1; i < state.from.length; ++i) {
-                const table = /** @type {import("../types.js").FromClauseProperty} */(state.from[i]);
+                const table = /** @type {import("../config/has-relationship.js").FromClauseProperty} */(state.from[i]);
                 if (!stateOfSelectsMapped.includes(table.referenceTableKey.alias)) {
                     state.select.push(table.referenceTableKey);
                 }
@@ -69,6 +73,24 @@ export class KinshipQueryHandler extends KinshipExecutionHandler {
             }
         }
         return state;
+    }
+
+    /**
+     * 
+     * @param {import("../context/context.js").AdapterReadyState} state 
+     * @returns 
+     */
+    #getDetail(state) {
+        return {
+            select: state.select,
+            from: state.from,
+            //@ts-ignore `._getConditions` is marked private so the User does not see the function.
+            where: state.where,
+            group_by: state.groupBy,
+            order_by: state.orderBy,
+            limit: state.limit,
+            offset: state.offset
+        }
     }
 
     #newProxyForColumn(table = this.kinshipBase.tableName, 

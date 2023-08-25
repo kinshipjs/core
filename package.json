@@ -1,5 +1,6 @@
 {
     "name": "@kinshipjs/core",
+    "type": "module",
     "version": "0.0.1-development",
     "repository": {
         "type": "git",
@@ -15,7 +16,7 @@
         "clean": "del /S /Q .\\dist",
         "build:source": "tsup",
         "build:types": "tsc",
-        "test": "echo \"Error: no test specified\" && exit 1"
+        "test": "node ./test/test.js"
     },
     "keywords": [
         "myorm",
@@ -31,6 +32,7 @@
     "author": "Travis R. Zuleger",
     "license": "MIT",
     "devDependencies": {
+        "@kinshipjs/adapter-mysql": "file:../adapters/mysql",
         "@types/node": "^20.4.5",
         "semantic-release": "^21.0.7",
         "tsup": "^7.1.0",

@@ -14,12 +14,12 @@ import {
  * @template {object} [TOriginalModel=TTableModel]
  * @param {KinshipBase} kinshipBase
  * @param {TColumn} column
- * @param {string} aliasedTableName
+ * @param {string} table
  * @param {"WHERE"|"WHERE NOT"} chain
  * @returns {WhereBuilder<TTableModel, TColumn, TOriginalModel>}
  */
-export function Where(kinshipBase, column, aliasedTableName=kinshipBase.tableName, chain="WHERE") {
-    return new WhereBuilder(kinshipBase, column, chain);
+export function Where(kinshipBase, column, table=kinshipBase.tableName, chain="WHERE") {
+    return new WhereBuilder(kinshipBase, column, table, chain);
 }
 
 /**
@@ -37,9 +37,10 @@ export class WhereBuilder {
     /**
      * @param {KinshipBase} kinshipBase
      * @param {keyof TOriginalModel} column 
+     * @param {string} table
      * @param {WhereChain} chain
      */
-    constructor(kinshipBase, column, chain = "WHERE") {
+    constructor(kinshipBase, column, table, chain = "WHERE") {
         // @ts-ignore
         this.#current = { chain, property: column, table }
         this.#kinshipBase = kinshipBase;
@@ -65,7 +66,7 @@ export class WhereBuilder {
      * @type {Condition<TOriginalModel, TColumn>} 
      */
     equals(value) {
-        this.#current.value = /** @type {import('../models/types.js').DataType} */ (value instanceof Date ? this.#kinshipBase.adapter.syntax.dateString(value) : value);
+        this.#current.value = /** @type {import('../models/types.js').DataType} */ (/** @type {any} */ (value) instanceof Date ? this.#kinshipBase.adapter.syntax.dateString(value) : value);
         this.#current.operator = "=";
         this.#insert();
         return this.#chain();
@@ -76,7 +77,7 @@ export class WhereBuilder {
      * @type {Condition<TOriginalModel, TColumn>} 
      */
     notEquals(value) {
-        this.#current.value = /** @type {import('../models/types.js').DataType} */ (value instanceof Date ? this.#kinshipBase.adapter.syntax.dateString(value) : value);
+        this.#current.value = /** @type {import('../models/types.js').DataType} */ (/** @type {any} */ (value) instanceof Date ? this.#kinshipBase.adapter.syntax.dateString(value) : value);
         this.#current.operator = "<>";
         this.#insert();
         return this.#chain();
@@ -87,7 +88,7 @@ export class WhereBuilder {
      * @type {Condition<TOriginalModel, TColumn>} 
      */
     lessThan(value) {
-        this.#current.value = /** @type {import('../models/types.js').DataType} */ (value instanceof Date ? this.#kinshipBase.adapter.syntax.dateString(value) : value);
+        this.#current.value = /** @type {import('../models/types.js').DataType} */ (/** @type {any} */ (value) instanceof Date ? this.#kinshipBase.adapter.syntax.dateString(value) : value);
         this.#current.operator = "<";
         this.#insert();
         return this.#chain();
@@ -98,7 +99,7 @@ export class WhereBuilder {
      * @type {Condition<TOriginalModel, TColumn>} 
      */
     lessThanOrEqualTo(value) {
-        this.#current.value = /** @type {import('../models/types.js').DataType} */ (value instanceof Date ? this.#kinshipBase.adapter.syntax.dateString(value) : value);
+        this.#current.value = /** @type {import('../models/types.js').DataType} */ (/** @type {any} */ (value) instanceof Date ? this.#kinshipBase.adapter.syntax.dateString(value) : value);
         this.#current.operator = "<=";
         this.#insert();
         return this.#chain();
@@ -109,7 +110,7 @@ export class WhereBuilder {
      * @type {Condition<TOriginalModel, TColumn>} 
      */
     greaterThan(value) {
-        this.#current.value = /** @type {import('../models/types.js').DataType} */ (value instanceof Date ? this.#kinshipBase.adapter.syntax.dateString(value) : value);
+        this.#current.value = /** @type {import('../models/types.js').DataType} */ (/** @type {any} */ (value) instanceof Date ? this.#kinshipBase.adapter.syntax.dateString(value) : value);
         this.#current.operator = ">";
         this.#insert();
         return this.#chain();
@@ -120,7 +121,7 @@ export class WhereBuilder {
      * @type {Condition<TOriginalModel, TColumn>} 
      */
     greaterThanOrEqualTo(value) {
-        this.#current.value = /** @type {import('../models/types.js').DataType} */ (value instanceof Date ? this.#kinshipBase.adapter.syntax.dateString(value) : value);
+        this.#current.value = /** @type {import('../models/types.js').DataType} */ (/** @type {any} */ (value) instanceof Date ? this.#kinshipBase.adapter.syntax.dateString(value) : value);
         this.#current.operator = ">=";
         this.#insert();
         return this.#chain();
@@ -153,10 +154,12 @@ export class WhereBuilder {
      * @returns {Chain<TOriginalModel>} A group of methods for optional chaining of conditions.
      */
     in(values) {
-        this.#current.value = /** @type {import("../models/types.js").DataType[]} */ (values.map(value => value instanceof Date 
-            ? this.#kinshipBase.adapter.syntax.dateString(value) 
-            : value
-        ));
+        this.#current.value = /** @type {import("../models/types.js").DataType[]} */ (
+            values.map(value => /** @type {any} */ (value) instanceof Date 
+                ? this.#kinshipBase.adapter.syntax.dateString(value) 
+                : value
+            )
+        );
         this.#current.operator = "IN";
         this.#insert();
         return this.#chain();
@@ -205,12 +208,13 @@ export class WhereBuilder {
      * To be used within `KinshipContext` only.
      * @private
      * @param {keyof TOriginalModel} column
+     * @param {string} table
      * @param {WhereChain} chain
      * @returns {this}
      */
-    _append(column, chain = "WHERE") {
+    _append(column, table=this.#kinshipBase.tableName, chain = "WHERE") {
         // @ts-ignore
-        this.#current = { table: this.#kinshipBase.tableName, chain, property: column };
+        this.#current = { table, chain, property: column };
         this.#negated = chain.endsWith('NOT');
         return this;
     }
@@ -220,7 +224,12 @@ export class WhereBuilder {
      * @returns {WhereBuilder<any,any>}
      */
     _clone() {
-        const where = new WhereBuilder(this.#kinshipBase, this.#current.property, this.#current.chain);
+        const where = new WhereBuilder(
+            this.#kinshipBase, 
+            this.#current.property, 
+            this.#current.table, 
+            this.#current.chain
+        );
         where._conditions = this._conditions;
         return where;
     }
@@ -239,7 +248,7 @@ export class WhereBuilder {
                             return newProxy(relationships[p].alias, relationships[p].relationships, relationships[p].schema, relationships[p].table);
                         }
                         if (!(p in schema)) throw new KinshipColumnDoesNotExistError(p, realTableName);
-                        return new WhereBuilder(this.#kinshipBase, p, "AND");
+                        return new WhereBuilder(this.#kinshipBase, p, table, "AND");
                     }
                 });
                 const wb = modelCallback(newProxy(this.#kinshipBase.tableName));
@@ -255,7 +264,7 @@ export class WhereBuilder {
                             return newProxy(relationships[p].alias, relationships[p].relationships, relationships[p].schema, relationships[p].table);
                         }
                         if (!(p in schema)) throw new KinshipColumnDoesNotExistError(p, realTableName);
-                        return new WhereBuilder(this.#kinshipBase, p, "OR");
+                        return new WhereBuilder(this.#kinshipBase, p, table, "OR");
                     }
                 });
                 const wb = modelCallback(newProxy());

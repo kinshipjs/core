@@ -8,10 +8,10 @@ export class KinshipExecutionHandler {
     /** @type {KinshipBase} */ kinshipBase;
 
     /** @type {TriggerCallback<any>} */ #before;
-    /** @type {TriggerBeforeHookCallback} */ #beforeHook;
+    /** @type {TriggerHookCallback} */ #beforeHook;
 
     /** @type {TriggerCallback<any>} */ #after;
-    /** @type {TriggerAfterHookCallback} */ #afterHook;
+    /** @type {TriggerHookCallback} */ #afterHook;
     
     /**
      * Construct a new Execution handler that will handle the before and after triggers, 
@@ -20,32 +20,39 @@ export class KinshipExecutionHandler {
      */
     constructor(kinshipBase) {
         this.kinshipBase = kinshipBase;
+        this.#before = () => {};
+        this.#beforeHook = () => {};
+        this.#after = () => {};
+        this.#afterHook = () => {};
     }
 
     /**
      * Handles the execution of a command and its respective triggers if any exist.
      * @template {object|undefined} T
-     * @param {any} state
-     * @param {import("../models/maybe.js").MaybeArray<T>|Function|undefined} records
+     * @param {import("../context/context.js").State} originalState
+     * @param {import("../models/maybe.js").MaybeArray<T>|undefined} records
      * @param {...any} args
      * @returns {Promise<{ numRowsAffected: number, records: T[], whereClause?: WhereBuilder<T>}>}
      */
-    async handle(state, records, ...args) {
-        let recsForTrigger = [];
-        if (typeof records !== 'function' && records !== undefined) {
-            recsForTrigger = records = /** @type {T[]} */ (assertAsArray(records));
+    async handle(originalState, records, ...args) {
+        /** @type {import("../context/context.js").AdapterReadyState} */
+        const state = this.#getEscapedState(originalState);
+        if(records) {
+            records = assertAsArray(records);
             if(records.length <= 0) {
                 return {
                     numRowsAffected: 0,
                     records: []
                 }
             }
+        } else {
+            records = [];
         }
-        recsForTrigger = /** @type {T[]} */ (assertAsArray(recsForTrigger));
         try {
-            await this.#applyBefore(recsForTrigger);
+            await this.#applyBefore(records);
             const data = await this._execute(state, records, ...args);
-            await this.#applyAfter(recsForTrigger);
+            await this.#applyAfter(records);
+            data.records = this.#serialize(state, data.records);
             return data;
         } catch(err) {
             throw err;
@@ -62,7 +69,7 @@ export class KinshipExecutionHandler {
      * @template {object|undefined} TAliasModel
      * Type of the model that the table represents.
      * @param {TriggerCallback<TAliasModel>} callback
-     * @param {TriggerBeforeHookCallback=} hook
+     * @param {TriggerHookCallback=} hook
      * @returns {this}
      */
     before(callback, hook) {
@@ -84,7 +91,7 @@ export class KinshipExecutionHandler {
      * @template {object|undefined} TAliasModel
      * Type of the model that the table represents.
      * @param {TriggerCallback<TAliasModel>} callback
-     * @param {TriggerAfterHookCallback=} hook
+     * @param {TriggerHookCallback=} hook
      * @returns {this}
      */
     after(callback, hook) {
@@ -102,8 +109,10 @@ export class KinshipExecutionHandler {
      * @param {TAliasModel[]} records
      */
     async #applyBefore(records) {
-        const args = await this.#beforeHook();
-        await Promise.all(records.map(async r => await this.#before(r, args)));
+        const args = await this.#beforeHook(records.length);
+        await Promise.all(records.map(async (r,n) => {
+            await this.#before(r, { $$itemNumber: n, ...args })
+        }));
     }
 
     /**
@@ -113,7 +122,9 @@ export class KinshipExecutionHandler {
      */
     async #applyAfter(records) {
         const args = await this.#afterHook(records.length);
-        await Promise.all(records.map(async r => await this.#after(r, args)));
+        await Promise.all(records.map(async (r,n) => {
+            await this.#after(r, { $$itemNumber: n, ...args })
+        }));
     }
 
     /**
@@ -127,6 +138,149 @@ export class KinshipExecutionHandler {
      */
     async _execute(state, records, ...args) {
         throw new KinshipImplementationError(`Child class must implement the function, "._execute".`);
+    }
+
+    /**
+     * Transforms all of the stored data within the state of the context so all columns/tables are escaped appropriately.
+     * @param {import("../context/context.js").State} originalState State that was received from the `KinshipContext`.
+     * @returns {import("../context/context.js").AdapterReadyState} A new state exactly like the old state but with everything escaped.
+     */
+    #getEscapedState(originalState) {
+        let state = JSON.parse(JSON.stringify(originalState));
+        state.where = originalState.where
+            //@ts-ignore _clone is marked private, but is available for use internally.
+            ?._clone();
+        state.from.forEach(t => {
+            t.alias = this.kinshipBase.adapter.syntax.escapeColumn(t.alias);
+            t.realName = this.kinshipBase.adapter.syntax.escapeColumn(t.realName);
+            if("referenceTableKey" in t) {
+                t.referenceTableKey.alias = this.kinshipBase.adapter.syntax.escapeColumn(t.referenceTableKey.alias);
+                t.referenceTableKey.column = this.kinshipBase.adapter.syntax.escapeColumn(t.referenceTableKey.column);
+                t.referenceTableKey.table = this.kinshipBase.adapter.syntax.escapeTable(t.referenceTableKey.table);
+                t.refererTableKey.alias = this.kinshipBase.adapter.syntax.escapeColumn(t.refererTableKey.alias);
+                t.refererTableKey.column = this.kinshipBase.adapter.syntax.escapeColumn(t.refererTableKey.column);
+                t.refererTableKey.table = this.kinshipBase.adapter.syntax.escapeTable(t.refererTableKey.table);
+            }
+        });
+
+        state.groupBy?.forEach(c => {
+            c.alias = this.kinshipBase.adapter.syntax.escapeColumn(c.alias);
+            c.column = this.kinshipBase.adapter.syntax.escapeColumn(c.column);
+            c.table = this.kinshipBase.adapter.syntax.escapeTable(c.table);
+        });
+
+        state.orderBy?.forEach(c => {
+            c.alias = this.kinshipBase.adapter.syntax.escapeColumn(c.alias);
+            c.column = this.kinshipBase.adapter.syntax.escapeColumn(c.column);
+            c.table = this.kinshipBase.adapter.syntax.escapeTable(c.table);
+        });
+
+        state.select?.forEach(c => {
+            c.alias = this.kinshipBase.adapter.syntax.escapeColumn(c.alias);
+            c.column = this.kinshipBase.adapter.syntax.escapeColumn(c.column);
+            c.table = this.kinshipBase.adapter.syntax.escapeTable(c.table);
+        });
+        const whereConditions = state.where
+            //@ts-ignore marked private but is available for use internally.
+            ?._getConditions();
+        const whereForEach = c => {
+            if(Array.isArray(c)) {
+                c.forEach(whereForEach);
+            } else {
+                c.property = this.kinshipBase.adapter.syntax.escapeColumn(c.property);
+                c.table = this.kinshipBase.adapter.syntax.escapeTable(c.table);
+            }
+        };
+        whereConditions?.forEach(whereForEach);
+        delete state.where;
+        return { ...state, where: whereConditions };
+    }
+
+    /**
+     * Returns a function to be used in a JavaScript `<Array>.map()` function that recursively maps relating records into a single record.
+     * @param {import("../context/context.js").AdapterReadyState} state
+     * @param {object[]} records All records returned from a SQL query.
+     * @param {object} record Record that is being worked on (this is handled recursively)
+     * @param {string} prepend String to prepend onto the key for the original record's value.
+     * @returns {(record: any, n?: number) => object} Function for use in a JavaScript `<Array>.map()` function for use on an array of the records filtered to only uniques by main primary key.
+     */
+    #map(state, records, record=records[0], prepend="", relationships=this.kinshipBase.relationships) {
+        return (r) => {
+            /** @type {any} */
+            const mapping = {};
+            const processedTables = new Set();
+            for(const key in record) {
+                if(key.startsWith("$")) {
+                    mapping[key] = r[key];
+                    continue;
+                }
+                const [table] = key.split('<|');
+                if(processedTables.has(table)) {
+                    continue;
+                }
+                processedTables.add(table);
+                if(table === key) {
+                    const actualKey = prepend + key;
+                    if (r[actualKey] != null || prepend == '') {
+                        mapping[key] = r[actualKey];
+                    }
+                    continue;
+                }
+
+                // alter `record` so keys at this leaf are removed, and all keys altered to prepare for the next leaf.
+                const entries = Object.keys(record)
+                    .filter(k => k.startsWith(table + '<|'))
+                    .map(k => [k.substring(table.length+2), {}]);
+                const map = this.#map(state, records, Object.fromEntries(entries), prepend + table + '<|', relationships[table].relationships);
+                if (relationships[table].type === "1:1" || state.groupBy) {
+                    const _r = map(r);
+                    mapping[table] = Object.keys(_r).length <= 0 ? null : _r;
+                } else {
+                    const pKey = relationships[table].primary.alias;
+                    const fKey = relationships[table].foreign.alias;
+                    const uniquelyRelatedRecords = this.#filterForUniqueRelatedRecords(records.filter((_r) => r[pKey] === _r[fKey]), table);
+                    // recursively map related records in case there are any further nested relationships.
+                    mapping[table] = uniquelyRelatedRecords.map(map);
+                }
+            }
+    
+            return mapping;
+        }
+    }
+
+    /**
+     * Serializes a given array of records, `records`, into object notation that a User would expect.
+     * @param {import("../context/context.js").AdapterReadyState} state
+     * @param {any[]} records Records to filter.
+     * @returns {object[]} Records, serialized into objects that a user would expect.
+     */
+    #serialize(state, records) {
+        if (records.length <= 0 || state.from.length === 1) return records;
+        const map = this.#map(state, records);
+        // group by is specific where each record returned will be its own result and will not be serialized like normal.
+        if(state.groupBy) {
+            return records.map(map);
+        }
+        return this.#filterForUniqueRelatedRecords(records).map(map);
+    }
+
+    /**
+     * Filters out duplicates of records that have the same primary key.
+     * @param {any[]} records Records to filter.
+     * @param {string=} table Table to get the primary key from. (default: original table name)
+     * @returns {any[]} A new array of records, where duplicates by primary key are filtered out. If no primary key is defined, then `records` is returned, untouched.
+     */
+    #filterForUniqueRelatedRecords(records, table=this.kinshipBase.tableName) {
+        let pKeyInfo = this.kinshipBase.getPrimaryKeys(table);
+        if(records === undefined || pKeyInfo.length <= 0) return records;
+        const pKeys = pKeyInfo.map(k => k.alias);
+        const uniques = new Set();
+        return records.filter(r => {
+            // if(pKeys.filter(k => !(k in r)).length > 0) return true; // @TODO: This may need to be added back in ?
+            const fullKeyValue = pKeys.map(k => r[k]).join(',');
+            return !uniques.has(fullKeyValue) 
+                && !!uniques.add(fullKeyValue);
+        });
     }
 }
 
@@ -158,12 +312,7 @@ class KinshipImplementationError extends Error {
  */
 
 /**
- * @callback TriggerBeforeHookCallback
- * @returns {import("../models/maybe.js").MaybePromise<any>}
- */
-
-/**
- * @callback TriggerAfterHookCallback
+ * @callback TriggerHookCallback
  * @param {number} numRecords
  * @returns {import("../models/maybe.js").MaybePromise<any>}
  */

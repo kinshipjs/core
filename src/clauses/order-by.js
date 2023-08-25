@@ -91,11 +91,14 @@ export class OrderByBuilder {
  * Type to recurse through to augment.
  * @template TFinalType
  * Type to augment SQL primitive types (non `SqlTable` types) to.
- * @typedef {{[K in keyof TTransformingModel]-?: TTransformingModel[K] extends (infer U extends object)[]|undefined 
- *   ? AugmentModel<U, TFinalType> 
- *   : TTransformingModel[K] extends (object|undefined) 
- *     ? AugmentModel<TTransformingModel[K], TFinalType> 
- *     : TFinalType}} AugmentModel
+ * @typedef {{[K in keyof TTransformingModel]-?: TTransformingModel[K] extends import("../models/types.js").DataType|undefined 
+ *   ? TFinalType 
+ *   : TTransformingModel[K] extends (infer U extends object)[]|undefined 
+ *     ? AugmentModel<U, TFinalType> 
+ *     : TTransformingModel[K] extends (object|undefined) 
+ *       ? AugmentModel<TTransformingModel[K], TFinalType> 
+ *       : never
+ * }} AugmentModel
  */
 
 /**

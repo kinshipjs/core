@@ -1,8 +1,8 @@
 //@ts-check
 
-import { KinshipColumnDoesNotExistError, KinshipInvalidPropertyTypeError } from "../exceptions";
-import { KinshipExecutionHandler } from "./exec-handler";
-import { getAllValues, getUniqueColumns } from "../context/util";
+import { KinshipColumnDoesNotExistError, KinshipInvalidPropertyTypeError } from "../exceptions.js";
+import { KinshipExecutionHandler } from "./exec-handler.js";
+import { getAllValues, getUniqueColumns } from "../context/util.js";
 import { Where, WhereBuilder } from "../clauses/where.js";
 
 export class KinshipInsertHandler extends KinshipExecutionHandler {
@@ -16,6 +16,7 @@ export class KinshipInsertHandler extends KinshipExecutionHandler {
         const { cmd, args } = this.kinshipBase.handleAdapterSerialize().forInsert(this.#getDetail(records));
         try {
             const insertIds = await this.kinshipBase.handleAdapterExecute().forQuery(cmd, args);
+            this.kinshipBase.listener.emitInsertSuccess({ cmd, args, results: insertIds });
             this.#fixIdentityKeys(records, insertIds);
             /** @type {WhereBuilder<TTableModel>} */
             const whereClause = /** @type {any} */ (this.#getWhereClauseIfVirtualColumnsExist(records));
@@ -25,6 +26,7 @@ export class KinshipInsertHandler extends KinshipExecutionHandler {
                 whereClause
             };
         } catch(err) {
+            this.kinshipBase.listener.emitInsertFail({ cmd, args, err });
             throw err;
         }
     }
@@ -56,7 +58,7 @@ export class KinshipInsertHandler extends KinshipExecutionHandler {
             let o = {};
             for(const key in this.kinshipBase.schema) {
                 // ignore virtual keys.
-                if(!this.kinshipBase.isEditable(this.kinshipBase.schema[key])) continue;
+                if(this.kinshipBase.schema[key].isVirtual) continue;
                 // set defaults
                 if(!(key in r)) {
                     r[key] = /** @type {any} */ (this.kinshipBase.schema[key].defaultValue());

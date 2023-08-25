@@ -1,22 +1,22 @@
 //@ts-check
 
-import { isPrimitive } from "../dev-util";
-import { KinshipColumnDoesNotExistError, KinshipInvalidPropertyTypeError } from "../exceptions";
-import { KinshipExecutionHandler } from "./exec-handler";
-import { getUniqueColumns } from "../context/util";
-import { Where } from "../where-builder";
+import { KinshipColumnDoesNotExistError, KinshipInvalidPropertyTypeError } from "../exceptions.js";
+import { KinshipExecutionHandler } from "./exec-handler.js";
+import { getUniqueColumns } from "../context/util.js";
+import { Where } from "../clauses/where.js";
 
 export class KinshipUpdateHandler extends KinshipExecutionHandler {
     /**
      * @template {object|undefined} TTableModel
      * @param {any} state
-     * @param {TTableModel[]|((m: TTableModel) => Partial<TTableModel>|void)} records
+     * @param {TTableModel[]} records
+     * @param {((m: TTableModel) => Partial<TTableModel>|void)=} callback
      * @returns {Promise<{ numRowsAffected: number, records: TTableModel[] }>}
      */
-    async _execute(state, records) {
+    async _execute(state, records, callback=undefined) {
         let detail;
-        if(typeof records === 'function') {
-            detail = this.#explicit(state, records);
+        if(callback !== undefined) {
+            detail = this.#explicit(state, callback);
             records = [];
         } else {
             detail = this.#implicit(records);
@@ -47,7 +47,7 @@ export class KinshipUpdateHandler extends KinshipExecutionHandler {
      * @template {object|undefined} TTableModel
      * @param {any} state 
      * @param {((m: TTableModel) => Partial<TTableModel>|void)} callback 
-     * @returns {import("..").SerializationUpdateHandlerData}
+     * @returns {SerializationUpdateHandlerData}
      */
     #explicit(state, callback) {
         let columns = [];
@@ -95,7 +95,7 @@ export class KinshipUpdateHandler extends KinshipExecutionHandler {
             columns,
             where: whereConditions,
             implicit: {
-                primaryKeys: pKeys,
+                primaryKeys: pKeys.map(colInfo => colInfo.field),
                 objects: records
             }
         }
@@ -106,18 +106,16 @@ export class KinshipUpdateHandler extends KinshipExecutionHandler {
      * come back accurately.
      * @template {object|undefined} TTableModel
      * @param {TTableModel[]} records
-     * @returns {import("../types").WhereClausePropertyArray}
+     * @returns {import("../clauses/where.js").WhereClausePropertyArray}
      */
     #getWhereConditions(records) {
         const pKeys = this.kinshipBase.getPrimaryKeys();
-        let where = Where(
-            this.kinshipBase.adapter, 
+        let where = /** @type {typeof Where<any, any>} */ (Where)(
+            this.kinshipBase, 
             pKeys[0], 
-            this.kinshipBase.tableName, 
-            this.kinshipBase.relationships, 
-            this.kinshipBase.schema
+            this.kinshipBase.tableName
         );
-        let chain = where.in(records.map(r => r[pKeys[0]]))
+        let chain = where.in(records.map(r => r[pKeys[0].field]))
         for(let i = 1; i < pKeys.length; ++i) {
             //@ts-ignore
             chain = chain.and(m => m[pKeys[i]].in(records.map(r => r[pKeys[i]])).and(m => m[pKeys[i+1]].in(r[pKeys[i+1]])));

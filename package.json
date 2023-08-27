@@ -19,7 +19,6 @@
         "test": "node ./test/test.js"
     },
     "keywords": [
-        "myorm",
         "mysql",
         "sqlite",
         "mssql",
@@ -27,13 +26,20 @@
         "database",
         "sql",
         "efc",
-        "dotnet"
+        "typescript",
+        "table",
+        "left join",
+        "query",
+        "insert",
+        "update",
+        "delete"
     ],
     "author": "Travis R. Zuleger",
     "license": "MIT",
     "devDependencies": {
-        "@kinshipjs/adapter-mysql": "file:../adapters/mysql",
+        "@kinshipjs/mysql": "file:../adapter-mysql",
         "@types/node": "^20.4.5",
+        "dotenv": "^16.3.1",
         "semantic-release": "^21.0.7",
         "tsup": "^7.1.0",
         "typescript": "^5.1.6"

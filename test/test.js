@@ -1,6 +1,9 @@
 //@ts-check
 import { KinshipContext } from "../src/context/context.js";
-import { adapter, createMySql2Pool } from "@kinshipjs/adapter-mysql";
+import { adapter, createMySql2Pool } from "@kinshipjs/mysql";
+import { config } from 'dotenv';
+
+config();
 
 /**
  * @typedef {object} User
@@ -32,17 +35,17 @@ import { adapter, createMySql2Pool } from "@kinshipjs/adapter-mysql";
  */
 
 const pool = createMySql2Pool({
-    host: "localhost",
-    database: "kinship_test",
-    port: 3306,
-    user: "root",
-    password: "root"
+    host: process.env.HOST,
+    database: process.env.DB,
+    port: parseInt(process.env.PORT ?? "3306"),
+    user: process.env.USER,
+    password: process.env.PASS
 });
 
 const connection = adapter(pool);
 
-// /** @type {KinshipContext<LastRowNumber>} */
-// const lastIds = new KinshipContext(connection, "LastRowNumber")
+/** @type {KinshipContext<LastRowNumber>} */
+const lastIds = new KinshipContext(connection, "LastIdAssigned")
 /** @type {KinshipContext<User>} */
 const ctx = new KinshipContext(connection, "User");
 
@@ -63,44 +66,49 @@ ctx.hasMany(m => m.userRoles
     )
 );
 
-// ctx.beforeInsert((m, { $$itemNumber, lastUserId }) => {
-//     m.Id = `U-${(lastUserId + $$itemNumber).toString().padStart(6, '0')}`;
-// }, async () => {
-//     // Retrieve the latest Id from the LastRowNumber table.
-//     const results = await lastIds.where(m => m.Id.equals(1)).select(m => m.User);
-//     const [lastUserId] = results;
-//     if(lastUserId) {
-//         return {
-//             lastUserId: lastUserId.User
-//         };
-//     } else {
-//         await lastIds.insert({
-//             User: 0,
-//             Role: 0,
-//         });
-//         return {
-//             lastUserId: 0
-//         };
-//     }
-// });
+ctx.beforeInsert((m, { $$itemNumber, lastUserId }) => {
+    m.Id = `U-${(lastUserId + $$itemNumber).toString().padStart(6, '0')}`;
+}, async () => {
+    // Retrieve the latest Id from the LastRowNumber table.
+    const results = await lastIds.where(m => m.Id.equals(1)).select(m => m.User);
+    const [lastUserId] = results;
+    if(lastUserId) {
+        return {
+            lastUserId: lastUserId.User
+        };
+    } else {
+        await lastIds.insert({
+            User: 0,
+            Role: 0,
+        });
+        return {
+            lastUserId: 0
+        };
+    }
+});
 
-// ctx.afterInsert(() => {}, async (numRecords) => {
-//     // Update the LastRowNumber table so the User Id is reflected.
-//     console.log(`AFTER Insert.`);
-//     const results = await lastIds.where(m => m.Id.equals(1)).select();
-//     console.log({results});
-//     const [lastUserId] = results;
-//     lastUserId.User += numRecords;
-//     await lastIds.update(lastUserId);
-// });
+ctx.afterInsert(() => {}, async (numRecords) => {
+    // Update the LastRowNumber table so the User Id is reflected.
+    console.log(`AFTER Insert.`);
+    const results = await lastIds.where(m => m.Id.equals(1)).select();
+    console.log({results});
+    const [lastUserId] = results;
+    lastUserId.User += numRecords;
+    await lastIds.update(lastUserId);
+});
 
-async function test() {
-    const users = await ctx
+async function testQuery() {
+    var o = ctx
         .include(m => m.userRoles
             .thenInclude(m => m.role))
-        .select();
-    console.log(users);
+        .where(m => m.Id.contains("U-000000"))
+        .where(m => m.LastName.like("h%")
+            .or(m => m.LastName.like("n%")))
+        .sortBy(m => [m.LastName.desc(), m.FirstName.asc()]);
+    var users = await o.select(m => [m.Id, m.userRoles.role.Title, m.userRoles.role.Description]);
+    users[0].userRoles[0].role.Title
+    users[0].Id
 }
 
-await test();
+await testQuery();
 process.exit(1);

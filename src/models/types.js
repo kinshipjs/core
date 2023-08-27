@@ -4,7 +4,14 @@
 
 /**
  * @template T
- * @typedef {T extends DataType ? never : T extends object|undefined ? T : T extends (infer U)[]|undefined ? U : never} OnlyObjectType
+ * @typedef {T extends DataType|undefined 
+ *   ? never 
+ *   : T extends (infer U)[]|undefined 
+*      ? U 
+ *     : T extends object|undefined 
+ *       ? T 
+ *       : never
+ * } OnlyObjectType
  */
 
 export default {};

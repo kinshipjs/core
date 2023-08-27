@@ -129,9 +129,9 @@ export class WhereBuilder {
 
     /**
      * Adds a condition to the WHERE clause where if the specified column is between two numbers.
-     * @param {TOriginalModel[TColumn] extends number ? number : never} value1 
+     * @param {TOriginalModel[TColumn] extends number|undefined ? number : never} value1 
      * Lower range of the number to look between. (inclusive)
-     * @param {TOriginalModel[TColumn] extends number ? number : never} value2
+     * @param {TOriginalModel[TColumn] extends number|undefined ? number : never} value2
      * Upper range of the number to look between. (inclusive)
      * @returns {Chain<TOriginalModel>} A group of methods for optional chaining of conditions.
      */
@@ -168,7 +168,7 @@ export class WhereBuilder {
     /**
      * Adds a condition to the WHERE clause where if the specified column, as a string, is like, by SQL's LIKE command syntax, the value specified.
      * This operation is case insensitive.
-     * @param {TOriginalModel[TColumn] extends string ? string : never} value
+     * @param {TOriginalModel[TColumn] extends string|undefined ? string : never} value
      * String value to check where the column is like.
      * @returns {Chain<TOriginalModel>} A group of methods for optional chaining of conditions.
      */
@@ -182,7 +182,7 @@ export class WhereBuilder {
     /**
      * Adds a condition to the WHERE clause where if the specified column, as a string, contains the value specified.
      * This operation is case insensitive.
-     * @param {TOriginalModel[TColumn] extends string ? string : never} value
+     * @param {TOriginalModel[TColumn] extends string|undefined ? string : never} value
      * String value to check where the column contains.
      * @returns {Chain<TOriginalModel>} A group of methods for optional chaining of conditions.
      */

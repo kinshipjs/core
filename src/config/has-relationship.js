@@ -141,15 +141,14 @@ export class RelationshipBuilder {
             relationships: {},
             constraints: []
         };
-        console.log(`Appending describe ${realTableName}`);
-        this.#base.handleAsync(async () => {
+        this.#base.afterResync(async (oldState) => {
             const schema = await this.#base.describe(realTableName);
             for(const key in schema) {
                 schema[key].table = relationships[codeTableName].alias;
                 schema[key].alias = `${prependColumn}${codeTableName}<|${schema[key].field}`;
             }
             relationships[codeTableName].schema = schema;
-            console.log(`Finished describe ${realTableName}`);
+            return oldState;
         });
         const andThat = {
             andThatHasOne: ( 

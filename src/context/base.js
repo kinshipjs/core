@@ -1,6 +1,6 @@
 //@ts-check
 import { CommandListener } from "../events.js";
-import { KinshipAdapterError, KinshipNonUniqueKeyError } from "../exceptions.js";
+import { KinshipAdapterError, KinshipInternalError, KinshipNonUniqueKeyError } from "../exceptions.js";
 import { Where } from "../clauses/where.js"
 
 /**
@@ -16,9 +16,11 @@ export class KinshipBase {
     /** @type {Record<string, import("../config/has-relationship.js").DescribedSchema>} */ schema;
 
     /** @type {CommandListener} */ listener;
-    /** @type {Promise<void>} */ promise;
+    /** @type {Promise<import("./context.js").State>?} */ promise;
 
     /** @type {Record<string, import("../config/has-relationship.js").DescribedSchema[]>} */ #primaryKeyCache = {};
+
+    /** @type {boolean} */ needsResync = false;
 
     /**
      * @param {import("./adapter.js").KinshipAdapterConnection} adapter 
@@ -37,13 +39,12 @@ export class KinshipBase {
         this.relationships = {};
         this.schema = {};
         this.listener = new CommandListener(tableName);
-        this.promise = Promise.resolve();
+        this.promise = null;
         
-        console.log(`Appending describe ${tableName}`);
-        this.handleAsync(async () => {
+        this.afterResync(async (oldState) => {
             const schema = await this.describe(tableName);
             this.schema = schema;
-            console.log(`Finished describe`);
+            return oldState;
         });
     }
 
@@ -70,19 +71,29 @@ export class KinshipBase {
     }
 
     /**
-     * Handles calls that rely on asynchronous processes.  
-     * This does not necessarily mean the action being done in `promise` has to be asynchronous itself,
-     * it just means that some data may be relied upon for the action to be done. (e.g., Using schema or
-     * relationships.)
-     * @param {() => void|Promise<void>} callback
+     * Triggers `callback` only once the context has caught up with resynchronizing with asynchronous tasks.
+     * @param {(oldState: import("./context.js").State) => import("./context.js").State|Promise<import("./context.js").State>} callback 
+     * Callback that works on data within `Kinship` that requires the context to be resynchronized first.
      */
-    handleAsync(callback) {
-        console.log(`--- RE-SYNC REQUIRED ---`)
-        this.promise = this.promise.then(() => {
-            return callback();
+    afterResync(callback) {
+        this.needsResync = true;
+        if(this.promise === null) {
+            this.promise = new Promise(res => {
+                res(callback(/** @type {import("./context.js").State} */ ({})));
+            });
+        }
+        this.promise = this.promise.then((oldState) => {
+            return callback(oldState);
         }).catch(err => {
             throw err;
         });
+    }
+
+    /**
+     * Resynchronizes the context.
+     */
+    async resync() {
+        return await this.promise;
     }
     
     /**

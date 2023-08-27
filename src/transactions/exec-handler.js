@@ -28,15 +28,15 @@ export class KinshipExecutionHandler {
 
     /**
      * Handles the execution of a command and its respective triggers if any exist.
-     * @template {object|undefined} T
-     * @param {import("../context/context.js").State} originalState
+     * @template {object} T
      * @param {import("../models/maybe.js").MaybeArray<T>|undefined} records
      * @param {...any} args
      * @returns {Promise<{ numRowsAffected: number, records: T[], whereClause?: WhereBuilder<T>}>}
      */
-    async handle(originalState, records, ...args) {
+    async handle(records, ...args) {
+        const originalState = await this.kinshipBase.resync();
         /** @type {import("../context/context.js").AdapterReadyState} */
-        const state = this.#getEscapedState(originalState);
+        const state = this.#getEscapedState(/** @type {import("../context/context.js").State} */ (originalState));
         if(records) {
             records = assertAsArray(records);
             if(records.length <= 0) {
@@ -51,8 +51,8 @@ export class KinshipExecutionHandler {
         try {
             await this.#applyBefore(records);
             const data = await this._execute(state, records, ...args);
-            await this.#applyAfter(records);
             data.records = this.#serialize(state, data.records);
+            await this.#applyAfter(data.records);
             return data;
         } catch(err) {
             throw err;

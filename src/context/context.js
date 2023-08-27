@@ -15,7 +15,7 @@ import { RelationshipBuilder, RelationshipType } from "../config/has-relationshi
  * Establishes a connection directly to a table within your database.
  * @template {object|undefined} TTableModel
  * Type of the model that represents the table and its columns, in their exact form.
- * @template {object|undefined} [TAliasModel=import("../config/has-relationship.js").OnlyDataTypes<TTableModel>]
+ * @template {object|undefined} [TAliasModel=import("../models/string.js").FriendlyType<import("../config/has-relationship.js").OnlyDataTypes<TTableModel>>]
  * Type of the model, `TTableModel`, which will be augmented as new clauses are called.
  */
 export class KinshipContext {
@@ -30,8 +30,6 @@ export class KinshipContext {
      * @type {Builders<TTableModel, TAliasModel>} */ #builders;
     /** Handlers for transactions with the database. 
      * @type {Handlers} */ #handlers;
-    /** State of the context. 
-     * @type {State} */ #state;
 
     /* -------------------------Constructor------------------------- */
     
@@ -127,8 +125,7 @@ export class KinshipContext {
      * @returns {Promise<number>} Number of rows affected.
      */
     async delete(records=undefined) {
-        await this.#base.promise;
-        const { numRowsAffected } = await this.#handlers.delete.handle(this.#state, records);
+        const { numRowsAffected } = await this.#handlers.delete.handle(records);
         if(this.#base.options.stateless) {
             this.#resetState()
         }
@@ -144,12 +141,11 @@ export class KinshipContext {
      * Default values include virtual columns, database defaults, and user defined defaults.
      */
     async insert(records) {
-        await this.#base.promise;
-        const { numRowsAffected, whereClause, ...data } = await this.#handlers.insert.handle(this.#state, records);
+        const { numRowsAffected, whereClause, ...data } = await this.#handlers.insert.handle(records);
         // If `whereClause` is NOT undefined, then the handler determined that virtual columns exist, so we must requery
         if(whereClause) { 
             const ctx = this.#newContext();
-            ctx.#state.where = whereClause;
+            ctx.#afterResync((oldState) => ({ ...oldState, where: whereClause }));
             records = /** @type {TAliasModel[]} */ (await ctx.select());
         } else {
             records = data.records;
@@ -162,21 +158,18 @@ export class KinshipContext {
 
     /**
      * Queries selected columns or all columns from the context using a built state.
-     * @template {import("../clauses/choose.js").SelectedColumnsModel<TAliasModel>} [TSelectedColumns=import("../clauses/choose.js").SelectedColumnsModel<TAliasModel>]
+     * @template {import("../clauses/choose.js").SelectedColumnsModel<TAliasModel>|TAliasModel} [TSelectedColumns=TAliasModel]
      * Type that represents the selected columns.
      * @param {((model: import("../clauses/choose.js").SpfSelectCallbackModel<TAliasModel>) => 
      *  import("../models/maybe.js").MaybeArray<keyof TSelectedColumns>)=} callback
      * Callback model that allows the user to select which columns to grab.
      * @returns {Promise<(TSelectedColumns extends TAliasModel 
      *  ? TAliasModel 
-     *  : import("../models/superficial.js").Isolate<TTableModel, keyof TSelectedColumns>)[]>}
+     *  : import("../models/string.js").Reconstructed<TAliasModel, TSelectedColumns>)[]>}
      * Rows queried from the database serialized into a user-friendly format.
      */
     async select(callback=undefined) {
-        console.log(`--- [START] Synchronizing ---`);
-        await this.#base.promise;
-        console.log(`--- [FINISH] Synchronizing ---`);
-        const { records } = await this.#handlers.query.handle(this.#state, undefined, callback);
+        const { records } = await this.#handlers.query.handle(undefined, callback);
         if(this.#base.options.stateless) {
             this.#resetState();
         }
@@ -214,11 +207,10 @@ export class KinshipContext {
      * @returns {Promise<number>}
      */
     async update(records) {
-        await this.#base.promise;
         if(typeof records === 'function') {
-            var { numRowsAffected } = await this.#handlers.update.handle(this.#state, [], records);
+            var { numRowsAffected } = await this.#handlers.update.handle([], records);
         } else {
-            var { numRowsAffected }  = await this.#handlers.update.handle(this.#state, records);
+            var { numRowsAffected }  = await this.#handlers.update.handle(records);
         }
         if(this.#base.options.stateless) {
             this.#resetState()
@@ -242,11 +234,11 @@ export class KinshipContext {
      */
     choose(callback) {
         if(this.#base.options.stateless) {
-            this.#handleAsync(() => this.#choose(callback));
+            this.#afterResync((oldState) => this.#choose(callback, oldState));
             return /** @type {any} */ (this);
         }
         const ctx = this.#newContext();
-        this.#handleAsync(() => ctx.#choose(callback));
+        this.#afterResync((oldState) => ctx.#choose(callback, oldState));
         return /** @type {any} */ (ctx);
     }
 
@@ -261,11 +253,11 @@ export class KinshipContext {
      */
     groupBy(callback) {
         if(this.#base.options.stateless) {
-            this.#handleAsync(() => this.#groupBy(callback));
+            this.#afterResync((oldState) => this.#groupBy(callback, oldState));
             return /** @type {any} */ (this);
         }
         const ctx = this.#newContext();
-        this.#handleAsync(() => ctx.#groupBy(callback));
+        this.#afterResync((oldState) => ctx.#groupBy(callback, oldState));
         return /** @type {any} */ (ctx);
     }
 
@@ -280,12 +272,11 @@ export class KinshipContext {
      */
     include(callback) {
         if(this.#base.options.stateless) {
-            this.#handleAsync(() => this.#include(callback));
+            this.#afterResync((oldState) => this.#include(callback, oldState));
             return /** @type {any} */ (this);
         }
         const ctx = this.#newContext();
-        console.log(`Appending include.`);
-        this.#handleAsync(() => ctx.#include(callback));
+        this.#afterResync((oldState) => ctx.#include(callback, oldState));
         return /** @type {any} */ (ctx);
     }
 
@@ -297,11 +288,11 @@ export class KinshipContext {
      */
     skip(numberOfRecords) {
         if(this.#base.options.stateless) {
-            this.#handleAsync(() => this.#skip(numberOfRecords));
+            this.#afterResync((oldState) => this.#skip(numberOfRecords, oldState));
             return this;
         }
         const ctx = this.#newContext();
-        this.#handleAsync(() => ctx.#skip(numberOfRecords));
+        this.#afterResync((oldState) => ctx.#skip(numberOfRecords, oldState));
         return ctx;
     }
 
@@ -318,11 +309,11 @@ export class KinshipContext {
      */
     sortBy(callback) {
         if(this.#base.options.stateless) {
-            this.#handleAsync(() => this.#sortBy(callback));
+            this.#afterResync((oldState) => this.#sortBy(callback, oldState));
             return this;
         }
         const ctx = this.#newContext();
-        this.#handleAsync(() => ctx.#sortBy(callback));
+        this.#afterResync((oldState) => ctx.#sortBy(callback, oldState));
         return ctx;
     }
     
@@ -334,11 +325,11 @@ export class KinshipContext {
      */
     take(numberOfRecords) {
         if(this.#base.options.stateless) {
-            this.#handleAsync(() => this.#take(numberOfRecords));
+            this.#afterResync((oldState) => this.#take(numberOfRecords, oldState));
             return this;
         }
         const ctx = this.#newContext();
-        this.#handleAsync(() => ctx.#take(numberOfRecords));
+        this.#afterResync((oldState) => ctx.#take(numberOfRecords, oldState));
         return ctx;
     }
 
@@ -350,55 +341,97 @@ export class KinshipContext {
      */
     where(callback) {
         if(this.#base.options.stateless) {
-            this.#handleAsync(() => this.#where(callback));
+            this.#afterResync((oldState) => this.#where(callback, oldState));
             return this;
         }
         const ctx = this.#newContext();
-        this.#handleAsync(() => ctx.#where(callback));
+        this.#afterResync((oldState) => ctx.#where(callback, oldState));
         return ctx;
     }
 
     /* -------------------------Private Clause Functions------------------------- */
     // Private functions for use with their corresponding public Clause Function.
 
-    /** Sets the state for `this.#state.select` through a `SelectBuilder`. */
-    #choose(callback) {
-        this.#state.select = callback(); // @TODO #setState
+    /**
+     * Handles merging the oldState with the choose clause that was added by the consumer.
+     * @param {any} callback 
+     * @param {State} oldState State of the context before this was called. 
+     * @returns {State} The new state of the context.
+     */
+    #choose(callback, oldState) {
+        return oldState;
     }
 
-    /** Sets the state for `this.#state.groupBy` through a `GroupByBuilder`. */
-    #groupBy(callback) {
+    /**
+     * Handles merging the oldState with the group by clause that was added by the consumer.
+     * @param {any} callback 
+     * @param {State} oldState State of the context before this was called. 
+     * @returns {State} The new state of the context.
+     */
+    #groupBy(callback, oldState) {
         const { select, groupBy } = this.#builders.groupBy.getState(callback);
-        this.#setState({ select, groupBy });
+        return { ...oldState, select, groupBy };
     }
 
-    /** Sets the state for `this.#state.from` through a `RelationshipBuilder` */
-    #include(callback) {
+    /**
+     * Handles merging the oldState with the include clause that was added by the consumer.
+     * @param {any} callback 
+     * @param {State} oldState State of the context before this was called. 
+     * @returns {State} The new state of the context.
+     */
+    #include(callback, oldState) {
         const state = this.#builders.relationships.getStateForInclude(callback);
-        this.#setState({ 
-            from: [...this.#state.from, ...state.from], 
-            select: [...this.#state.select, ...state.select] 
-        });
-        console.log(`Finished include.`);
+        return { 
+            ...oldState,  
+            from: [...oldState.from, ...state.from],
+            select: [...oldState.select, ...state.select]
+        };
     }
 
-    /** Sets the state for `this.#state.offset`. */
-    #skip(numberOfRecords) {
-        this.#setState({ offset: numberOfRecords });
+    /**
+     * Handles merging the oldState with the offset clause that was added by the consumer.
+     * @param {number} numberOfRecords 
+     * @param {State} oldState State of the context before this was called. 
+     * @returns {State} The new state of the context.
+     */
+    #skip(numberOfRecords, oldState) {
+        return { 
+            ...oldState, 
+            offset: numberOfRecords 
+        };
     }
     
-    /** Sets the state for `this.#state.orderBy` through a `SortByBuilder`. */
-    #sortBy(callback) {
-        this.#setState({ orderBy: [...(this.#state.orderBy ?? []), ...this.#builders.orderBy.getState(callback)] });
+    /**
+     * Handles merging the oldState with the order by clause that was added by the consumer.
+     * @param {any} callback 
+     * @param {State} oldState State of the context before this was called. 
+     * @returns {State} The new state of the context.
+     */
+    #sortBy(callback, oldState) {
+        return { ...oldState, orderBy: this.#builders.orderBy.getState(callback) };
     }
 
-    /** Sets the state for `this.#state.limit`. */
-    #take(numberOfRecords) {
-        this.#setState({ limit: numberOfRecords });
+    /**
+     * Handles merging the oldState with the limit clause that was added by the consumer.
+     * @param {number} numberOfRecords 
+     * @param {State} oldState State of the context before this was called. 
+     * @returns {State} The new state of the context.
+     */
+    #take(numberOfRecords, oldState) {
+        return { 
+            ...oldState, 
+            limit: numberOfRecords 
+        };
     }
 
-    /** Sets the state for `this.#state.where` through a `WhereBuilder`. */
-    #where(callback) {
+    /**
+     * Handles merging the oldState with the where clause that was added by the consumer.
+     * @param {any} callback 
+     * @param {State} oldState State of the context before this was called. 
+     * @returns {State} The new state of the context.
+     */
+    #where(callback, oldState) {
+        let where = oldState.where;
         const newProxy = (realTableName=this.#base.tableName, 
             table=realTableName,
             relationships=this.#base.relationships, 
@@ -415,24 +448,27 @@ export class KinshipContext {
                 }
                 if(!(p in schema)) throw new KinshipColumnDoesNotExistError(p, realTableName);
                 const field = schema[p].field;
-                if(this.#state.where) {
-                    return this.#state.where
+                if(where) {
+                    return where
                         //@ts-ignore `._append` is marked private so the User does not see the function.
-                        ._append(field, table, `AND${this.#state.negated ? ' NOT' : ''}`);
+                        ._append(field, table, `AND${oldState.negated ? ' NOT' : ''}`);
                 }
-                const chain = this.#state.negated ? `WHERE NOT` : `WHERE`;
-                const where = /** @type {typeof Where<any, any>} */ (Where)(
+                const chain = oldState.negated ? `WHERE NOT` : `WHERE`;
+                where = /** @type {typeof Where<any, any>} */ (Where)(
                     this.#base,
                     field,
                     table,
                     chain
                 );
-                this.#setState({ where });
                 return where;
             }
         });
         callback(newProxy());
-        this.#setState({ negated: false });
+        return { 
+            ...oldState,
+            where,
+            negated: false 
+        };
     }
 
     /* -------------------------Configuration Functions------------------------- */
@@ -579,43 +615,25 @@ export class KinshipContext {
      * @param {KinshipContext<any, any>} fromContext
      */
     #cloneState(fromContext) {
-        console.log(`Appending cloneState.`);
-        this.#handleAsync(() => {
-            const newState = JSON.parse(JSON.stringify(fromContext.#state));
-            newState.where = fromContext.#state.where
+        this.#afterResync((oldState) => {
+            const newState = JSON.parse(JSON.stringify(oldState));
+            newState.where = oldState.where
                 //@ts-ignore _clone is marked private, but is available for usage here.
                 ?._clone();
-            this.#state = newState;
-            console.log(`Finished cloneState.`);
+            return newState;
         });
     }
 
     #resetState() {
-        console.log(`Appending resetState.`);
-        this.#handleAsync(() => {
-            this.#state = {
+        this.#afterResync((oldState) => {
+            return {
+                ...oldState,
                 select: this.#base.getAllSelectColumnsFromSchema(),
                 from: [{
                     alias: this.#base.tableName,
                     realName: this.#base.tableName
                 }]
             };
-            console.log(`Finished resetState.`);
-        });
-    }
-
-    /**
-     * If the state is set at any point, then it could come across a race condition with the asynchronous
-     * portion of this context, so #setState ensures that your state is set correctly.
-     * @param {Partial<State>} state 
-     */
-    #setState(state) {
-        console.log(`Appending setState.`);
-        this.#handleAsync(() => {
-            const newState = { ...this.#state, ...state };
-            // console.log(JSON.stringify({ old: this.#state ?? {}, new: newState ?? {} }, undefined, 2))
-            this.#state = newState;
-            console.log(`Finished setState`);
         });
     }
 
@@ -633,11 +651,11 @@ export class KinshipContext {
     }
 
     /**
-     * 
-     * @param {() => void} callback 
+     * Wrapper for `this.#base.afterResync` to only trigger the callback once the context has caught up with asynchronous work. 
+     * @param {(oldState: import("./context.js").State) => import("./context.js").State|Promise<import("./context.js").State>} callback 
      */
-    #handleAsync(callback) {
-        this.#base.handleAsync(callback);
+    #afterResync(callback) {
+        this.#base.afterResync(callback);
     }
 
     /* -------------------------Disposable Functions------------------------- */

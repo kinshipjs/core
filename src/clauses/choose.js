@@ -19,10 +19,10 @@ export class ChooseBuilder {
     
 }
 
-/** 
+/**
  * Model representing selected columns.
- * @template {object|undefined} TTableModel
- * @typedef {{[K in keyof Partial<TTableModel> as K]: SelectClauseProperty}} SelectedColumnsModel
+ * @template {object} TTableModel
+ * @typedef {{[K in keyof Partial<TTableModel> as import("../models/string.js").Join<TTableModel, K & string>]: any}} SelectedColumnsModel
  */
 
 /**
@@ -35,15 +35,17 @@ export class ChooseBuilder {
  * 
  * __NOTE: This is a superficial type to help augment the AliasModel of the context so Users can expect different results in TypeScript.__  
  * __Real return value: {@link SelectClauseProperty}__
- * @template {object|undefined} TTableModel
- * @typedef {AugmentAllValues<TTableModel>} SpfSelectCallbackModel
+ * @template {object} TTableModel
+ * @typedef {import("../models/string.js").Deflate<TTableModel>} SpfSelectCallbackModel
  */
 
 /** AugmentAllValues  
  * Augments the type, `T`, so that all nested properties have string values reflecting their own key and their parent(s).  
  * (e.g., { Foo: { Bar: "" } } becomes { Foo: { Bar: "Foo_Bar" } })
- * @template {object|undefined} T
- * @typedef {{[K in keyof T]-?: import("../models/types.js").OnlyObjectType<T[K]> extends never ? K : AugmentAllValues<import("../models/types.js").OnlyObjectType<T[K]>>}} AugmentAllValues
+ * @template {object} T
+ * @typedef {{[K in keyof T]-?: import("../models/types.js").OnlyObjectType<T[K]> extends never 
+ *   ? K 
+ *   : AugmentAllValues<import("../models/types.js").OnlyObjectType<T[K]>>}} AugmentAllValues
  */
 
 export default {};

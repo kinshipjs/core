@@ -1,10 +1,11 @@
 //@ts-check
 
 import { KinshipColumnDoesNotExistError, KinshipInvalidPropertyTypeError } from "../exceptions.js";
-import { KinshipExecutionHandler } from "./exec-handler.js";
+import { KinshipExecutionHandler } from "./handler.js";
 
 export class KinshipQueryHandler extends KinshipExecutionHandler {
     /**
+     * @protected
      * @template {object|undefined} TAliasModel
      * @param {import("../context/context.js").AdapterReadyState} state
      * @param {TAliasModel[]} records
@@ -12,23 +13,22 @@ export class KinshipQueryHandler extends KinshipExecutionHandler {
      * @returns {Promise<{ numRowsAffected: number, records: TAliasModel[] }>}
      */
     async _execute(state, records, ...[callback]) {
-        console.log(`Query executed`);
         // these MUST be called in this order, otherwise certain columns get escaped twice.
         state = this.#useCallbackToSelectColumns(state, callback);
         state = this.#assertPrimaryKeysExist(state);
 
         const detail = this.#getDetail(state);
-        const { cmd, args } = this.kinshipBase.handleAdapterSerialize().forQuery(detail);
+        const { cmd, args } = this.base.handleAdapterSerialize().forQuery(detail);
         try {
-            records = await this.kinshipBase.handleAdapterExecute().forQuery(cmd, args);
+            records = await this.base.handleAdapterExecute().forQuery(cmd, args);
             //todo: serialize records.
-            this.kinshipBase.listener.emitQuerySuccess({ cmd, args, results: records });
+            this.base.listener.emitQuerySuccess({ cmd, args, results: records });
             return {
                 numRowsAffected: 0,
                 records
             };
         } catch(err) {
-            this.kinshipBase.listener.emitQueryFail({ cmd, args, err });
+            this.base.listener.emitQueryFail({ cmd, args, err });
             throw err;
         }
     }
@@ -41,11 +41,11 @@ export class KinshipQueryHandler extends KinshipExecutionHandler {
      */
     #useCallbackToSelectColumns(state, callback) {
         if(state.groupBy) {
-            this.kinshipBase.listener.emitWarning({
+            this.base.listener.emitWarning({
                 type: "SELECT",
                 message: `Cannot choose columns when a GROUP BY clause is present.`,
                 dateIso: new Date().toISOString(),
-                table: this.kinshipBase.tableName
+                table: this.base.tableName
             });
             return state;
         }
@@ -66,7 +66,7 @@ export class KinshipQueryHandler extends KinshipExecutionHandler {
         const stateOfSelectsMapped = state.select.map(s => s.alias);
         if (state.from.length > 1 && !state.groupBy) {
             for (let i = 1; i < state.from.length; ++i) {
-                const table = /** @type {import("../config/has-relationship.js").FromClauseProperty} */(state.from[i]);
+                const table = /** @type {import("../config/relationships.js").FromClauseProperty} */(state.from[i]);
                 if (!stateOfSelectsMapped.includes(table.referenceTableKey.alias)) {
                     state.select.push(table.referenceTableKey);
                 }
@@ -87,7 +87,6 @@ export class KinshipQueryHandler extends KinshipExecutionHandler {
         return {
             select: state.select,
             from: state.from,
-            //@ts-ignore `._getConditions` is marked private so the User does not see the function.
             where: state.conditions,
             group_by: state.groupBy,
             order_by: state.orderBy,
@@ -96,16 +95,16 @@ export class KinshipQueryHandler extends KinshipExecutionHandler {
         }
     }
 
-    #newProxyForColumn(table = this.kinshipBase.tableName, 
+    #newProxyForColumn(table = this.base.tableName, 
         callback=(o) => o, 
-        relationships=this.kinshipBase.relationships, 
-        schema=this.kinshipBase.schema, 
-        realTableName=this.kinshipBase.tableName) 
+        relationships=this.base.relationships, 
+        schema=this.base.schema, 
+        realTableName=this.base.tableName) 
     {
         return new Proxy({}, {
             get: (t, p, r) => {
                 if (typeof(p) === 'symbol') throw new KinshipInvalidPropertyTypeError(p);
-                if (this.kinshipBase.isRelationship(p, relationships)) {
+                if (this.base.isRelationship(p, relationships)) {
                     return this.#newProxyForColumn(relationships[p].alias, callback, relationships[p].relationships, relationships[p].schema, relationships[p].table);
                 }
                 if(!(p in schema)) throw new KinshipColumnDoesNotExistError(p, realTableName);

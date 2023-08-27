@@ -1,9 +1,7 @@
 //@ts-check
 
-/** @template T @typedef {import("./maybe").MaybeArray<T>} MaybeArray */
-
 /**
- * @template {MaybeArray<object|undefined>} T
+ * @template {import("./maybe.js").MaybeArray<object|undefined>} T
  * @typedef {T extends (infer R)[] ? R : T} SqlTableType
  */
 

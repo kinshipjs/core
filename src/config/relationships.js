@@ -47,20 +47,16 @@ export class RelationshipBuilder {
     /**
      * Gets the state for an `.include()` call, given some callback.
      * @template {object} TTableModel
-     * @param {(model: {[K in keyof import("../config/has-relationship.js").OnlyTableTypes<TTableModel>]: 
-     *   import("../config/has-relationship.js").ThenIncludeCallback<
-     *     import("../config/has-relationship.js").OnlyTableTypes<TTableModel>[K], K>
+     * @param {import("../context/context.js").State} oldState
+     * @param {(model: {[K in keyof import("./relationships.js").OnlyTableTypes<TTableModel>]: 
+     *   import("./relationships.js").ThenIncludeCallback<
+     *     import("./relationships.js").OnlyTableTypes<TTableModel>[K], K>
      *   }) => void} callback
-     * @returns {{ from: FromClauseProperty[], select: import("../clauses/choose").SelectClauseProperty[] }}
+     * @returns {import("../context/context.js").State}
      */
-    getStateForInclude(callback) {
-        /** @type {{ from: FromClauseProperty[], select: import("../clauses/choose").SelectClauseProperty[] }} */
-        const state = {
-            from: [],
-            select: []
-        };
-        callback(this.#newIncludeProxy(state));
-        return state;
+    getStateForInclude(oldState, callback) {
+        callback(this.#newIncludeProxy(oldState));
+        return oldState;
     }
 
     /**
@@ -111,7 +107,7 @@ export class RelationshipBuilder {
      * @param {string} realTableName 
      * @param {string} primaryKey 
      * @param {string} foreignKey 
-     * @returns {import("../old/types").AndThatHasCallbacks<TTableModel>}
+     * @returns {import("../old/types.js").AndThatHasCallbacks<TTableModel>}
      */
     #withKeys(table,
         prependTable, 
@@ -235,7 +231,7 @@ export class RelationshipBuilder {
 
     /**
      * @template {object} TTableModel
-     * @param {{ from: FromClauseProperty[], select: import("../clauses/choose").SelectClauseProperty[] }} state 
+     * @param {import("../context/context.js").State} state 
      * @param {string} table 
      * @param {Record<string, Relationship<TTableModel>>} relationships 
      * @returns 
@@ -304,7 +300,7 @@ export class RelationshipBuilder {
  * True if the column is unique (primary keys can set this to true as well)
  * @prop {"string"|"int"|"float"|"boolean"|"date"} datatype
  * Type that the column represents.
- * @prop {() => import("../models/types").DataType|undefined} defaultValue
+ * @prop {() => import("../models/types.js").DataType|undefined} defaultValue
  * Function that returns the value specified in the database schema for database generated values on inserts.
  */
 
@@ -320,9 +316,9 @@ export class RelationshipBuilder {
  * Actual table name as it appears in the database.
  * @prop {string} alias
  * Alias given to this table for command serialization.
- * @prop {import("../clauses/order-by").Column} primary
+ * @prop {import("../clauses/order-by.js").Column} primary
  * Information on the key pointing to the original table that holds this relationship.
- * @prop {import("../clauses/order-by").Column} foreign 
+ * @prop {import("../clauses/order-by.js").Column} foreign 
  * Information on the key pointing to the related table. (this key comes from the same table that is specified by `table`)
  * @prop {{[K in keyof T]: DescribedSchema}} schema
  * Various information about the table's columns.
@@ -418,11 +414,11 @@ export class RelationshipBuilder {
  * Filters out an object model type to only have keys that are valued with `object`s.
  * @template {object} T 
  * The abstract model to check properties for recursive `object`s.
- * @typedef {{[K in keyof Required<T> as T[K] extends import("../models/types").DataType|object[]|undefined
+ * @typedef {{[K in keyof Required<T> as T[K] extends import("../models/types.js").DataType|object[]|undefined
  *      ? never 
  *      : K
  *   ]-?: 
- *      T[K] extends import("../models/types").DataType|object[]|undefined 
+ *      T[K] extends import("../models/types.js").DataType|object[]|undefined 
  *          ? never 
  *          : T[K]
  * }} OnlyTables
@@ -433,7 +429,7 @@ export class RelationshipBuilder {
  * Removes all keys where the value in `T` for that key is of type `object` or `object[]`
  * @template {object} T 
  * The abstract model to check properties for recursive `object`s.
- * @typedef {{[K in keyof T as T[K] extends import("../models/types").DataType|undefined 
+ * @typedef {{[K in keyof T as T[K] extends import("../models/types.js").DataType|undefined 
  *      ? K 
  *      : never
  *   ]: T[K]
@@ -500,9 +496,9 @@ export class RelationshipBuilder {
  * Alias of the table, configured by Kinship.
  * @prop {string=} programmaticName
  * Name as the user has configured it.
- * @prop {import("../clauses/choose").SelectClauseProperty} refererTableKey
+ * @prop {import("../clauses/choose.js").SelectClauseProperty} refererTableKey
  * Information about the source table key.
- * @prop {import("../clauses/choose").SelectClauseProperty} referenceTableKey
+ * @prop {import("../clauses/choose.js").SelectClauseProperty} referenceTableKey
  * Information about the reference table key.
  */
 

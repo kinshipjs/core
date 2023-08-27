@@ -1,69 +1,95 @@
 //@ts-check
 
-import { KinshipColumnDoesNotExistError, KinshipInvalidPropertyTypeError, KinshipSyntaxError } from "../exceptions.js";
-import { KinshipExecutionHandler } from "./exec-handler.js";
+import { KinshipColumnDoesNotExistError, KinshipInvalidPropertyTypeError, KinshipSafeDeleteModeEnabledError, KinshipSyntaxError } from "../exceptions.js";
+import { KinshipExecutionHandler } from "./handler.js";
 import { Where } from "../clauses/where.js";
+import { getFilterConditionsFromWhere } from "../context/util.js";
 
 export class KinshipDeleteHandler extends KinshipExecutionHandler {
     /**
-     * @template {object|undefined} TAliasModel
+     * @protected
      * @param {any} state
-     * @param {TAliasModel[]} records
-     * @returns {Promise<{ numRowsAffected: number, records: TAliasModel[] }>}
+     * @param {object[]} records
+     * @param {...any} args
+     * @returns {Promise<{ numRowsAffected: number, records: object[] }>}
      */
-    async _execute(state, records) {
+    async _execute(state, records, { truncate }) {
         let detail;
-        if(records === undefined) {
+        if(truncate) {
+            return this.#handleTruncate();
+        }
+        if(records.length === 0) {
             detail = this.#explicit(state);
-            records = [];
         } else {
             detail = this.#implicit(records);
         }
-        const { cmd, args } = this.kinshipBase.handleAdapterSerialize().forDelete(detail);
+        const { cmd, args } = this.base.handleAdapterSerialize().forDelete(detail);
         try {
-            const numRowsAffected = await this.kinshipBase.handleAdapterExecute().forDelete(cmd, args);
-            this.kinshipBase.listener.emitDeleteSuccess({ cmd, args, results: [numRowsAffected] });
+            const numRowsAffected = await this.base.handleAdapterExecute().forDelete(cmd, args);
+            this.base.listener.emitDeleteSuccess({ cmd, args, results: [numRowsAffected] });
             return {
                 numRowsAffected,
                 records
             };
         } catch(err) {
-            this.kinshipBase.listener.emitDeleteFail({ cmd, args, err });
+            this.base.listener.emitDeleteFail({ cmd, args, err });
+            throw err;
+        }
+    }
+
+    /**
+     * @returns {Promise<{ numRowsAffected: number, records: object[] }>}
+     */
+    async #handleTruncate() {
+        if(!this.base.options.disableSafeDeleteMode) {
+            throw new KinshipSafeDeleteModeEnabledError();
+        }
+        const { cmd, args } = this.base.handleAdapterSerialize().forTruncate({ table: this.base.tableName });
+        try {
+            const numRowsAffected = await this.base.handleAdapterExecute().forDelete(cmd, args);
+            this.base.listener.emitDeleteSuccess({ cmd, args, results: [numRowsAffected] });
+            return {
+                numRowsAffected,
+                records: []
+            };
+        } catch(err) {
+            this.base.listener.emitDeleteFail({ cmd, args, err });
             throw err;
         }
     }
 
     #explicit(state) {
-        if (state.where === undefined) {
-            throw new KinshipSyntaxError("No WHERE clause was provided, possibly resulting in a delete to all records.");
+        if (state.where === undefined && !this.base.options.disableSafeDeleteMode) {
+            throw new KinshipSafeDeleteModeEnabledError();
         }
-        //@ts-ignore ._getConditions is marked private, but is available for use within this context.
-        const whereConditions = state.where._getConditions();
         return {
-            table: this.kinshipBase.tableName,
-            where: whereConditions
+            table: this.base.tableName,
+            where: getFilterConditionsFromWhere(state.where)
         }
     }
 
     #implicit(records) {
-        const pKeys = this.kinshipBase.getPrimaryKeys();
+        const pKeys = this.base.getPrimaryKeys();
         if (pKeys === undefined) {
-            throw new KinshipSyntaxError(`No primary key exists on ${this.kinshipBase.tableName}. Use the explicit version of this update by passing a callback instead.`);
+            throw new KinshipSyntaxError(`No primary key exists on ${this.base.tableName}. Use the explicit version of this update by passing a callback instead.`);
         }
-        // add a WHERE statement so the number of rows affected returned matches the actual rows affected, otherwise it will "affect" all rows.
-        let where = /** @type {typeof Where<any, any>} */ (Where)(this.kinshipBase, pKeys[0].field);
+
+        let where = /** @type {typeof Where<any, any>} */ (Where)(
+            this.base, 
+            pKeys[0].field
+        );
         let chain = where.in(records.map(r => r[pKeys[0].field]))
         for(let i = 1; i < pKeys.length; ++i) {
-            //@ts-ignore
-            chain = chain.and(m => m[pKeys[i]].in(records.map(r => r[pKeys[i]])).and(m => m[pKeys[i+1]].in(r[pKeys[i+1]])));
+            chain = chain
+                //@ts-ignore
+                .and(m => m[pKeys[i]]
+                    //@ts-ignore
+                    .in(records.map(r => r[pKeys[i].field])));
         }
 
-        //@ts-ignore ._getConditions is marked private, but is available for use within this context.
-        const whereConditions = where._getConditions();
-
         return {
-            table: this.kinshipBase.tableName,
-            where: whereConditions
+            table: this.base.tableName,
+            where: getFilterConditionsFromWhere(where)
         };
     }
 }

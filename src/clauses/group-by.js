@@ -2,43 +2,16 @@
 
 import { KinshipBase } from "../context/base.js";
 import { assertAsArray } from "../context/util.js";
-import { KinshipColumnDoesNotExistError, KinshipInternalError, KinshipInvalidPropertyTypeError } from "../exceptions.js";
+import { KinshipColumnDoesNotExistError, KinshipInternalError, KinshipInvalidPropertyTypeError, KinshipSyntaxError } from "../exceptions.js";
 
-/**
- * 
- * @param {"AVG"|"COUNT"|"MIN"|"MAX"|"SUM"|"TOTAL"} aggr
- * @returns {(col?: any) => any} 
- */
-function getAggregateData(aggr) {
-    return (col) => {
-        if (aggr === "TOTAL") return {
-            table: 'AGGREGATE',
-            column: 'COUNT(*)',
-            alias: `$total`,
-            aggregate: aggr
-        }
-        if (col === undefined) throw new KinshipInternalError();
-        const { table, column, alias } = /** @type {import("../context/base").ColumnDetails} */ (col);
-        const c = aggr === 'COUNT'
-            ? `COUNT(DISTINCT ${table}.${column})`
-            : `${aggr}(${table}.${column})`;
-        return {
-            table: 'AGGREGATE',
-            column: c,
-            alias: `$${aggr.toLowerCase()}_` + alias?.replace(/\<\|/g, "_"),
-            aggregate: aggr
-        }
-    };
-}
-
-/** @type {Aggregates} */
-const aggregates = {
-    avg: getAggregateData("AVG"),
-    count: getAggregateData("COUNT"),
-    min: getAggregateData("MIN"),
-    max: getAggregateData("MAX"),
-    sum: getAggregateData("SUM"),
-    total: getAggregateData("TOTAL"),
+/** @enum {number} */
+const AggregateType = {
+    AVG: 0,
+    COUNT: 1,
+    MIN: 2,
+    MAX: 3,
+    SUM: 4,
+    TOTAL: 5
 };
 
 export class GroupByBuilder {
@@ -56,18 +29,29 @@ export class GroupByBuilder {
      * @template {object} TTableModel
      * @template {import("../clauses/group-by.js").GroupedColumnsModel<TTableModel>} TGroupedColumns
      * Used internally for typescript to create a new `TAliasModel` on the returned context, which will change the scope of what the user will see in further function calls.
+     * @param {import("../context/context.js").State} oldState
      * @param {(model: import("../clauses/group-by.js").SpfGroupByCallbackModel<TTableModel>, aggregates: import("../clauses/group-by.js").Aggregates) => import("../models/maybe.js").MaybeArray<keyof TGroupedColumns>} callback
      * Property reference callback that is used to determine which column or columns should be selected and grouped on in future queries.
-     * @returns {{ select: GroupByClauseProperty[], groupBy: GroupByClauseProperty[] }} 
+     * @returns {import("../context/context.js").State} 
      * State for group by. 
      */
-    getState(callback) {
+    getState(oldState, callback) {
+        /** @type {Aggregates} */
+        const aggregates = {
+            avg: this.#getAggregateData(AggregateType.AVG),
+            count: this.#getAggregateData(AggregateType.COUNT),
+            min: this.#getAggregateData(AggregateType.MIN),
+            max: this.#getAggregateData(AggregateType.MAX),
+            sum: this.#getAggregateData(AggregateType.SUM),
+            total: this.#getAggregateData(AggregateType.TOTAL),
+        };
         const data = assertAsArray(callback(this.#newProxy(), aggregates));
 
         /** @type {GroupByClauseProperty[]} */
         const props = /** @type {any} */ (data);
 
         return {
+            ...oldState,
             select: props,
             groupBy: props.filter(col => !("aggregate" in col))
         };
@@ -94,6 +78,59 @@ export class GroupByBuilder {
                 };
             }
         });
+    }
+
+    /**
+     * 
+     * @param {AggregateType} aggregate
+     * @returns {(col?: any) => any} 
+     */
+    #getAggregateData(aggregate) {
+        return (col) => {
+            if(aggregate === AggregateType.TOTAL) {
+                return { 
+                    table: "", 
+                    column: this.#base.adapter.aggregates.total, 
+                    alias: "$total", 
+                    aggregate 
+                }
+            }
+            if (col === undefined) throw new KinshipInternalError();
+            const alias = col.alias?.replace(/\<\|/g, "_");
+            switch(aggregate) {
+                case AggregateType.AVG: return { 
+                    table: "", 
+                    column: this.#base.adapter.aggregates.avg(col.table, col.column), 
+                    alias: `$avg_${alias}`,
+                    aggregate 
+                };
+                case AggregateType.COUNT: return { 
+                    table: "", 
+                    column: this.#base.adapter.aggregates.count(col.table, col.column), 
+                    alias: `$count_${alias}`,
+                    aggregate 
+                };
+                case AggregateType.MAX: return { 
+                    table: "", 
+                    column: this.#base.adapter.aggregates.max(col.table, col.column), 
+                    alias: `$max_${alias}`,
+                    aggregate 
+                };
+                case AggregateType.MIN: return { 
+                    table: "", 
+                    column: this.#base.adapter.aggregates.min(col.table, col.column), 
+                    alias: `$min_${alias}`,
+                    aggregate 
+                };
+                case AggregateType.SUM: return { 
+                    table: "", 
+                    column: this.#base.adapter.aggregates.sum(col.table, col.column), 
+                    alias: `$sum_${alias}`,
+                    aggregate 
+                };
+            }
+            throw new KinshipInternalError();
+        };
     }
 }
 
@@ -170,7 +207,7 @@ function sum(col) {
 
 /**
  * Object to carry data tied to various information about a column being grouped by.
- * @typedef {import("../context/base").ColumnDetails & { aggregate?: "AVG"|"COUNT"|"MIN"|"MAX"|"SUM"|"TOTAL" }} GroupByClauseProperty
+ * @typedef {import("../context/base.js").ColumnDetails & { aggregate?: "AVG"|"COUNT"|"MIN"|"MAX"|"SUM"|"TOTAL" }} GroupByClauseProperty
  */
 
 /**

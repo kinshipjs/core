@@ -1,18 +1,18 @@
 //@ts-check
 
 import { KinshipBase } from "../context/base.js";
-import { assertAsArray } from "../context/util.js";
+import { assertAsArray, getFilterConditionsFromWhere } from "../context/util.js";
 import { WhereBuilder } from "../clauses/where.js";
 import { KinshipInternalError } from "../exceptions.js";
 
 export class KinshipExecutionHandler {
-    /** @type {KinshipBase} */ kinshipBase;
+    /** @protected @type {KinshipBase} */ base;
 
-    /** @type {TriggerCallback<any>} */ #before;
-    /** @type {TriggerHookCallback} */ #beforeHook;
+    /** @type {TriggerCallback<any>=} */ #before;
+    /** @type {TriggerHookCallback=} */ #beforeHook;
 
-    /** @type {TriggerCallback<any>} */ #after;
-    /** @type {TriggerHookCallback} */ #afterHook;
+    /** @type {TriggerCallback<any>=} */ #after;
+    /** @type {TriggerHookCallback=} */ #afterHook;
     
     /**
      * Construct a new Execution handler that will handle the before and after triggers, 
@@ -20,11 +20,11 @@ export class KinshipExecutionHandler {
      * @param {KinshipBase} kinshipBase 
      */
     constructor(kinshipBase) {
-        this.kinshipBase = kinshipBase;
-        this.#before = () => {};
-        this.#beforeHook = () => {};
-        this.#after = () => {};
-        this.#afterHook = () => {};
+        this.base = kinshipBase;
+        this.#before = undefined;
+        this.#beforeHook = undefined;
+        this.#after = undefined;
+        this.#afterHook = undefined;
     }
 
     /**
@@ -35,7 +35,8 @@ export class KinshipExecutionHandler {
      * @returns {Promise<{ numRowsAffected: number, records: T[], whereClause?: WhereBuilder<T>}>}
      */
     async handle(records, ...args) {
-        let state = await this.kinshipBase.resync();
+        let state = await this.base.resync();
+        state = this.#prepareState(state);
         if(!state) {
             throw new KinshipInternalError();
         }
@@ -62,28 +63,6 @@ export class KinshipExecutionHandler {
     }
 
     /**
-     * Creates a trigger, `callback`, on the context that is called for every record before a command has been executed
-     * within the adapter. This trigger can use data returned from `hook` as static data arguments to avoid 
-     * unnecessary calls to retrieve data.  
-     * If a property is set on the record within the trigger, then the property will only get set if the property key
-     * does not already exist.  
-     * If you wish to override this, then you may prepend `__` to the property you wish to change.
-     * @template {object|undefined} TAliasModel
-     * Type of the model that the table represents.
-     * @param {TriggerCallback<TAliasModel>} callback
-     * @param {TriggerHookCallback=} hook
-     * @returns {this}
-     */
-    before(callback, hook) {
-        if(hook === undefined) {
-            hook = () => ({});
-        }
-        this.#before = callback;
-        this.#beforeHook = hook;
-        return this;
-    }
-
-    /**
      * Creates a trigger, `callback`, on the context that is called for every record after a command has been executed
      * within the adapter. This trigger can use data returned from `hook` as static data arguments to avoid 
      * unnecessary calls to retrieve data.
@@ -94,7 +73,7 @@ export class KinshipExecutionHandler {
      * Type of the model that the table represents.
      * @param {TriggerCallback<TAliasModel>} callback
      * @param {TriggerHookCallback=} hook
-     * @returns {this}
+     * @returns {typeof this['afterUnsubscribe']}
      */
     after(callback, hook) {
         if(hook === undefined) {
@@ -102,7 +81,45 @@ export class KinshipExecutionHandler {
         }
         this.#after = callback;
         this.#afterHook = hook;
-        return this;
+        return this.afterUnsubscribe;
+    }
+
+    /**
+     * Creates a trigger, `callback`, on the context that is called for every record before a command has been executed
+     * within the adapter. This trigger can use data returned from `hook` as static data arguments to avoid 
+     * unnecessary calls to retrieve data.  
+     * If a property is set on the record within the trigger, then the property will only get set if the property key
+     * does not already exist.  
+     * If you wish to override this, then you may prepend `__` to the property you wish to change.
+     * @template {object|undefined} TAliasModel
+     * Type of the model that the table represents.
+     * @param {TriggerCallback<TAliasModel>} callback
+     * @param {TriggerHookCallback=} hook
+     * @returns {typeof this['beforeUnsubscribe']}
+     */
+    before(callback, hook) {
+        if(hook === undefined) {
+            hook = () => ({});
+        }
+        this.#before = callback;
+        this.#beforeHook = hook;
+        return this.beforeUnsubscribe;
+    }
+
+    /**
+     * Unsubscribe the `before` trigger.
+     */
+    beforeUnsubscribe() {
+        this.#before = undefined;
+        this.#beforeHook = undefined;
+    }
+
+    /**
+     * Unsubscribe the `before` trigger.
+     */
+    afterUnsubscribe() {
+        this.#after = () => {};
+        this.#afterHook = () => ({});
     }
 
     /**
@@ -111,10 +128,15 @@ export class KinshipExecutionHandler {
      * @param {TAliasModel[]} records
      */
     async #applyBefore(records) {
-        const args = await this.#beforeHook(records.length);
-        await Promise.all(records.map(async (r,n) => {
-            await this.#before(r, { $$itemNumber: n, ...args })
-        }));
+        let args = [];
+        if(this.#beforeHook) {
+            args = await this.#beforeHook(records.length);
+        }
+        if(this.#before) {
+            await Promise.all(records.map(async (r,n) => {
+                await /** @type {TriggerCallback<any>} */ (this.#before)(r, { $$itemNumber: n, ...args })
+            }));
+        }
     }
 
     /**
@@ -123,10 +145,15 @@ export class KinshipExecutionHandler {
      * @param {TAliasModel[]} records
      */
     async #applyAfter(records) {
-        const args = await this.#afterHook(records.length);
-        await Promise.all(records.map(async (r,n) => {
-            await this.#after(r, { $$itemNumber: n, ...args })
-        }));
+        let args = [];
+        if(this.#afterHook) {
+            args = await this.#afterHook(records.length);
+        }
+        if(this.#after) {
+            await Promise.all(records.map(async (r,n) => {
+                await /** @type {TriggerCallback<any>} */ (this.#after)(r, { $$itemNumber: n, ...args })
+            }));
+        }
     }
 
     /**
@@ -150,7 +177,7 @@ export class KinshipExecutionHandler {
      * @param {string} prepend String to prepend onto the key for the original record's value.
      * @returns {(record: any, n?: number) => object} Function for use in a JavaScript `<Array>.map()` function for use on an array of the records filtered to only uniques by main primary key.
      */
-    #map(state, records, record=records[0], prepend="", relationships=this.kinshipBase.relationships) {
+    #map(state, records, record=records[0], prepend="", relationships=this.base.relationships) {
         return (r) => {
             /** @type {any} */
             const mapping = {};
@@ -216,8 +243,8 @@ export class KinshipExecutionHandler {
      * @param {string=} table Table to get the primary key from. (default: original table name)
      * @returns {any[]} A new array of records, where duplicates by primary key are filtered out. If no primary key is defined, then `records` is returned, untouched.
      */
-    #filterForUniqueRelatedRecords(records, table=this.kinshipBase.tableName) {
-        let pKeyInfo = this.kinshipBase.getPrimaryKeys(table);
+    #filterForUniqueRelatedRecords(records, table=this.base.tableName) {
+        let pKeyInfo = this.base.getPrimaryKeys(table);
         if(records === undefined || pKeyInfo.length <= 0) return records;
         const pKeys = pKeyInfo.map(k => k.alias);
         const uniques = new Set();
@@ -227,6 +254,17 @@ export class KinshipExecutionHandler {
             return !uniques.has(fullKeyValue) 
                 && !!uniques.add(fullKeyValue);
         });
+    }
+
+    /**
+     * @param {import("../context/context.js").State} state
+     * @returns {import("../context/context.js").AdapterReadyState}
+     */
+    #prepareState(state) {
+        return {
+            ...state,
+            conditions: getFilterConditionsFromWhere(state.where)
+        }
     }
 }
 

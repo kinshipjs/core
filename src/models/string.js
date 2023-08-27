@@ -50,7 +50,7 @@
  * @template {object} T
  * @template {string} [TPrepend=""]
  * @template {string} [TSeparator="$$"]
- * @typedef {{[K in (keyof T) & string]-?: NonNullable<T[K]> extends import("./types").DataType
+ * @typedef {{[K in (keyof T) & string]-?: NonNullable<T[K]> extends import("./types.js").DataType
  *   ? `${TPrepend}${K}` 
  *   : NonNullable<T[K]> extends (infer U extends object)[]
  *     ? Deflate<U, `${TPrepend}${K}${TSeparator}`, TSeparator>

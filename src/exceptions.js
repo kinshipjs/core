@@ -80,3 +80,19 @@ export class KinshipNonUniqueKeyError extends Error {
         this.name = `KinshipNonUniqueKeyError`;
     }
 }
+
+export class KinshipSafeDeleteModeEnabledError extends Error {
+    constructor() {
+        super(`An attempt to delete all records or truncate the context has been made. `
+        + `If this was not a mistake, you can disable this setting within the constructor options by passing true into \`disableSafeDeleteMode\``);
+        this.name = `KinshipSafeDeleteModeEnabledError`;
+    }
+}
+
+export class KinshipSafeUpdateModeEnabledError extends Error {
+    constructor() {
+        super(`An attempt to update all records within the context has been made. `
+        + `If this was not a mistake, you can disable this setting within the constructor options by passing true into \`disableSafeUpdateMode\``);
+        this.name = `KinshipSafeUpdateModeEnabledError`;
+    }
+}

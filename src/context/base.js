@@ -12,13 +12,13 @@ export class KinshipBase {
     /** @type {KinshipOptions} */ options;
 
     /** @type {string} */ tableName;
-    /** @type {Record<string, import("../config/has-relationship.js").Relationship<any>>} */ relationships;
-    /** @type {Record<string, import("../config/has-relationship.js").DescribedSchema>} */ schema;
+    /** @type {Record<string, import("../config/relationships.js").Relationship<any>>} */ relationships;
+    /** @type {Record<string, import("../config/relationships.js").DescribedSchema>} */ schema;
 
     /** @type {CommandListener} */ listener;
-    /** @type {Promise<import("./context.js").State>?} */ promise;
+    /** @type {Promise<import("./context.js").State>} */ promise;
 
-    /** @type {Record<string, import("../config/has-relationship.js").DescribedSchema[]>} */ #primaryKeyCache = {};
+    /** @type {Record<string, import("../config/relationships.js").DescribedSchema[]>} */ #primaryKeyCache = {};
 
     /**
      * @param {import("./adapter.js").KinshipAdapterConnection} adapter 
@@ -36,7 +36,7 @@ export class KinshipBase {
         this.relationships = {};
         this.schema = {};
         this.listener = new CommandListener(tableName);
-        this.promise = null;
+        this.promise = Promise.resolve(/** @type {import("./context.js").State} */ ({}));
         
         this.afterResync(async (oldState) => {
             const schema = await this.describe(tableName);
@@ -49,10 +49,7 @@ export class KinshipBase {
      * Calls the adapter's serialize function with the appropriate scope. 
      */
     handleAdapterSerialize() {
-        return this.adapter.serialize({
-            ErrorTypes,
-            KinshipAdapterError: (msg) => new KinshipAdapterError(msg)
-        });
+        return this.adapter.serialize();
     }
 
     /**
@@ -71,21 +68,16 @@ export class KinshipBase {
      * Callback that works on data within `Kinship` that requires the context to be resynchronized first.
      */
     afterResync(callback) {
-        if(this.promise === null) {
-            this.promise = new Promise(res => {
-                res(callback(/** @type {import("./context.js").State} */ ({})));
-            });
-        } else {
-            this.promise = this.promise.then((oldState) => {
-                return callback(oldState);
-            }).catch(err => {
-                throw err;
-            });
-        }
+        this.promise = this.promise.then((oldState) => {
+            return callback(oldState);
+        }).catch(err => {
+            throw err;
+        });
     }
 
     /**
-     * Resynchronizes the context.
+     * Resynchronizes the context, returning the last state returned from the chain of promises.
+     * @returns {Promise<import("./context.js").State>}
      */
     async resync() {
         return await this.promise;
@@ -95,9 +87,9 @@ export class KinshipBase {
      * Gets all of the primary keys that belong to the table, if any exist.
      * @param {string} tableName 
      * Name of the table to get the primary keys from. (default: the table the context represents)
-     * @param {Record<string, import("../config/has-relationship.js").Relationship<object>>} relationships 
+     * @param {Record<string, import("../config/relationships.js").Relationship<object>>} relationships 
      * Used recursively for when `tableName` is not the table the context represents. 
-     * @returns {import("../config/has-relationship.js").DescribedSchema[]}
+     * @returns {import("../config/relationships.js").DescribedSchema[]}
      * Array of objects for column information that represent the primary key(s), or any empty array if none exist.
      */
     getPrimaryKeys(tableName=this.tableName, relationships=this.relationships) {
@@ -136,7 +128,7 @@ export class KinshipBase {
      * Gets the identity key that belongs to the table, if it exists.
      * @param {string} tableName 
      * Name of the table to get the identity key from.
-     * @returns {import("../config/has-relationship.js").DescribedSchema=}
+     * @returns {import("../config/relationships.js").DescribedSchema=}
      * Object for column information that represents the identity key, or undefined if one does not exist.
      */
     getIdentityKey(tableName=this.tableName) {
@@ -156,7 +148,7 @@ export class KinshipBase {
      * @template {object|undefined} TTableModel
      * @param {string} table 
      * Table to check to see if it is a relationship.
-     * @param {Record<string, import("../config/has-relationship.js").Relationship<TTableModel>>=} relationships
+     * @param {Record<string, import("../config/relationships.js").Relationship<TTableModel>>=} relationships
      * Table to check to see if the argument, `table`, is a relationship with.  
      * @returns {boolean}
      * True if the argument, `table`, is a relationship with the table the context represents.
@@ -170,7 +162,7 @@ export class KinshipBase {
 
     /**
      * Returns true if the column is not a primary key and it is not a virtual column.
-     * @param {import("../config/has-relationship.js").DescribedSchema|string} column
+     * @param {import("../config/relationships.js").DescribedSchema|string} column
      * Column name (as it appears in the database) or the column information for the column.
      * @returns {boolean}
      * True if the column is a primary key or is a virtual column.
@@ -200,7 +192,7 @@ export class KinshipBase {
      * Call the adapter's describe function to get various information on a table.
      * @param {string} tableName 
      * Table to describe.
-     * @returns {Promise<Record<string, import("../config/has-relationship.js").DescribedSchema>>}
+     * @returns {Promise<Record<string, import("../config/relationships.js").DescribedSchema>>}
      */
     async describe(tableName) {
         const { cmd, args } = this.handleAdapterSerialize().forDescribe(tableName);

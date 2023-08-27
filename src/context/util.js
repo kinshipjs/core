@@ -1,9 +1,12 @@
 //@ts-check
+
+import { WhereBuilder } from "../clauses/where.js";
+
 /**
  * Given an object that could be an array or itself, augment it so it has to be an array.  
  * __NOTE: Will not work on an array of arrays.__
  * @template T
- * @param {import("../models/maybe").MaybeArray<T>} o 
+ * @param {import("../models/maybe.js").MaybeArray<T>} o 
  * @returns {T[]}
  */
 export function assertAsArray(o) {
@@ -56,4 +59,24 @@ export function isPrimitive(field) {
             return true;
     }
     return field instanceof Date || field === null;
+}
+
+/**
+ * 
+ * @param {WhereBuilder<any, any>} where
+ */
+export function doFiltersExist(where) {
+    const numConditions = getFilterConditionsFromWhere(where).length; 
+    return "where" in where && numConditions > 0
+}
+
+/**
+ * 
+ * @param {WhereBuilder<any, any>=} where
+ * @returns {import("../clauses/where.js").WhereClausePropertyArray}
+ */
+export function getFilterConditionsFromWhere(where) {
+    return where
+        //@ts-ignore _getConditions is marked private but it is available for internal use.
+        ?._getConditions() ?? /** @type {import("../clauses/where.js").WhereClausePropertyArray} */ ([]);
 }

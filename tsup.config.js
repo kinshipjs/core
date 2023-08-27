@@ -3,7 +3,7 @@ export default defineConfig({
     entry: {
         index: "src/index.js",
         errors: "src/exceptions.js",
-        util: "src/util.js",
+        adapter: "src/context/adapter.js"
     },
     outDir: 'dist',
     target: 'node22',

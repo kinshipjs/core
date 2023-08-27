@@ -1,11 +1,8 @@
 //@ts-check
 
-import { Where } from "../clauses/where.js";
 import { KinshipAdapterError, KinshipNonUniqueKeyError } from "../exceptions.js";
 
-
-/** SerializationQueryHandlerData  
- * 
+/**
  * Data passed for the scope of the custom adapter to help serialize a query command.
  * @typedef {object} SerializationQueryHandlerData
  * @prop {import("../clauses/where.js").WhereClausePropertyArray=} where
@@ -24,33 +21,30 @@ import { KinshipAdapterError, KinshipNonUniqueKeyError } from "../exceptions.js"
  * @prop {import("../clauses/group-by.js").GroupByClauseProperty[]=} group_by
  * Array of objects where each object represents a column to group by.  
  * If undefined, then no `GROUP BY` clause was given.
- * @prop {import("../clauses/choose").SelectClauseProperty[]} select
+ * @prop {import("../clauses/choose.js").SelectClauseProperty[]} select
  * Array of objects where each object represents a column to select.
- * @prop {[import("../config/has-relationship").MainTableFromClauseProperty, ...import("../config/has-relationship").FromClauseProperty[]]} from
+ * @prop {[import("../config/relationships.js").MainTableFromClauseProperty, ...import("../config/relationships.js").FromClauseProperty[]]} from
  * Array of objects where each object represents a table to join on.  
  * The first object will represent the main table the context is connected to. 
  */
 
-/** SerializationInsertHandlerData  
- * 
+/**
  * Data passed for the scope of the custom adapter to help serialize an insert command.
  * @typedef {object} SerializationInsertHandlerData
  * @prop {string} table
  * @prop {string[]} columns
- * @prop {object[][]} values
+ * @prop {ExecutionArgument[][]} values
  */
 
-/** SerializationUpdateHandlerExplicitData  
- * 
+/**
  * Object model type for data used in explicit update transactions.
  * @typedef {object} SerializationUpdateHandlerExplicitData
- * @prop {object} values Used in an `explicit transaction`.  
+ * @prop {ExecutionArgument} values Used in an `explicit transaction`.  
  * Object representing what columns will be updated from the command.  
  * If this is undefined, then `objects` should be used.
  */
 
-/** SerializationUpdateHandlerImplicitData  
- * 
+/**
  * Object model type for data used in implicit update transactions.
  * @typedef {object} SerializationUpdateHandlerImplicitData
  * @prop {object[]} objects Used in an `implicit transaction`.  
@@ -61,23 +55,21 @@ import { KinshipAdapterError, KinshipNonUniqueKeyError } from "../exceptions.js"
  * Primary key of the table.
  */
 
-/** SerializationUpdateHandlerData  
- * 
+/**
  * Data passed for the scope of the custom adapter to help serialize an update command.
  * @typedef {object} SerializationUpdateHandlerData
  * @prop {string} table
  * Table the update is occurring on.
  * @prop {string[]} columns
  * Columns to be updated.  
- * @prop {import("../clauses/where").WhereClausePropertyArray} where
+ * @prop {import("../clauses/where.js").WhereClausePropertyArray} where
  * Recursively nested array of objects where each object represents a condition.  
  * If the element is an array, then that means the condition is nested with the last element from that array.
  * @prop {SerializationUpdateHandlerExplicitData=} explicit
  * @prop {SerializationUpdateHandlerImplicitData=} implicit
  */
 
-/** SerializationDeleteHandlerData  
- * 
+/**
  * Data passed for the scope of the custom adapter to help serialize a delete command.
  * @typedef {object} SerializationDeleteHandlerData
  * @prop {string} table
@@ -87,8 +79,7 @@ import { KinshipAdapterError, KinshipNonUniqueKeyError } from "../exceptions.js"
  * If the element is an array, then that means the condition is nested with the last element from that array.
  */
 
-/** SerializationTruncateHandlerData  
- * 
+/**
  * Data passed for the scope of the custom adapter to help serialize a delete command.
  * @typedef {object} SerializationTruncateHandlerData
  * @prop {string} table
@@ -96,14 +87,16 @@ import { KinshipAdapterError, KinshipNonUniqueKeyError } from "../exceptions.js"
  * If the element is an array, then that means the condition is nested with the last element from that array.
  */
 
-/** SerializationHandlers  
- * 
- * Various handlers for the `KinshipAdapter` to handle serialization of `Kinship` built data into appropriate command strings.
+/**
+ * An argument that is to be passed alongside a command to fill in sanitized values.
+ * @typedef {import("../models/types.js").DataType} ExecutionArgument
+ */
+
+/**
+ * Various handlers to handle serialization for a command and the command's corresponding arguments for a given database language.
  * @typedef {object} SerializationHandlers
  * @prop {(data: SerializationQueryHandlerData) => { cmd: string, args: ExecutionArgument[] }} forQuery
  * Handles serialization of a query command and its arguments so it appropriately works for the given database connector.
- * @prop {(data: SerializationQueryHandlerData) => { cmd: string, args: ExecutionArgument[] }} forCount
- * Handles serialization of a query command for `COUNT` and its arguments so it appropriately works for the given database connector.
  * @prop {(data: SerializationInsertHandlerData) => { cmd: string, args: ExecutionArgument[] }} forInsert
  * Handles serialization of a insert command and its arguments so it appropriately works for the given database connector.
  * @prop {(data: SerializationUpdateHandlerData) => { cmd: string, args: ExecutionArgument[] }} forUpdate
@@ -116,43 +109,32 @@ import { KinshipAdapterError, KinshipNonUniqueKeyError } from "../exceptions.js"
  * Handles serialization of a describe command and its arguments so it appropriately works for the given database connector.
  */
 
-/** ExecutionArgument
- * @typedef {import("../models/types").DataType|{ value: import("../models/types").DataType, varName: string }} ExecutionArgument
- */
-
-/** ExecutionHandlers  
- * 
- * Various handlers for the `KinshipAdapter` to handle execution of a command and the command's corresponding arguments.
+/**
+ * Various handlers to handle execution of a command and the command's corresponding arguments for a given database language.
  * @typedef {object} ExecutionHandlers
- * @prop {(cmd: string, args: ExecutionArgument[]) => import("../models/maybe").MaybePromise<any[]>} forQuery
+ * @prop {(cmd: string, args: ExecutionArgument[]) => import("../models/maybe.js").MaybePromise<any[]>} forQuery
  * Handles execution of a query command, given the command string and respective arguments for the command string.  
  * This should return an array of objects where each object represents the row returned from the query.
- * @prop {(cmd: string, args: ExecutionArgument[]) => import("../models/maybe").MaybePromise<number>} forCount
- * Handles the execution of a query for `COUNT` command, given the command string and respective arguments for the command string.  
- * This should return a number representing the total number of rows retrieved from the command.
- * @prop {(cmd: string, args: ExecutionArgument[]) => import("../models/maybe").MaybePromise<number[]>} forInsert
+ * @prop {(cmd: string, args: ExecutionArgument[]) => import("../models/maybe.js").MaybePromise<number[]>} forInsert
  * Handles execution of an insert command, given the command string and respective arguments for the command string.  
  * This should return an array of numbers, where each number represents a table's primary key's auto incremented number (if applicable)  
  * This array should be parallel with the array of records that were serialized in the `serialize(...).forInsert()` function.
- * @prop {(cmd: string, args: ExecutionArgument[]) => import("../models/maybe").MaybePromise<number>} forUpdate
+ * @prop {(cmd: string, args: ExecutionArgument[]) => import("../models/maybe.js").MaybePromise<number>} forUpdate
  * Handles execution of an update command, given the command string and respective arguments for the command string.  
  * This should return a number representing the total number of rows affected from the command.
- * @prop {(cmd: string, args: ExecutionArgument[]) => import("../models/maybe").MaybePromise<number>} forDelete
+ * @prop {(cmd: string, args: ExecutionArgument[]) => import("../models/maybe.js").MaybePromise<number>} forDelete
  * Handles execution of a delete command, given the command string and respective arguments for the command string.  
  * This should return a number representing the total number of rows affected from the command.
- * @prop {(cmd: string, args: ExecutionArgument[]) => import("../models/maybe").MaybePromise<number>} forTruncate
+ * @prop {(cmd: string, args: ExecutionArgument[]) => import("../models/maybe.js").MaybePromise<number>} forTruncate
  * Handles execution of a truncate command, given the command string and respective arguments for the command string.  
  * This should return a number representing the total number of rows affected from the command.
- * @prop {(cmd: string, args: import("../old/types").ExecutionArgument[]) => import("../models/maybe").MaybePromise<{[fieldName: string]: import("../config/has-relationship").DescribedSchema}>} forDescribe
+ * @prop {(cmd: string, args: import("../old/types.js").ExecutionArgument[]) => import("../models/maybe.js").MaybePromise<{[fieldName: string]: import("../config/relationships.js").DescribedSchema}>} forDescribe
  * Handles execution of a describe command, given the command string and respective arguments for the command string.
  * This should return an object containing {@link DescribedSchema} objects. 
- * __NOTE: `table` and `alias` can be left as empty strings, as they are handled internally in Kinship anyways.__
- * This should return an array containing {@link ConstraintData} objects.
  */
 
-/** AdapterScope  
- * 
- * Scope passed into the Adapter for usage within any of the serialize/execute functions.
+/** 
+ * Scope passed into the Adapter for usage within any of the execute functions.
  * @typedef {object} AdapterScope
  * @prop {(message: string) => KinshipAdapterError} KinshipAdapterError  
  * Throw an error if it is an unexpected error that occurs within the custom adapter.
@@ -160,34 +142,40 @@ import { KinshipAdapterError, KinshipNonUniqueKeyError } from "../exceptions.js"
  * Situationally create new WHERE clause conditions.
  */
 
-/** @enum {() => Error} */
-export const ErrorTypes = {
-    NonUniqueKey: () => new KinshipNonUniqueKeyError()
-}
-
-/** AdapterSyntax  
- * 
- * Tools to assist with the adapter's syntax of how commands should be serialized.
+/**
+ * Various syntactical functions that are used to help serialize the command for a given database language.
  * @typedef {object} AdapterSyntax
- * @prop {(s: string) => string} escapeTable
- * Escapes a table in the command to protect against SQL injections.
- * `s` is the table to escape.
- * @prop {(s: string) => string} escapeColumn
- * Escapes a column in the command to protect against SQL injections.  
- * `s` is the column to escape.
  * @prop {(date: Date) => string} dateString
  * Conversion function of a JavaScript date to a respective valid string date.
  */
 
-/** KinshipAdapterConnection  
- * 
+/**
+ * Various syntactical functions meant for handling aggregate strings for a given database language.
+ * @typedef {object} AdapterAggregates
+ * @prop {(table: string, col: string) => string} avg
+ * How a selected aggregate for average should appear in a query.
+ * @prop {(table: string, col: string) => string} count
+ * How a selected aggregate for distinct count should appear in a query.
+ * @prop {(table: string, col: string) => string} min
+ * How a selected aggregate for minimum value should appear in a query.
+ * @prop {(table: string, col: string) => string} max
+ * How a selected aggregate for maximum value should appear in a query.
+ * @prop {(table: string, col: string) => string} sum
+ * How a selected aggregate for sum of all values should appear in a query.
+ * @prop {string} total
+ * How a selected aggregate for a count of all records should appear in a query.
+ */
+
+/**
  * Object model type representing the requirements for an adapter to work with `Kinship`.
  * @typedef {object} KinshipAdapterConnection
+ * @prop {AdapterAggregates} aggregates
+ * Syntax for various aggregates used in the Database.
  * @prop {AdapterSyntax} syntax
  * Required functions in order to provide safe SQL serialization.
  * @prop {(scope: AdapterScope) => ExecutionHandlers} execute
  * Function that provides the {@link AdapterScope} `scope` and returns an object of various functions for {@link ExecutionHandlers}.
- * @prop {(scope: AdapterScope) => SerializationHandlers} serialize
+ * @prop {() => SerializationHandlers} serialize
  * Function that provides the {@link AdapterScope} `scope` and returns an object of various functions for {@link SerializationHandlers}.
  * @prop {(() => void)=} dispose
  * Function to dispose of any connections.
@@ -195,14 +183,18 @@ export const ErrorTypes = {
  * Function to asynchronously dispose of any connections.
  */
 
-/** InitializeAdapterCallback  
- * 
+/**
  * Callback for the initialization of the adapter connection for a specific database adapter.
  * @template T
  * Type of the expected argument that needs to be passed into the `adapter()` function that represents the connection to the source.
  * @callback InitializeAdapterCallback
  * @param {T} config
  * Configuration that belongs to `T` which initializes the connection to the database.
- * @returns {KinshipAdapter<T>}
+ * @returns {KinshipAdapterConnection}
  * Adapter configuration that is to be used within `Kinship`.
  */
+
+/** @enum {() => Error} */
+export const ErrorTypes = {
+    NonUniqueKey: () => new KinshipNonUniqueKeyError()
+}

@@ -23,6 +23,7 @@
     },
     "files": [
         "./src/exceptions.js",
-        "./src/index.js"
+        "./src/index.js",
+        "./src/context/adapter.js"
     ]
 }

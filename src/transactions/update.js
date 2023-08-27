@@ -1,12 +1,13 @@
 //@ts-check
 
-import { KinshipColumnDoesNotExistError, KinshipInvalidPropertyTypeError } from "../exceptions.js";
-import { KinshipExecutionHandler } from "./exec-handler.js";
-import { getUniqueColumns } from "../context/util.js";
+import { KinshipColumnDoesNotExistError, KinshipInvalidPropertyTypeError, KinshipSyntaxError } from "../exceptions.js";
+import { KinshipExecutionHandler } from "./handler.js";
+import { getFilterConditionsFromWhere, getUniqueColumns } from "../context/util.js";
 import { Where } from "../clauses/where.js";
 
 export class KinshipUpdateHandler extends KinshipExecutionHandler {
     /**
+     * @protected
      * @template {object|undefined} TTableModel
      * @param {any} state
      * @param {TTableModel[]} records
@@ -21,16 +22,16 @@ export class KinshipUpdateHandler extends KinshipExecutionHandler {
         } else {
             detail = this.#implicit(records);
         }
-        const { cmd, args } = this.kinshipBase.handleAdapterSerialize().forUpdate(detail);
+        const { cmd, args } = this.base.handleAdapterSerialize().forUpdate(detail);
         try {
-            const numRowsAffected = await this.kinshipBase.handleAdapterExecute().forUpdate(cmd, args);
-            this.kinshipBase.listener.emitUpdateSuccess({ cmd, args, results: [numRowsAffected] });
+            const numRowsAffected = await this.base.handleAdapterExecute().forUpdate(cmd, args);
+            this.base.listener.emitUpdateSuccess({ cmd, args, results: [numRowsAffected] });
             return {
                 numRowsAffected,
                 records
             };
         } catch(err) {
-            this.kinshipBase.listener.emitUpdateFail({ cmd, args, err });
+            this.base.listener.emitUpdateFail({ cmd, args, err });
             throw err;
         }
     }
@@ -45,25 +46,25 @@ export class KinshipUpdateHandler extends KinshipExecutionHandler {
      * });
      * ```
      * @template {object|undefined} TTableModel
-     * @param {any} state 
+     * @param {import("../context/context.js").State} state 
      * @param {((m: TTableModel) => Partial<TTableModel>|void)} callback 
      * @returns {SerializationUpdateHandlerData}
      */
     #explicit(state, callback) {
         let columns = [];
         let values = [];
-        const pKeys = this.kinshipBase.getPrimaryKeys();
+        const pKeys = this.base.getPrimaryKeys();
         let o = callback(this.#newProxyForColumn(columns, values, pKeys));
         if(o !== undefined) {
             // only update columns that can be updated.
-            columns = Object.keys(o).filter(k => this.kinshipBase.isEditable(k));
+            columns = Object.keys(o).filter(k => this.base.isEditable(k));
             // convert Date values to their adapter specific date string.
-            values = Object.values(o).map(v => this.kinshipBase.toAdapterDateString(v));
+            values = Object.values(o).map(v => this.base.toAdapterDateString(v));
         }
         return {
-            table: this.kinshipBase.tableName,
+            table: this.base.tableName,
             columns,
-            where: state.where._getConditions(),
+            where: getFilterConditionsFromWhere(state.where),
             explicit: {
                 values
             }
@@ -81,7 +82,7 @@ export class KinshipUpdateHandler extends KinshipExecutionHandler {
      * @returns {SerializationUpdateHandlerData}
      */
     #implicit(records) {
-        const pKeys = this.kinshipBase.getPrimaryKeys();
+        const pKeys = this.base.getPrimaryKeys();
         if (pKeys.length <= 0) {
             throw new Error(`No primary keys exist on this table. Use the explicit form of updating instead.`);
         }
@@ -89,9 +90,8 @@ export class KinshipUpdateHandler extends KinshipExecutionHandler {
         // get the columns that are to be updated.
         const columns = getUniqueColumns(records);
         const whereConditions = this.#getWhereConditions(records);
-        console.log(JSON.stringify(whereConditions, undefined, 2));
         return {
-            table: this.kinshipBase.tableName,
+            table: this.base.tableName,
             columns,
             where: whereConditions,
             implicit: {
@@ -109,18 +109,24 @@ export class KinshipUpdateHandler extends KinshipExecutionHandler {
      * @returns {import("../clauses/where.js").WhereClausePropertyArray}
      */
     #getWhereConditions(records) {
-        const pKeys = this.kinshipBase.getPrimaryKeys();
+        const pKeys = this.base.getPrimaryKeys();
+        if (pKeys === undefined) {
+            throw new KinshipSyntaxError(`No primary key exists on ${this.base.tableName}. Use the explicit version of this update by passing a callback instead.`);
+        }
+        
         let where = /** @type {typeof Where<any, any>} */ (Where)(
-            this.kinshipBase, 
+            this.base, 
             pKeys[0].field
         );
         let chain = where.in(records.map(r => r[pKeys[0].field]))
         for(let i = 1; i < pKeys.length; ++i) {
-            //@ts-ignore
-            chain = chain.and(m => m[pKeys[i]].in(records.map(r => r[pKeys[i]])));
+            chain = chain
+                //@ts-ignore
+                .and(m => m[pKeys[i]]
+                    //@ts-ignore
+                    .in(records.map(r => r[pKeys[i].field])));
         }
-        //@ts-ignore ._getConditions is marked private, but is available for use within this context.
-        return where._getConditions();
+        return getFilterConditionsFromWhere(where);
     }
 
     #newProxyForColumn(columns, values, pKeys) {
@@ -128,11 +134,11 @@ export class KinshipUpdateHandler extends KinshipExecutionHandler {
             set: (t,p,v) => {
                 if(typeof p === "symbol") throw new KinshipInvalidPropertyTypeError(p);
                 // Only change columns that are within the schema.
-                if(!(p in this.kinshipBase.schema)) throw new KinshipColumnDoesNotExistError(p, this.kinshipBase.tableName);
+                if(!(p in this.base.schema)) throw new KinshipColumnDoesNotExistError(p, this.base.tableName);
                 // Ignore changes to primary keys.
                 if(pKeys.includes(p)) return true;
                 columns.push(p);
-                values.push(this.kinshipBase.toAdapterDateString(v));
+                values.push(this.base.toAdapterDateString(v));
                 return true;
             }
         });

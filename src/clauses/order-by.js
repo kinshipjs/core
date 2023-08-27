@@ -19,13 +19,17 @@ export class OrderByBuilder {
      * @template {object} TTableModel
      * Specify the columns to sort on.  
      * __NOTE: columns used for sorting are done in the order that is specified.__
+     * @param {import("../context/context.js").State} oldState
      * @param {(model: SortByCallbackModel<TTableModel>) => import("../models/maybe.js").MaybeArray<SortByClauseProperty|SortByCallbackModelProp>} callback 
      * Property reference callback that is used to determine which column or columns will be used to sort the queried rows
-     * @returns {SortByClauseProperty[]} A new context with the state of the context this occurred in addition with a new state of an ORDER BY clause.
+     * @returns {import("../context/context.js").State} A new context with the state of the context this occurred in addition with a new state of an ORDER BY clause.
      */
-    getState(callback) {
+    getState(oldState, callback) {
         const props = assertAsArray(/** @type {SortByClauseProperty[]} */ (callback(this.#newProxy())));
-        return props;
+        return {
+            ...oldState,
+            orderBy: props
+        };
     }
     
     #newProxy(table = this.#base.tableName, 

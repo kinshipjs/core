@@ -9,7 +9,7 @@
     "github": "https://github.com/kinshipjs/core",
     "homepage": "https://github.com/kinshipjs/core",
     "description": "Database agnostic, type-safe, and syntax-friendly ORM for Node.js users.",
-    "module": "./dist/index.mjs",
+    "module": "./dist/index.js",
     "types": "./dist/types/index.d.ts",
     "scripts": {
         "build": "npm run clean && npm run build:source && npm run build:types",
@@ -46,15 +46,15 @@
     },
     "exports": {
         ".": {
-            "import": "./dist/index.mjs",
+            "import": "./dist/index.js",
             "types": "./dist/types/index.d.ts"
         },
-        "./utils": {
-            "import": "./dist/utils.mjs",
-            "types": "./dist/types/utils.d.ts"
+        "./adapter": {
+            "import": "./dist/adapter.js",
+            "types": "./dist/types/context/adapter.d.ts"
         },
         "./errors": {
-            "import": "./dist/exceptions.mjs",
+            "import": "./dist/exceptions.js",
             "types": "./dist/types/exceptions.d.ts"
         }
     }

@@ -45,16 +45,17 @@ const pool = createMySql2Pool({
 const connection = adapter(pool);
 
 /** @type {KinshipContext<LastRowNumber>} */
-const lastIds = new KinshipContext(connection, "LastIdAssigned", { stateless: true })
+const lastIds = new KinshipContext(connection, "LastIdAssigned")
 /** @type {KinshipContext<User>} */
-const ctx = new KinshipContext(connection, "User", { stateless: true });
+const ctx = new KinshipContext(connection, "User");
+const lastId = await lastIds.where(m => m.Id.equals(1)).checkout();
 
 ctx.onSuccess(({cmdRaw}) => {
     console.log(cmdRaw);
 });
 
-ctx.onFail(({cmdRaw}) => {
-    console.log(cmdRaw);
+ctx.onFail(({cmdRaw, cmdSanitized, args}) => {
+    console.log(cmdSanitized, args);
 });
 
 lastIds.onSuccess(({cmdRaw}) => {
@@ -78,7 +79,7 @@ ctx.beforeInsert((m, { $$itemNumber, lastUserId }) => {
     m.Id = `U-${(lastUserId + $$itemNumber).toString().padStart(7, '0')}`;
 }, async () => {
     // Retrieve the latest Id from the LastRowNumber table.
-    const results = await lastIds.where(m => m.Id.equals(1)).select(m => m.User);
+    const results = await lastId.select(m => m.User);
     const [lastUserId] = results;
     if(lastUserId) {
         return {
@@ -97,17 +98,22 @@ ctx.beforeInsert((m, { $$itemNumber, lastUserId }) => {
 
 ctx.afterInsert(() => {}, async (numRecords) => {
     // Update the LastRowNumber table so the User Id is reflected.
-    const results = await lastIds.where(m => m.Id.equals(1)).select();
+    const results = await lastId.select();
     const [lastUserId] = results;
     lastUserId.User += numRecords;
     await lastIds.update(lastUserId);
 });
 
+async function testCount() {
+    var count = await ctx.count();
+    console.log({count});
+}
+
 async function testQuery() {
     var users = await ctx
         .include(m => m.userRoles
             .thenInclude(m => m.role))
-        .groupBy((m, { total }) => [m.userRoles.role.Title, total()])
+        .groupBy((m, { count }) => [m.userRoles.role.Title, count(m.FirstName)])
         .select();
     console.log(JSON.stringify(users, undefined, 2));
 }
@@ -122,16 +128,18 @@ async function testInsert() {
 }
 
 async function testUpdate(johnDoe) {
-    johnDoe.FirstName = "Jane";
-    const n = await ctx.update(johnDoe);
+    const n = await ctx.where(m => m.Id.equals(johnDoe.Id)).update(m => {
+        m.FirstName = "Jane";
+    });
     console.log({n});
 }
 
 async function testDelete(janeDoe) {
-    const n = await ctx.delete(janeDoe);
+    const n = await ctx.where(m => m.Id.equals(janeDoe.Id)).delete();
     console.log({n});
 }
 
+await testCount();
 await testQuery();
 const johnDoe = await testInsert();
 await testUpdate(johnDoe);

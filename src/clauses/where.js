@@ -193,6 +193,34 @@ export class WhereBuilder {
         return this.#chain();
     }
 
+    /**
+     * Adds a condition to the WHERE clause where if the specified column, as a string, contains the value specified.
+     * This operation is case insensitive.
+     * @param {TOriginalModel[TColumn] extends string|undefined ? string : never} value
+     * String value to check where the column contains.
+     * @returns {Chain<TOriginalModel>} A group of methods for optional chaining of conditions.
+     */
+    startsWith(value) {
+        this.#current.value = `${value}%`;
+        this.#current.operator = "LIKE";
+        this.#insert();
+        return this.#chain();
+    }
+
+    /**
+     * Adds a condition to the WHERE clause where if the specified column, as a string, contains the value specified.
+     * This operation is case insensitive.
+     * @param {TOriginalModel[TColumn] extends string|undefined ? string : never} value
+     * String value to check where the column contains.
+     * @returns {Chain<TOriginalModel>} A group of methods for optional chaining of conditions.
+     */
+    endsWith(value) {
+        this.#current.value = `%${value}`;
+        this.#current.operator = "LIKE";
+        this.#insert();
+        return this.#chain();
+    }
+
     // Private functions
 
     /**

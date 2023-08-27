@@ -107,7 +107,7 @@ export class RelationshipBuilder {
      * @param {string} realTableName 
      * @param {string} primaryKey 
      * @param {string} foreignKey 
-     * @returns {import("../old/types.js").AndThatHasCallbacks<TTableModel>}
+     * @returns {AndThatHasCallbacks<TTableModel>}
      */
     #withKeys(table,
         prependTable, 

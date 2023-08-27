@@ -51,8 +51,8 @@ export class KinshipDeleteHandler extends KinshipExecutionHandler {
             throw new KinshipSyntaxError(`No primary key exists on ${this.kinshipBase.tableName}. Use the explicit version of this update by passing a callback instead.`);
         }
         // add a WHERE statement so the number of rows affected returned matches the actual rows affected, otherwise it will "affect" all rows.
-        let where = /** @type {typeof Where<any, any>} */ (Where)(this.kinshipBase, pKeys[0]);
-        let chain = where.in(records.map(r => r[pKeys[0]]))
+        let where = /** @type {typeof Where<any, any>} */ (Where)(this.kinshipBase, pKeys[0].field);
+        let chain = where.in(records.map(r => r[pKeys[0].field]))
         for(let i = 1; i < pKeys.length; ++i) {
             //@ts-ignore
             chain = chain.and(m => m[pKeys[i]].in(records.map(r => r[pKeys[i]])).and(m => m[pKeys[i+1]].in(r[pKeys[i+1]])));

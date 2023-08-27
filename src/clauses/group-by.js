@@ -175,7 +175,7 @@ function sum(col) {
 
 /**
  * Model representing grouped columns, including aggregates.
- * @template {object|undefined} TTableModel
+ * @template {object} TTableModel
  * @typedef {{[K in keyof Partial<TTableModel>]: GroupByClauseProperty}
  *  & Partial<{ $total: GroupByClauseProperty }>
  *  & Partial<{[K in keyof TTableModel as `$count_${import("../models/string.js").Join<TTableModel, K & string>}`]: GroupByClauseProperty}>
@@ -201,13 +201,6 @@ function sum(col) {
  * 
  * __NOTE: This is a superficial type to help augment the AliasModel of the context so Users can expect different results in TypeScript.__  
  * __Real return value: {@link GroupByClauseProperty}__
- * @template {object|undefined} TTableModel
- * @typedef {AugmentAllValues<TTableModel>} SpfGroupByCallbackModel
+ * @template {object} TTableModel
+ * @typedef {import("../models/string.js").Deflate<TTableModel>} SpfGroupByCallbackModel
  */
-
-/** AugmentAllValues  
- * Augments the type, `T`, so that all nested properties have string values reflecting their own key and their parent(s).  
- * (e.g., { Foo: { Bar: "" } } becomes { Foo: { Bar: "Foo_Bar" } })
- * @template {object|undefined} T
- * @typedef {{[K in keyof T]-?: K}} AugmentAllValues
-*/

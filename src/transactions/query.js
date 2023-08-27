@@ -12,8 +12,11 @@ export class KinshipQueryHandler extends KinshipExecutionHandler {
      * @returns {Promise<{ numRowsAffected: number, records: TAliasModel[] }>}
      */
     async _execute(state, records, ...[callback]) {
+        console.log(`Query executed`);
+        // these MUST be called in this order, otherwise certain columns get escaped twice.
         state = this.#useCallbackToSelectColumns(state, callback);
         state = this.#assertPrimaryKeysExist(state);
+
         const detail = this.#getDetail(state);
         const { cmd, args } = this.kinshipBase.handleAdapterSerialize().forQuery(detail);
         try {
@@ -85,7 +88,7 @@ export class KinshipQueryHandler extends KinshipExecutionHandler {
             select: state.select,
             from: state.from,
             //@ts-ignore `._getConditions` is marked private so the User does not see the function.
-            where: state.where,
+            where: state.conditions,
             group_by: state.groupBy,
             order_by: state.orderBy,
             limit: state.limit,

@@ -150,20 +150,6 @@ import { KinshipAdapterError, KinshipNonUniqueKeyError } from "../exceptions.js"
  * This should return an array containing {@link ConstraintData} objects.
  */
 
-/** AdapterWhereHandler  
- * 
- * Reduces all of the conditions built in `Kinship` to a single clause.
- * @callback AdapterWhereHandler
- * @param {WhereClausePropertyArray=} conditions
- * Conditions to reduce to a clause.
- * @param {string=} table
- * If specified, will only reduce conditions that belong to the specified table. (default: empty string or all conditions)
- * @param {((n: number) => string)=} sanitize
- * Function used to convert values to sanitized strings. (default: (n) => `?`.)
- * @returns {{cmd: string, args: SQLPrimitive[]}}
- * string and array of SQL primitives to be concatenated onto the full query string and arguments.
- */
-
 /** AdapterScope  
  * 
  * Scope passed into the Adapter for usage within any of the serialize/execute functions.
@@ -171,26 +157,13 @@ import { KinshipAdapterError, KinshipNonUniqueKeyError } from "../exceptions.js"
  * @prop {(message: string) => KinshipAdapterError} KinshipAdapterError  
  * Throw an error if it is an unexpected error that occurs within the custom adapter.
  * @prop {typeof ErrorTypes} ErrorTypes
- * @prop {typeof Where} Where
  * Situationally create new WHERE clause conditions.
  */
 
 /** @enum {() => Error} */
-const ErrorTypes = {
-    NON_UNIQUE_KEY: () => new KinshipNonUniqueKeyError()
+export const ErrorTypes = {
+    NonUniqueKey: () => new KinshipNonUniqueKeyError()
 }
-
-/** AdapterOptions  
- * 
- * Additional options that can be restricted specifically for the adapter's use.
- * @typedef {object} AdapterOptions
- * @prop {boolean=} allowTruncation
- * Allow the user to truncate the table.
- * @prop {boolean=} allowUpdateAll
- * Allow the user to update all records in the table.
- * @prop {boolean=} eventHandling 
- * Allow the user to attach event handlers to the table.
- */
 
 /** AdapterSyntax  
  * 
@@ -210,8 +183,6 @@ const ErrorTypes = {
  * 
  * Object model type representing the requirements for an adapter to work with `Kinship`.
  * @typedef {object} KinshipAdapterConnection
- * @prop {AdapterOptions} options
- * Additional options that are automatically set over `Kinship`'s defaults.
  * @prop {AdapterSyntax} syntax
  * Required functions in order to provide safe SQL serialization.
  * @prop {(scope: AdapterScope) => ExecutionHandlers} execute

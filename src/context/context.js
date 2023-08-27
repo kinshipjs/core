@@ -20,7 +20,6 @@ import { RelationshipBuilder, RelationshipType } from "../config/has-relationshi
  */
 export class KinshipContext {
     static n = 0;
-    #i = KinshipContext.n++;
     /* -------------------------Private Properties------------------------- */
     // Properties to maintain a flow and state of the context.
 
@@ -30,6 +29,7 @@ export class KinshipContext {
      * @type {Builders<TTableModel, TAliasModel>} */ #builders;
     /** Handlers for transactions with the database. 
      * @type {Handlers} */ #handlers;
+    /** @type {State=} */ #state;
 
     /* -------------------------Constructor------------------------- */
     
@@ -75,7 +75,6 @@ export class KinshipContext {
             this.#base = adapter.#base;
             this.#builders = adapter.#builders;
             this.#handlers = adapter.#handlers;
-            this.#cloneState(adapter);
         } else {
             if(typeof tableName !== "string") {
                 throw Error(`The parameter, \`tableName\` must be a valid string.`);
@@ -125,8 +124,11 @@ export class KinshipContext {
      * @returns {Promise<number>} Number of rows affected.
      */
     async delete(records=undefined) {
+        if(this.#state) {
+            this.#afterResync(() => /** @type {State} */ (this.#state));
+        }
         const { numRowsAffected } = await this.#handlers.delete.handle(records);
-        if(this.#base.options.stateless) {
+        if(this.#state) {
             this.#resetState()
         }
         return numRowsAffected;
@@ -141,6 +143,9 @@ export class KinshipContext {
      * Default values include virtual columns, database defaults, and user defined defaults.
      */
     async insert(records) {
+        if(this.#state) {
+            this.#afterResync(() => /** @type {State} */ (this.#state));
+        }
         const { numRowsAffected, whereClause, ...data } = await this.#handlers.insert.handle(records);
         // If `whereClause` is NOT undefined, then the handler determined that virtual columns exist, so we must requery
         if(whereClause) { 
@@ -150,7 +155,7 @@ export class KinshipContext {
         } else {
             records = data.records;
         }
-        if(this.#base.options.stateless) {
+        if(this.#state) {
             this.#resetState()
         }
         return records;
@@ -169,8 +174,11 @@ export class KinshipContext {
      * Rows queried from the database serialized into a user-friendly format.
      */
     async select(callback=undefined) {
+        if(this.#state) {
+            this.#afterResync(() => /** @type {State} */ (this.#state));
+        }
         const { records } = await this.#handlers.query.handle(undefined, callback);
-        if(this.#base.options.stateless) {
+        if(!this.#state) {
             this.#resetState();
         }
         return /** @type {any} */ (records);
@@ -207,12 +215,15 @@ export class KinshipContext {
      * @returns {Promise<number>}
      */
     async update(records) {
+        if(this.#state) {
+            this.#afterResync(() => /** @type {State} */ (this.#state));
+        }
         if(typeof records === 'function') {
             var { numRowsAffected } = await this.#handlers.update.handle([], records);
         } else {
             var { numRowsAffected }  = await this.#handlers.update.handle(records);
         }
-        if(this.#base.options.stateless) {
+        if(!this.#state) {
             this.#resetState()
         }
         return numRowsAffected;
@@ -233,32 +244,22 @@ export class KinshipContext {
      * Rows queried from the database serialized into a user-friendly format.
      */
     choose(callback) {
-        if(this.#base.options.stateless) {
-            this.#afterResync((oldState) => this.#choose(callback, oldState));
-            return /** @type {any} */ (this);
-        }
-        const ctx = this.#newContext();
-        this.#afterResync((oldState) => ctx.#choose(callback, oldState));
-        return /** @type {any} */ (ctx);
+        this.#afterResync((oldState) => this.#choose(callback, oldState));
+        return /** @type {any} */ (this);
     }
 
     /**
      * Specify the columns to group the results on.  
      * This method will override any previous `.groupBy()` calls.
-     * @template {import("../clauses/group-by.js").GroupedColumnsModel<TTableModel>} TGroupedColumns
+     * @template {import("../clauses/group-by.js").GroupedColumnsModel<TTableModel>} [TGroupedColumns=import("../clauses/group-by.js").GroupedColumnsModel<TTableModel>]
      * Used internally for typescript to create a new `TAliasModel` on the returned context, which will change the scope of what the user will see in further function calls.
      * @param {(model: import("../clauses/group-by.js").SpfGroupByCallbackModel<TTableModel>, aggregates: import("../clauses/group-by.js").Aggregates) => import("../models/maybe.js").MaybeArray<keyof TGroupedColumns>} callback
      * Property reference callback that is used to determine which column or columns should be selected and grouped on in future queries.
-     * @returns {KinshipContext<TTableModel, import("../models/superficial.js").Isolate<TTableModel, keyof TGroupedColumns>>} A new context with the state of the context this occurred in addition with a new state of a GROUP BY clause.
+     * @returns {KinshipContext<TTableModel, import("../models/string.js").Reconstructed<TAliasModel, TGroupedColumns>>} A new context with the state of the context this occurred in addition with a new state of a GROUP BY clause.
      */
     groupBy(callback) {
-        if(this.#base.options.stateless) {
-            this.#afterResync((oldState) => this.#groupBy(callback, oldState));
-            return /** @type {any} */ (this);
-        }
-        const ctx = this.#newContext();
-        this.#afterResync((oldState) => ctx.#groupBy(callback, oldState));
-        return /** @type {any} */ (ctx);
+        this.#afterResync((oldState) => this.#groupBy(callback, oldState));
+        return /** @type {any} */ (this);
     }
 
     /**
@@ -271,13 +272,8 @@ export class KinshipContext {
      * @returns {KinshipContext<TTableModel, TAliasModel & {[K in keyof TIncludedColumn as K extends keyof TTableModel ? K : never]: Exclude<TTableModel[K], undefined>}>} 
      */
     include(callback) {
-        if(this.#base.options.stateless) {
-            this.#afterResync((oldState) => this.#include(callback, oldState));
-            return /** @type {any} */ (this);
-        }
-        const ctx = this.#newContext();
-        this.#afterResync((oldState) => ctx.#include(callback, oldState));
-        return /** @type {any} */ (ctx);
+        this.#afterResync((oldState) => this.#include(callback, oldState));
+        return /** @type {any} */ (this);
     }
 
     /**
@@ -287,19 +283,14 @@ export class KinshipContext {
      * @returns {KinshipContext<TTableModel, TAliasModel>}
      */
     skip(numberOfRecords) {
-        if(this.#base.options.stateless) {
-            this.#afterResync((oldState) => this.#skip(numberOfRecords, oldState));
-            return this;
-        }
-        const ctx = this.#newContext();
-        this.#afterResync((oldState) => ctx.#skip(numberOfRecords, oldState));
-        return ctx;
+        this.#afterResync((oldState) => this.#skip(numberOfRecords, oldState));
+        return this;
     }
 
     /**
      * Specify the columns to sort on (in the exact order).  
      * This method will stack, meaning it will not override previous `.sortBy()` calls.   
-     * @param {(model: import("../clauses/order-by.js").SortByCallbackModel<TTableModel>) 
+     * @param {(model: import("../clauses/order-by.js").SortByCallbackModel<TAliasModel>) 
      *   => import("../models/maybe.js").MaybeArray<
      *      import("../clauses/order-by.js").SortByClauseProperty
      *      |import("../clauses/order-by.js").SortByCallbackModelProp
@@ -308,13 +299,8 @@ export class KinshipContext {
      * @returns {KinshipContext<TTableModel, TAliasModel>} A new context with the state of the context this occurred in addition with a new state of an ORDER BY clause.
      */
     sortBy(callback) {
-        if(this.#base.options.stateless) {
-            this.#afterResync((oldState) => this.#sortBy(callback, oldState));
-            return this;
-        }
-        const ctx = this.#newContext();
-        this.#afterResync((oldState) => ctx.#sortBy(callback, oldState));
-        return ctx;
+        this.#afterResync((oldState) => this.#sortBy(callback, oldState));
+        return this;
     }
     
     /**
@@ -324,13 +310,8 @@ export class KinshipContext {
      * @returns {KinshipContext<TTableModel, TAliasModel>}
      */
     take(numberOfRecords) {
-        if(this.#base.options.stateless) {
-            this.#afterResync((oldState) => this.#take(numberOfRecords, oldState));
-            return this;
-        }
-        const ctx = this.#newContext();
-        this.#afterResync((oldState) => ctx.#take(numberOfRecords, oldState));
-        return ctx;
+        this.#afterResync((oldState) => this.#take(numberOfRecords, oldState));
+        return this;
     }
 
     /**
@@ -340,13 +321,8 @@ export class KinshipContext {
      * @returns {KinshipContext<TTableModel, TAliasModel>} 
      */
     where(callback) {
-        if(this.#base.options.stateless) {
-            this.#afterResync((oldState) => this.#where(callback, oldState));
-            return this;
-        }
-        const ctx = this.#newContext();
-        this.#afterResync((oldState) => ctx.#where(callback, oldState));
-        return ctx;
+        this.#afterResync((oldState) => this.#where(callback, oldState));
+        return this;
     }
 
     /* -------------------------Private Clause Functions------------------------- */
@@ -492,6 +468,14 @@ export class KinshipContext {
         return this;
     }
 
+    /**
+     * @returns {Promise<KinshipContext<TTableModel, TAliasModel>>}
+     */
+    async checkpoint() {
+        this.#state = /** @type {State} */ (await this.#base.promise);
+        return this;
+    }
+
     /* -------------------------Trigger Handlers------------------------- */
     // Users can use `Trigger Handlers` to define behavior before and after a command is executed, 
     // essentially creating a middleware for each record passing through the context.
@@ -588,7 +572,7 @@ export class KinshipContext {
     }
 
     onInsertFail(callback) {
-        this.#base.listener.onInsertSuccess(callback);
+        this.#base.listener.onInsertFail(callback);
     }
 
     onQuerySuccess(callback) {
@@ -607,27 +591,26 @@ export class KinshipContext {
         this.#base.listener.onUpdateFail(callback);
     }
 
+    onSuccess(callback) {
+        this.onDeleteSuccess(callback);
+        this.onInsertSuccess(callback);
+        this.onQuerySuccess(callback);
+        this.onUpdateSuccess(callback);
+    }
+
+    onFail(callback) {
+        this.onDeleteFail(callback);
+        this.onInsertFail(callback);
+        this.onQueryFail(callback);
+        this.onUpdateFail(callback);
+    }
+
     /* -------------------------Private Functions------------------------- */
     // Extra private functions that are essential for many functions within this context.
 
-    /**
-     * Clones `state` and returns the resulting clone.
-     * @param {KinshipContext<any, any>} fromContext
-     */
-    #cloneState(fromContext) {
-        this.#afterResync((oldState) => {
-            const newState = JSON.parse(JSON.stringify(oldState));
-            newState.where = oldState.where
-                //@ts-ignore _clone is marked private, but is available for usage here.
-                ?._clone();
-            return newState;
-        });
-    }
-
     #resetState() {
-        this.#afterResync((oldState) => {
+        this.#afterResync(() => {
             return {
-                ...oldState,
                 select: this.#base.getAllSelectColumnsFromSchema(),
                 from: [{
                     alias: this.#base.tableName,
@@ -711,15 +694,7 @@ export class KinshipContext {
 
 /**
  * Object that manages the state of clauses within this context.
- * @typedef {object} AdapterReadyState
- * @prop {import("../config/has-relationship.js").FromClauseProperties} from
- * @prop {import("../clauses/group-by.js").GroupByClauseProperty[]=} groupBy
- * @prop {boolean=} negated
- * @prop {number=} limit
- * @prop {number=} offset
- * @prop {import("../clauses/order-by.js").SortByClauseProperty[]=} orderBy
- * @prop {import("../clauses/order-by.js").Column[]} select
- * @prop {import("../clauses/where.js").WhereClausePropertyArray=} where
+ * @typedef {State & { conditions?: import("../clauses/where.js").WhereClausePropertyArray }} AdapterReadyState
  */
 
 // polyfills for Dispose until it is officially released.

@@ -3,6 +3,7 @@
 import { KinshipBase } from "../context/base.js";
 import { assertAsArray } from "../context/util.js";
 import { WhereBuilder } from "../clauses/where.js";
+import { KinshipInternalError } from "../exceptions.js";
 
 export class KinshipExecutionHandler {
     /** @type {KinshipBase} */ kinshipBase;
@@ -34,9 +35,10 @@ export class KinshipExecutionHandler {
      * @returns {Promise<{ numRowsAffected: number, records: T[], whereClause?: WhereBuilder<T>}>}
      */
     async handle(records, ...args) {
-        const originalState = await this.kinshipBase.resync();
-        /** @type {import("../context/context.js").AdapterReadyState} */
-        const state = this.#getEscapedState(/** @type {import("../context/context.js").State} */ (originalState));
+        let state = await this.kinshipBase.resync();
+        if(!state) {
+            throw new KinshipInternalError();
+        }
         if(records) {
             records = assertAsArray(records);
             if(records.length <= 0) {
@@ -138,62 +140,6 @@ export class KinshipExecutionHandler {
      */
     async _execute(state, records, ...args) {
         throw new KinshipImplementationError(`Child class must implement the function, "._execute".`);
-    }
-
-    /**
-     * Transforms all of the stored data within the state of the context so all columns/tables are escaped appropriately.
-     * @param {import("../context/context.js").State} originalState State that was received from the `KinshipContext`.
-     * @returns {import("../context/context.js").AdapterReadyState} A new state exactly like the old state but with everything escaped.
-     */
-    #getEscapedState(originalState) {
-        let state = JSON.parse(JSON.stringify(originalState));
-        state.where = originalState.where
-            //@ts-ignore _clone is marked private, but is available for use internally.
-            ?._clone();
-        state.from.forEach(t => {
-            t.alias = this.kinshipBase.adapter.syntax.escapeColumn(t.alias);
-            t.realName = this.kinshipBase.adapter.syntax.escapeColumn(t.realName);
-            if("referenceTableKey" in t) {
-                t.referenceTableKey.alias = this.kinshipBase.adapter.syntax.escapeColumn(t.referenceTableKey.alias);
-                t.referenceTableKey.column = this.kinshipBase.adapter.syntax.escapeColumn(t.referenceTableKey.column);
-                t.referenceTableKey.table = this.kinshipBase.adapter.syntax.escapeTable(t.referenceTableKey.table);
-                t.refererTableKey.alias = this.kinshipBase.adapter.syntax.escapeColumn(t.refererTableKey.alias);
-                t.refererTableKey.column = this.kinshipBase.adapter.syntax.escapeColumn(t.refererTableKey.column);
-                t.refererTableKey.table = this.kinshipBase.adapter.syntax.escapeTable(t.refererTableKey.table);
-            }
-        });
-
-        state.groupBy?.forEach(c => {
-            c.alias = this.kinshipBase.adapter.syntax.escapeColumn(c.alias);
-            c.column = this.kinshipBase.adapter.syntax.escapeColumn(c.column);
-            c.table = this.kinshipBase.adapter.syntax.escapeTable(c.table);
-        });
-
-        state.orderBy?.forEach(c => {
-            c.alias = this.kinshipBase.adapter.syntax.escapeColumn(c.alias);
-            c.column = this.kinshipBase.adapter.syntax.escapeColumn(c.column);
-            c.table = this.kinshipBase.adapter.syntax.escapeTable(c.table);
-        });
-
-        state.select?.forEach(c => {
-            c.alias = this.kinshipBase.adapter.syntax.escapeColumn(c.alias);
-            c.column = this.kinshipBase.adapter.syntax.escapeColumn(c.column);
-            c.table = this.kinshipBase.adapter.syntax.escapeTable(c.table);
-        });
-        const whereConditions = state.where
-            //@ts-ignore marked private but is available for use internally.
-            ?._getConditions();
-        const whereForEach = c => {
-            if(Array.isArray(c)) {
-                c.forEach(whereForEach);
-            } else {
-                c.property = this.kinshipBase.adapter.syntax.escapeColumn(c.property);
-                c.table = this.kinshipBase.adapter.syntax.escapeTable(c.table);
-            }
-        };
-        whereConditions?.forEach(whereForEach);
-        delete state.where;
-        return { ...state, where: whereConditions };
     }
 
     /**

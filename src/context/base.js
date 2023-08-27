@@ -1,7 +1,7 @@
 //@ts-check
 import { CommandListener } from "../events.js";
-import { KinshipAdapterError, KinshipInternalError, KinshipNonUniqueKeyError } from "../exceptions.js";
-import { Where } from "../clauses/where.js"
+import { KinshipAdapterError, KinshipNonUniqueKeyError } from "../exceptions.js";
+import { ErrorTypes } from "./adapter.js";
 
 /**
  * Handles some interactions with the adapter, stores some information/helpers about the table, and handles all
@@ -20,8 +20,6 @@ export class KinshipBase {
 
     /** @type {Record<string, import("../config/has-relationship.js").DescribedSchema[]>} */ #primaryKeyCache = {};
 
-    /** @type {boolean} */ needsResync = false;
-
     /**
      * @param {import("./adapter.js").KinshipAdapterConnection} adapter 
      * @param {string} tableName 
@@ -33,7 +31,6 @@ export class KinshipBase {
         this.options = {
             disableSafeDeleteMode: false,
             disableSafeUpdateMode: false,
-            stateless: false,
             ...options
         };
         this.relationships = {};
@@ -54,8 +51,7 @@ export class KinshipBase {
     handleAdapterSerialize() {
         return this.adapter.serialize({
             ErrorTypes,
-            KinshipAdapterError: (msg) => new KinshipAdapterError(msg),
-            Where
+            KinshipAdapterError: (msg) => new KinshipAdapterError(msg)
         });
     }
 
@@ -65,8 +61,7 @@ export class KinshipBase {
     handleAdapterExecute() {
         return this.adapter.execute({
             ErrorTypes,
-            KinshipAdapterError: (msg) => new KinshipAdapterError(msg),
-            Where
+            KinshipAdapterError: (msg) => new KinshipAdapterError(msg)
         });
     }
 
@@ -76,17 +71,17 @@ export class KinshipBase {
      * Callback that works on data within `Kinship` that requires the context to be resynchronized first.
      */
     afterResync(callback) {
-        this.needsResync = true;
         if(this.promise === null) {
             this.promise = new Promise(res => {
                 res(callback(/** @type {import("./context.js").State} */ ({})));
             });
+        } else {
+            this.promise = this.promise.then((oldState) => {
+                return callback(oldState);
+            }).catch(err => {
+                throw err;
+            });
         }
-        this.promise = this.promise.then((oldState) => {
-            return callback(oldState);
-        }).catch(err => {
-            throw err;
-        });
     }
 
     /**
@@ -226,11 +221,6 @@ export class KinshipBase {
     }
 }
 
-/** @enum {() => Error} */
-const ErrorTypes = {
-    NON_UNIQUE_KEY: () => new KinshipNonUniqueKeyError()
-}
-
 /**
  * Various options that can be passed to alter behavior of a single `KinshipContext`.
  * @typedef {object} KinshipOptions
@@ -240,10 +230,6 @@ const ErrorTypes = {
  * @prop {boolean} disableSafeUpdateMode
  * By default, a safe mode for updating records exist, preventing accidental updating of all rows in a table.
  * Pass `true` into this property to disable this feature.
- * @prop {boolean} stateless
- * By default, Kinship behaves in a stateful way, where each clause that is called on a context creates a phantom duplicate
- * with the new state and it will remain that way indefinitely. Passing true into this will prevent these duplicates and
- * will always reset the state with every transaction.
  */
 
 /**

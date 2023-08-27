@@ -63,7 +63,7 @@
 /**
  * @template {object} TOriginal
  * @template {object} TDeflatedKeys
- * @typedef {FriendlyType<{[K in keyof TDeflatedKeys as StartsWith<K, "$">]: number} & Reinflated<TOriginal, keyof TDeflatedKeys>>} Reconstructed
+ * @typedef {FriendlyType<{[K in StartsWith<keyof TDeflatedKeys, "$">]: number} & Reinflated<TOriginal, keyof Omit<TDeflatedKeys, StartsWith<keyof TDeflatedKeys, "$">>>>} Reconstructed
  */
 
 /** 

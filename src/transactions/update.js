@@ -89,7 +89,7 @@ export class KinshipUpdateHandler extends KinshipExecutionHandler {
         // get the columns that are to be updated.
         const columns = getUniqueColumns(records);
         const whereConditions = this.#getWhereConditions(records);
-
+        console.log(JSON.stringify(whereConditions, undefined, 2));
         return {
             table: this.kinshipBase.tableName,
             columns,
@@ -100,7 +100,7 @@ export class KinshipUpdateHandler extends KinshipExecutionHandler {
             }
         }
     }
-
+    
     /**
      * Gets the WHERE clause conditions that assist the update statement so the number of rows affected
      * come back accurately.
@@ -112,13 +112,12 @@ export class KinshipUpdateHandler extends KinshipExecutionHandler {
         const pKeys = this.kinshipBase.getPrimaryKeys();
         let where = /** @type {typeof Where<any, any>} */ (Where)(
             this.kinshipBase, 
-            pKeys[0], 
-            this.kinshipBase.tableName
+            pKeys[0].field
         );
         let chain = where.in(records.map(r => r[pKeys[0].field]))
         for(let i = 1; i < pKeys.length; ++i) {
             //@ts-ignore
-            chain = chain.and(m => m[pKeys[i]].in(records.map(r => r[pKeys[i]])).and(m => m[pKeys[i+1]].in(r[pKeys[i+1]])));
+            chain = chain.and(m => m[pKeys[i]].in(records.map(r => r[pKeys[i]])));
         }
         //@ts-ignore ._getConditions is marked private, but is available for use within this context.
         return where._getConditions();

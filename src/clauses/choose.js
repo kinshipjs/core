@@ -22,7 +22,7 @@ export class ChooseBuilder {
 /**
  * Model representing selected columns.
  * @template {object} TTableModel
- * @typedef {{[K in keyof Partial<TTableModel> as import("../models/string.js").Join<TTableModel, K & string>]: any}} SelectedColumnsModel
+ * @typedef {{[K in keyof Partial<TTableModel> as import("../models/string.js").Join<TTableModel, K & string>]: SelectClauseProperty}} SelectedColumnsModel
  */
 
 /**
@@ -37,15 +37,6 @@ export class ChooseBuilder {
  * __Real return value: {@link SelectClauseProperty}__
  * @template {object} TTableModel
  * @typedef {import("../models/string.js").Deflate<TTableModel>} SpfSelectCallbackModel
- */
-
-/** AugmentAllValues  
- * Augments the type, `T`, so that all nested properties have string values reflecting their own key and their parent(s).  
- * (e.g., { Foo: { Bar: "" } } becomes { Foo: { Bar: "Foo_Bar" } })
- * @template {object} T
- * @typedef {{[K in keyof T]-?: import("../models/types.js").OnlyObjectType<T[K]> extends never 
- *   ? K 
- *   : AugmentAllValues<import("../models/types.js").OnlyObjectType<T[K]>>}} AugmentAllValues
  */
 
 export default {};

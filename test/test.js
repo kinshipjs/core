@@ -45,15 +45,23 @@ const pool = createMySql2Pool({
 const connection = adapter(pool);
 
 /** @type {KinshipContext<LastRowNumber>} */
-const lastIds = new KinshipContext(connection, "LastIdAssigned")
+const lastIds = new KinshipContext(connection, "LastIdAssigned", { stateless: true })
 /** @type {KinshipContext<User>} */
-const ctx = new KinshipContext(connection, "User");
+const ctx = new KinshipContext(connection, "User", { stateless: true });
 
-ctx.onQuerySuccess(({cmdRaw}) => {
+ctx.onSuccess(({cmdRaw}) => {
     console.log(cmdRaw);
 });
 
-ctx.onQueryFail(({cmdRaw}) => {
+ctx.onFail(({cmdRaw}) => {
+    console.log(cmdRaw);
+});
+
+lastIds.onSuccess(({cmdRaw}) => {
+    console.log(cmdRaw);
+});
+
+lastIds.onFail(({cmdRaw}) => {
     console.log(cmdRaw);
 });
 
@@ -67,7 +75,7 @@ ctx.hasMany(m => m.userRoles
 );
 
 ctx.beforeInsert((m, { $$itemNumber, lastUserId }) => {
-    m.Id = `U-${(lastUserId + $$itemNumber).toString().padStart(6, '0')}`;
+    m.Id = `U-${(lastUserId + $$itemNumber).toString().padStart(7, '0')}`;
 }, async () => {
     // Retrieve the latest Id from the LastRowNumber table.
     const results = await lastIds.where(m => m.Id.equals(1)).select(m => m.User);
@@ -89,26 +97,43 @@ ctx.beforeInsert((m, { $$itemNumber, lastUserId }) => {
 
 ctx.afterInsert(() => {}, async (numRecords) => {
     // Update the LastRowNumber table so the User Id is reflected.
-    console.log(`AFTER Insert.`);
     const results = await lastIds.where(m => m.Id.equals(1)).select();
-    console.log({results});
     const [lastUserId] = results;
     lastUserId.User += numRecords;
     await lastIds.update(lastUserId);
 });
 
 async function testQuery() {
-    var o = ctx
+    var users = await ctx
         .include(m => m.userRoles
             .thenInclude(m => m.role))
-        .where(m => m.Id.contains("U-000000"))
-        .where(m => m.LastName.like("h%")
-            .or(m => m.LastName.like("n%")))
-        .sortBy(m => [m.LastName.desc(), m.FirstName.asc()]);
-    var users = await o.select(m => [m.Id, m.userRoles.role.Title, m.userRoles.role.Description]);
-    users[0].userRoles[0].role.Title
-    users[0].Id
+        .groupBy((m, { total }) => [m.userRoles.role.Title, total()])
+        .select();
+    console.log(JSON.stringify(users, undefined, 2));
+}
+
+async function testInsert() {
+    const [johnDoe] = await ctx.insert({
+        FirstName: "John",
+        LastName: "Doe"
+    });
+    console.log(JSON.stringify(johnDoe, undefined, 2));
+    return johnDoe;
+}
+
+async function testUpdate(johnDoe) {
+    johnDoe.FirstName = "Jane";
+    const n = await ctx.update(johnDoe);
+    console.log({n});
+}
+
+async function testDelete(janeDoe) {
+    const n = await ctx.delete(janeDoe);
+    console.log({n});
 }
 
 await testQuery();
+const johnDoe = await testInsert();
+await testUpdate(johnDoe);
+await testDelete(johnDoe);
 process.exit(1);

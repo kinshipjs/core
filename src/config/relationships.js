@@ -310,7 +310,7 @@ export class RelationshipBuilder {
  * @template {object} T
  * Information regarding a relating table.
  * @typedef {object} Relationship
- * @prop {"1:1"|"1:n"} type
+ * @prop {"1:1"|"1:n"} relationshipType
  * Type of relationship this has.
  * @prop {string} table
  * Actual table name as it appears in the database.
@@ -347,7 +347,7 @@ export class RelationshipBuilder {
  * The table that is being configured as a relationship with.
  * @typedef {{ 
  *   withKeys: (primaryKey: keyof OnlyDataTypes<TFrom>, foreignKey: keyof OnlyDataTypes<TTo>) 
- *      => AndThatHasCallbacks<TTo>
+ *      => AndThatHasCallbacks<Required<TTo>>
  * }} WithKeys
  */
 
@@ -368,7 +368,7 @@ export class RelationshipBuilder {
  * Object containing the functions, `.andThatHasOne()` and `.andThatHasMany()` to further configure deeper relationships.
  * @template {object} TTo
  * The table that is being configured as a relationship with.
- * @typedef {{ andThatHasOne: (callback: HasOneCallback<TTo>) => AndThatHasCallbacks<TTo>, andThatHasMany: (callback: HasManyCallback<TTo>) => AndThatHasCallbacks<TTo> }} AndThatHasCallbacks
+ * @typedef {{ andThatHasOne: (callback: HasOneCallback<TTo>) => AndThatHasCallbacks<Required<TTo>>, andThatHasMany: (callback: HasManyCallback<Required<TTo>>) => AndThatHasCallbacks<TTo> }} AndThatHasCallbacks
  */
 
 /** HasOneCallbackModel  

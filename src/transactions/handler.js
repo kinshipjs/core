@@ -5,6 +5,7 @@ import { assertAsArray, getFilterConditionsFromWhere } from "../context/util.js"
 import { WhereBuilder } from "../clauses/where.js";
 import { KinshipInternalError } from "../exceptions.js";
 
+
 export class KinshipExecutionHandler {
     /** @protected @type {KinshipBase} */ base;
 
@@ -53,8 +54,16 @@ export class KinshipExecutionHandler {
         }
         try {
             await this.#applyBefore(records);
+            //@ts-ignore
+            this.base.options.benchmarks.execute.start();
             const data = await this._execute(state, records, ...args);
+            //@ts-ignore
+            this.base.options.benchmarks.execute.end();
+            //@ts-ignore
+            this.base.options.benchmarks.serialize.start();
             data.records = this.#serialize(state, data.records);
+            //@ts-ignore
+            this.base.options.benchmarks.serialize.end();
             await this.#applyAfter(data.records);
             return data;
         } catch(err) {
@@ -205,7 +214,7 @@ export class KinshipExecutionHandler {
                     .filter(k => k.startsWith(table + '<|'))
                     .map(k => [k.substring(table.length+2), {}]);
                 const map = this.#map(state, records, Object.fromEntries(entries), prepend + table + '<|', relationships[table].relationships);
-                if (relationships[table].type === "1:1" || state.groupBy) {
+                if (relationships[table].relationshipType === "1:1" || state.groupBy) {
                     const _r = map(r);
                     mapping[table] = Object.keys(_r).length <= 0 ? null : _r;
                 } else {
@@ -222,12 +231,70 @@ export class KinshipExecutionHandler {
     }
 
     /**
+     * 
+     * @param {object[]} records 
+     */
+    #serialize2(state, records, schema=this.base.schema, relationships=this.base.relationships, depth = 0) {
+        if(records.length <= 0) return records;
+        let finalRecords = [];
+        if(Object.keys(relationships).length <= 0) {
+            for(const record of records) {
+                const newRecord = Object.fromEntries(
+                    Object.values(schema).map((colDef) => {
+                        return [colDef.field, record[colDef.alias]];
+                    })
+                );
+                finalRecords.push(newRecord);
+            }
+            return finalRecords;
+        }
+        for(const key in relationships) {
+            const relationship = relationships[key];
+            // group by makes every record unique.
+            const uniqueRecordsByPrimaryKey = state.groupBy ? records : [
+                ...new Map(records.map(r =>[r[relationship.primary.alias], r])).values()
+            ];
+
+            for(const record of uniqueRecordsByPrimaryKey) {
+                // group by makes every record unique.
+                const relatedRecords = state.groupBy ? [record] : records.filter(r => 
+                    record[relationship.primary.alias] === r[relationship.foreign.alias]
+                );
+                const relatedRecordsSerialized = this.#serialize2(state,
+                    relatedRecords, 
+                    relationship.schema, 
+                    relationship.relationships,
+                    depth + 1
+                );
+
+                const newRecord = Object.fromEntries(
+                    Object.values(schema).map((colDef) => {
+                        return [colDef.field, record[colDef.alias]];
+                    }).concat(Object.keys(record).filter(k => k.startsWith("$") && depth === 0).map((k => {
+                        return [k, record[k]];
+                    })))
+                );
+                // group by makes every record unique, and thus every related record would become 1:1.
+                if(relationship.relationshipType === "1:1" || state.groupBy) {
+                    newRecord[key] = relatedRecordsSerialized?.[0] ?? null;
+                } else {
+                    newRecord[key] = relatedRecordsSerialized;
+                }
+
+                finalRecords.push(newRecord);
+            }
+        }
+        return finalRecords;
+    }
+
+    /**
      * Serializes a given array of records, `records`, into object notation that a User would expect.
      * @param {import("../context/context.js").AdapterReadyState} state
-     * @param {any[]} records Records to filter.
+     * @param {object[]} records Records to filter.
      * @returns {object[]} Records, serialized into objects that a user would expect.
      */
     #serialize(state, records) {
+        return this.#serialize2(state, records);
         if (records.length <= 0 || state.from.length === 1) return records;
         const map = this.#map(state, records);
         // group by is specific where each record returned will be its own result and will not be serialized like normal.

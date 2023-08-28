@@ -113,7 +113,7 @@ async function testQuery() {
     var users = await ctx
         .include(m => m.userRoles
             .thenInclude(m => m.role))
-        .groupBy((m, { count }) => [m.userRoles.role.Title, count(m.FirstName)])
+        .groupBy((m, { total }) => [m.userRoles.role.Title, total()])
         .select();
     console.log(JSON.stringify(users, undefined, 2));
 }
@@ -139,9 +139,5 @@ async function testDelete(janeDoe) {
     console.log({n});
 }
 
-await testCount();
 await testQuery();
-const johnDoe = await testInsert();
-await testUpdate(johnDoe);
-await testDelete(johnDoe);
 process.exit(1);

@@ -206,6 +206,10 @@ export class KinshipContext {
         return /** @type {any} */ (records);
     }
 
+    async resync() {
+        await this.#base.resync();
+    }
+
     /**
      * Truncate the table this context represents.
      * @returns {Promise<number>} Number of rows that were deleted.
@@ -666,10 +670,9 @@ export class KinshipContext {
      * Adds the saved state of this context in the next transaction.
      */
     #tryUseSavedState() {
-        this.#afterResync((oldState) => ({
-            ...this.#savedState,
-            ...oldState
-        }));
+        if(this.#savedState) {
+            this.#afterResync((oldState) => /** @type {State} */ (this.#savedState));
+        }
     }
 
     /**
@@ -714,6 +717,19 @@ export class KinshipContext {
         if(this.#base.adapter.asyncDispose) {
             await this.#base.adapter.asyncDispose();
         }
+    }
+
+    /* -------------------------EXPERIMENTAL------------------------- */
+
+    /**
+     * Will return a new object: KinshipPreparedCommand
+     * which the user can then call `.execute()` at any time to execute the serialized command at any given time.
+     * 
+     * This is intended to skip the step of serializing the command entirely at the sacrifice of not adding anything new to the command.
+     * @private
+     */
+    async prepare() {
+
     }
 }
 

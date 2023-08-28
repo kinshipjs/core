@@ -1,7 +1,7 @@
 {
     "name": "@kinshipjs/core",
     "type": "module",
-    "version": "0.0.1-development",
+    "version": "0.0.3-development",
     "repository": {
         "type": "git",
         "url": "https://github.com/kinshipjs/core"
@@ -16,7 +16,8 @@
         "clean": "del /S /Q .\\dist",
         "build:source": "tsup",
         "build:types": "tsc",
-        "test": "node ./test/test.js"
+        "test": "node ./test/test.js",
+        "prepack": "npm run build"
     },
     "keywords": [
         "mysql",

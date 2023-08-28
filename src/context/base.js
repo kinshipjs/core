@@ -12,13 +12,13 @@ export class KinshipBase {
     /** @type {KinshipOptions} */ options;
 
     /** @type {string} */ tableName;
-    /** @type {Record<string, import("../config/relationships.js").Relationship<any>>} */ relationships;
-    /** @type {Record<string, import("../config/relationships.js").DescribedSchema>} */ schema;
+    /** @type {import("../config/relationships.js").Relationships<any>} */ relationships;
+    /** @type {Record<string, import("../config/relationships.js").SchemaColumnDefinition>} */ schema;
 
     /** @type {CommandListener} */ listener;
     /** @type {Promise<import("./context.js").State>} */ promise;
 
-    /** @type {Record<string, import("../config/relationships.js").DescribedSchema[]>} */ #primaryKeyCache = {};
+    /** @type {Record<string, import("../config/relationships.js").SchemaColumnDefinition[]>} */ #primaryKeyCache = {};
 
     /**
      * @param {import("./adapter.js").KinshipAdapterConnection} adapter 
@@ -87,9 +87,9 @@ export class KinshipBase {
      * Gets all of the primary keys that belong to the table, if any exist.
      * @param {string} tableName 
      * Name of the table to get the primary keys from. (default: the table the context represents)
-     * @param {Record<string, import("../config/relationships.js").Relationship<object>>} relationships 
+     * @param {import("../config/relationships.js").Relationships<object>} relationships 
      * Used recursively for when `tableName` is not the table the context represents. 
-     * @returns {import("../config/relationships.js").DescribedSchema[]}
+     * @returns {import("../config/relationships.js").SchemaColumnDefinition[]}
      * Array of objects for column information that represent the primary key(s), or any empty array if none exist.
      */
     getPrimaryKeys(tableName=this.tableName, relationships=this.relationships) {
@@ -128,7 +128,7 @@ export class KinshipBase {
      * Gets the identity key that belongs to the table, if it exists.
      * @param {string} tableName 
      * Name of the table to get the identity key from.
-     * @returns {import("../config/relationships.js").DescribedSchema=}
+     * @returns {import("../config/relationships.js").SchemaColumnDefinition=}
      * Object for column information that represents the identity key, or undefined if one does not exist.
      */
     getIdentityKey(tableName=this.tableName) {
@@ -145,24 +145,20 @@ export class KinshipBase {
 
     /**
      * Checks to see if `table` is a relationship with the provided table
-     * @template {object|undefined} TTableModel
      * @param {string} table 
      * Table to check to see if it is a relationship.
-     * @param {Record<string, import("../config/relationships.js").Relationship<TTableModel>>=} relationships
+     * @param {import("../config/relationships.js").Relationships<any>} relationships
      * Table to check to see if the argument, `table`, is a relationship with.  
      * @returns {boolean}
      * True if the argument, `table`, is a relationship with the table the context represents.
      */
-    isRelationship(table, relationships = undefined) {
-        if (relationships) {
-            return table in relationships;
-        }
-        return table in this.relationships;
+    isRelationship(table, relationships = this.relationships) {
+        return table in relationships;
     }
 
     /**
      * Returns true if the column is not a primary key and it is not a virtual column.
-     * @param {import("../config/relationships.js").DescribedSchema|string} column
+     * @param {import("../config/relationships.js").SchemaColumnDefinition|string} column
      * Column name (as it appears in the database) or the column information for the column.
      * @returns {boolean}
      * True if the column is a primary key or is a virtual column.
@@ -192,26 +188,49 @@ export class KinshipBase {
      * Call the adapter's describe function to get various information on a table.
      * @param {string} tableName 
      * Table to describe.
-     * @returns {Promise<Record<string, import("../config/relationships.js").DescribedSchema>>}
+     * @returns {Promise<Record<string, import("../config/relationships.js").SchemaColumnDefinition>>}
      */
     async describe(tableName) {
         const { cmd, args } = this.handleAdapterSerialize().forDescribe(tableName);
         const schema = await this.handleAdapterExecute().forDescribe(cmd, args);
-        return Object.fromEntries(Object.entries(schema).map(([k,v]) => [v.field, { ...v, table: tableName, alias: v.field }]));
+        return Object.fromEntries(
+            Object.entries(schema).map(([k,v]) => 
+                [
+                    v.field, 
+                    { 
+                        ...v, 
+                        alias: v.field, 
+                        commandAlias: v.field,
+                        table: tableName
+                    }
+                ]
+            )
+        );
     }
 
     /**
      * Gets all columns that are to be selected from this schema.
+     * @param {Record<string, import("../config/relationships.js").SchemaColumnDefinition>} schema
      * @returns {import("../clauses/choose.js").SelectClauseProperty[]}
      */
-    getAllSelectColumnsFromSchema() {
-        return Object.values(this.schema).map(v => ({
+    getAllSelectColumnsFromSchema(schema=this.schema) {
+        return Object.values(schema).map(v => ({
+            alias: v.commandAlias,
+            column: v.field,
             table: v.table,
-            alias: v.field,
-            column: v.field
         }));
     }
 }
+
+/**
+ * @typedef {object} Column
+ * @prop {string} table
+ * The name of the table this column belongs to.
+ * @prop {string} column
+ * The name of the column as it appears in the database.
+ * @prop {string} alias
+ * The name of the column as it is used inside of commands.
+ */
 
 /**
  * Various options that can be passed to alter behavior of a single `KinshipContext`.
@@ -222,15 +241,4 @@ export class KinshipBase {
  * @prop {boolean} disableSafeUpdateMode
  * By default, a safe mode for updating records exist, preventing accidental updating of all rows in a table.
  * Pass `true` into this property to disable this feature.
- */
-
-/**
- * Details on a column.
- * @typedef {object} ColumnDetails
- * @prop {string} table
- * object|undefined the column belongs to (escaped)
- * @prop {string} column
- * Column of the table (escaped)
- * @prop {string} alias
- * Alias of the column (escaped)
  */

@@ -38,7 +38,7 @@
     "author": "Travis R. Zuleger",
     "license": "MIT",
     "devDependencies": {
-        "@kinshipjs/mysql": "file:../adapter-mysql",
+        "@kinshipjs/mysql2": "^0.0.2-development",
         "@types/node": "^20.4.5",
         "dotenv": "^16.3.1",
         "semantic-release": "^21.0.7",

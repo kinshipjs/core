@@ -1,9 +1,17 @@
 //@ts-check
 import { KinshipContext } from "../src/context/context.js";
-import { adapter, createMySql2Pool } from "@kinshipjs/mysql";
+import { adapter, createMySql2Pool } from "@kinshipjs/mysql2";
 import { config } from 'dotenv';
 
 config();
+
+/**
+ * @typedef {import("../src/config/relationships.js").Relationships<User>} UserRelationships
+ */
+
+/**
+ * @typedef {import("../src/models/string.js").FriendlyType<UserRelationships['userRoles']['relationships']>} UserRoleRelationships
+ */
 
 /**
  * @typedef {object} User
@@ -42,13 +50,26 @@ const pool = createMySql2Pool({
     password: process.env.PASS
 });
 
+const chinookPool = createMySql2Pool({
+    host: process.env.HOST,
+    database: "chinook",
+    port: parseInt(process.env.PORT ?? "3306"),
+    user: process.env.USER,
+    password: process.env.PASS
+});
+
+const chinookConnection = adapter(chinookPool);
 const connection = adapter(pool);
 
 /** @type {KinshipContext<LastRowNumber>} */
 const lastIds = new KinshipContext(connection, "LastIdAssigned")
 /** @type {KinshipContext<User>} */
 const ctx = new KinshipContext(connection, "User");
+const playlists = new KinshipContext(chinookConnection, "Playlist");
 const lastId = await lastIds.where(m => m.Id.equals(1)).checkout();
+
+playlists.hasMany(m => m.PlaylistTracks.fromTable("PlaylistTrack").withKeys("PlaylistId", "PlaylistId")
+    .andThatHasOne(m => m.Track.withKeys("TrackId", "TrackId")))
 
 ctx.onSuccess(({cmdRaw}) => {
     console.log(cmdRaw);
@@ -110,12 +131,16 @@ async function testCount() {
 }
 
 async function testQuery() {
-    var users = await ctx
-        .include(m => m.userRoles
-            .thenInclude(m => m.role))
-        .groupBy((m, { total }) => [m.userRoles.role.Title, total()])
-        .select();
-    console.log(JSON.stringify(users, undefined, 2));
+    const start = process.hrtime.bigint();
+    var ps = await playlists.include(m => m.PlaylistTracks.thenInclude(m => m.Track)).select();
+    // var users = await ctx
+    //     .include(m => m.userRoles
+    //         .thenInclude(m => m.role))
+    //     .select();
+    // console.log(JSON.stringify(users, undefined, 2));
+    const end = process.hrtime.bigint();
+    console.log(JSON.stringify(ps, undefined, 2));
+    console.log((end - start) / 1000n);
 }
 
 async function testInsert() {

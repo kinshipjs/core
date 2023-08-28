@@ -1,6 +1,6 @@
 //@ts-check
 
-import { KinshipColumnDoesNotExistError, KinshipInvalidPropertyTypeError, KinshipSafeDeleteModeEnabledError, KinshipSyntaxError } from "../exceptions.js";
+import { KinshipSafeDeleteModeEnabledError, KinshipSyntaxError } from "../exceptions.js";
 import { KinshipExecutionHandler } from "./handler.js";
 import { Where } from "../clauses/where.js";
 import { getFilterConditionsFromWhere } from "../context/util.js";

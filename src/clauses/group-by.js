@@ -70,7 +70,7 @@ export class GroupByBuilder {
                     return this.#newProxy(relationships[p].alias, relationships[p].relationships, relationships[p].schema, relationships[p].table);
                 }
                 if(!(p in schema)) throw new KinshipColumnDoesNotExistError(p, realTableName);
-                const { field, alias } = schema[p];
+                const { field: field, commandAlias: alias } = schema[p];
                 return {
                     table,
                     column: field,
@@ -207,7 +207,7 @@ function sum(col) {
 
 /**
  * Object to carry data tied to various information about a column being grouped by.
- * @typedef {import("../context/base.js").ColumnDetails & { aggregate?: "AVG"|"COUNT"|"MIN"|"MAX"|"SUM"|"TOTAL" }} GroupByClauseProperty
+ * @typedef {import("../context/base.js").Column & { aggregate?: "AVG"|"COUNT"|"MIN"|"MAX"|"SUM"|"TOTAL" }} GroupByClauseProperty
  */
 
 /**

@@ -108,7 +108,7 @@ export class KinshipQueryHandler extends KinshipExecutionHandler {
                     return this.#newProxyForColumn(relationships[p].alias, callback, relationships[p].relationships, relationships[p].schema, relationships[p].table);
                 }
                 if(!(p in schema)) throw new KinshipColumnDoesNotExistError(p, realTableName);
-                const { field, alias } = schema[p];
+                const { field: field, commandAlias: alias } = schema[p];
                 return callback({
                     table,
                     column: field,

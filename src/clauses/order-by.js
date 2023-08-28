@@ -45,7 +45,7 @@ export class OrderByBuilder {
                     return this.#newProxy(relationships[p].alias, relationships[p].relationships, relationships[p].schema, relationships[p].table);
                 }
                 if(!(p in schema)) throw new KinshipColumnDoesNotExistError(p, realTableName);
-                const { field, alias } = schema[p];
+                const { field: field, commandAlias: alias } = schema[p];
                 return {
                     table,
                     column: field,
@@ -74,7 +74,7 @@ export class OrderByBuilder {
 }
 
 /**
- * @typedef {Column & { direction: "ASC"|"DESC" }} SortByClauseProperty
+ * @typedef {import('../context/base.js').Column & { direction: "ASC"|"DESC" }} SortByClauseProperty
  */
 
 /**
@@ -105,14 +105,3 @@ export class OrderByBuilder {
  * }} AugmentModel
  */
 
-/**
- * @typedef {object} Column
- * @prop {string} table
- * Table the column belongs to (escaped)
- * @prop {string} column
- * Column of the table (escaped)
- * @prop {string} alias
- * Alias of the column (escaped)
- * @prop {string=} aliasUnescaped
- * Alias of the column in its raw unescaped form.
- */

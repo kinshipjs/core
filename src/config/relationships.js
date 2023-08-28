@@ -134,14 +134,13 @@ export class RelationshipBuilder {
                 alias: `${prependColumn}${codeTableName}<|${foreignKey}`
             },
             schema: {},
-            relationships: {},
-            constraints: []
+            relationships: {}
         };
         this.#base.afterResync(async (oldState) => {
             const schema = await this.#base.describe(realTableName);
             for(const key in schema) {
                 schema[key].table = relationships[codeTableName].alias;
-                schema[key].alias = `${prependColumn}${codeTableName}<|${schema[key].field}`;
+                schema[key].commandAlias = `${prependColumn}${codeTableName}<|${schema[key].field}`;
             }
             relationships[codeTableName].schema = schema;
             return oldState;
@@ -230,10 +229,9 @@ export class RelationshipBuilder {
     }
 
     /**
-     * @template {object} TTableModel
      * @param {import("../context/context.js").State} state 
      * @param {string} table 
-     * @param {Record<string, Relationship<TTableModel>>} relationships 
+     * @param {Relationships<any>} relationships 
      * @returns 
      */
     #newIncludeProxy(state, table=this.#base.tableName, relationships=this.#base.relationships) {
@@ -250,21 +248,19 @@ export class RelationshipBuilder {
                     alias: relatedTableAlias,
                     programmaticName: p,
                     refererTableKey: {
-                        table,
                         column: pKey.column,
-                        alias: pKey.alias
+                        alias: pKey.alias,
+                        table
                     },
                     referenceTableKey: {
-                        table: relatedTableAlias,
                         column: fKey.column,
-                        alias: fKey.alias
+                        alias: fKey.alias,
+                        table: relatedTableAlias
                     }
                 });
-                state.select = state.select.concat(Object.values(relationships[p].schema).map(col => ({
-                    table: col.table,
-                    column: col.field,
-                    alias: col.alias
-                })));
+                state.select = state.select.concat(
+                    this.#base.getAllSelectColumnsFromSchema(relationships[p].schema)
+                );
 
                 const thenInclude = {
                     thenInclude: (callback) => {
@@ -281,48 +277,72 @@ export class RelationshipBuilder {
 /** DescribedSchema  
  * 
  * Object representing the schema of a column in a table.
- * @typedef {object} DescribedSchema
+ * @typedef {object} SchemaColumnDefinition
  * @prop {string} table
- * The raw name of the table this field belongs to.
+ * The name of the table this column belongs to.
  * @prop {string} field
- * The raw name of the field as it is displayed in the database's table.
+ * The name of the column as it appears in the database.
  * @prop {string} alias
- * The given alias for Kinship to use. (this is handled internally.)
+ * The name of the column as it will appear in the results.
+ * @prop {string} commandAlias
+ * The name of the column as it is used inside of commands. (this is handled within Kinship.)
  * @prop {boolean} isPrimary
- * True if the column is a primary key.
+ * Column is a primary key.
  * @prop {boolean} isIdentity
- * True if the column is an identity key. (automatically increments)
+ * Column is an identity key. (automatically increments)
  * @prop {boolean} isVirtual
- * True if the column is virtually generated.
+ * Column is virtually generated.
  * @prop {boolean} isNullable
- * True if the column is nullable within the database.
+ * Column is nullable within the database.
  * @prop {boolean} isUnique
- * True if the column is unique (primary keys can set this to true as well)
+ * Column is unique (primary keys can set this to true as well)
  * @prop {"string"|"int"|"float"|"boolean"|"date"} datatype
- * Type that the column represents.
+ * Column general type.
  * @prop {() => import("../models/types.js").DataType|undefined} defaultValue
  * Function that returns the value specified in the database schema for database generated values on inserts.
+ */
+
+/**
+ * @template {object} T
+ * @template TReturnIfTrue
+ * @template {any} [TReturnIfFalse=never]
+ * @typedef {NonNullable<T> extends (infer U extends object)[] ? TReturnIfTrue : TReturnIfFalse} IfTableArray
+ */
+
+/**
+ * @template {object} T
+ * @template TReturnIfTrue
+ * @template {any} [TReturnIfFalse=never]
+ * @typedef {NonNullable<T> extends object ? TReturnIfTrue : TReturnIfFalse} IfTableObject
+ */
+
+/**
+ * @template {object} T
+ * @typedef {{
+ *   [K in keyof OnlyTableTypes<T>]: import("../models/string.js").FriendlyType<Relationship<OnlyTableTypes<T>[K], IfTableArray<T[K], "1:n", "1:1">>>
+ * }} Relationships
  */
 
 /** Relationship  
  * 
  * Object model type representing a relationship between tables.
  * @template {object} T
+ * @template {"1:1"|"1:n"} [TType="1:1"]
  * Information regarding a relating table.
  * @typedef {object} Relationship
- * @prop {"1:1"|"1:n"} relationshipType
+ * @prop {TType} relationshipType
  * Type of relationship this has.
  * @prop {string} table
  * Actual table name as it appears in the database.
  * @prop {string} alias
  * Alias given to this table for command serialization.
- * @prop {import("../clauses/order-by.js").Column} primary
+ * @prop {import('../context/base.js').Column} primary
  * Information on the key pointing to the original table that holds this relationship.
- * @prop {import("../clauses/order-by.js").Column} foreign 
+ * @prop {import('../context/base.js').Column} foreign 
  * Information on the key pointing to the related table. (this key comes from the same table that is specified by `table`)
- * @prop {{[K in keyof T]: DescribedSchema}} schema
+ * @prop {{[K in keyof T]: SchemaColumnDefinition}} schema
  * Various information about the table's columns.
- * @prop {Record<string, Relationship<T>>=} relationships
+ * @prop {Relationships<T>=} relationships
  * Further configured relationships that will be on this table.
  */
 

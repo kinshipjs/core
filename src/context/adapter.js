@@ -128,7 +128,7 @@ import { KinshipAdapterError, KinshipNonUniqueKeyError } from "../exceptions.js"
  * @prop {(cmd: string, args: ExecutionArgument[]) => import("../models/maybe.js").MaybePromise<number>} forTruncate
  * Handles execution of a truncate command, given the command string and respective arguments for the command string.  
  * This should return a number representing the total number of rows affected from the command.
- * @prop {(cmd: string, args: ExecutionArgument[]) => import("../models/maybe.js").MaybePromise<{[fieldName: string]: import("../config/relationships.js").DescribedSchema}>} forDescribe
+ * @prop {(cmd: string, args: ExecutionArgument[]) => import("../models/maybe.js").MaybePromise<{[fieldName: string]: import("../config/relationships.js").SchemaColumnDefinition}>} forDescribe
  * Handles execution of a describe command, given the command string and respective arguments for the command string.
  * This should return an object containing {@link DescribedSchema} objects. 
  */

@@ -762,7 +762,7 @@ export class KinshipContext {
  * @prop {number=} limit
  * @prop {number=} offset
  * @prop {import("../clauses/order-by.js").SortByClauseProperty[]=} orderBy
- * @prop {import("../clauses/order-by.js").Column[]} select
+ * @prop {import("./base.js").Column[]} select
  * @prop {WhereBuilder=} where
  */
 

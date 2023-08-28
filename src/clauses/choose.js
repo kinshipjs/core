@@ -39,7 +39,7 @@ export class ChooseBuilder {
         if(!callback) {
             return oldState;
         }
-        /** @type {import("../context/base.js").ColumnDetails[]} */
+        /** @type {import('../context/base.js').Column[]} */
         const select = assertAsArray(/** @type {any} */ (callback(this.#newProxy())));
         return {
             ...oldState,
@@ -60,7 +60,7 @@ export class ChooseBuilder {
                     return this.#newProxy(relationships[p].alias, callback, relationships[p].relationships, relationships[p].schema, relationships[p].table);
                 }
                 if(!(p in schema)) throw new KinshipColumnDoesNotExistError(p, realTableName);
-                const { field, alias } = schema[p];
+                const { field: field, commandAlias: alias } = schema[p];
                 return callback({
                     table,
                     column: field,
@@ -79,7 +79,7 @@ export class ChooseBuilder {
 
 /**
  * Object to carry data tied to various information about a column being selected.
- * @typedef {import("../context/base.js").ColumnDetails} SelectClauseProperty
+ * @typedef {import('../context/base.js').Column} SelectClauseProperty
  */
 
 /**

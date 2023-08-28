@@ -80,3 +80,103 @@ export function getFilterConditionsFromWhere(where) {
         //@ts-ignore _getConditions is marked private but it is available for internal use.
         ?._getConditions() ?? /** @type {import("../clauses/where.js").WhereClausePropertyArray} */ ([]);
 }
+
+/**
+ * Suite of optimized functions. 
+ * These functions were tested against many other functions using https://jsbench.me
+ * and were deemed to be the fastest of all functions that were tested.
+ */
+export const Optimized = {
+    /**
+     * Checks to see if the object is empty.
+     * @param {object} obj 
+     * @returns {boolean}
+     */
+    isEmptyObject(obj) {
+        for(let k in obj) return false;
+        return true;
+    },
+    /**
+     * Gets all unique objects within `objs` by the given `key`.
+     * @param {object[]} objs 
+     * @param {string} key 
+     * @returns {object[]}
+     */
+    getUniqueObjectsByKey(objs, key) {
+        const set = new Set();
+        const uniques = [];
+        for(let i = 0; i < objs.length; ++i) {
+            const obj = objs[i];
+            if(!set.has(obj[key])) {
+                set.add(obj[key]);
+                uniques.push(obj);
+            }
+        }
+        return uniques;
+    },
+    /**
+     * Gets all unique objects within `objs` by the given `keys`.
+     * @param {object[]} objs 
+     * @param {string[]} keys 
+     * @returns {object[]}
+     */
+    getUniqueObjectsByKeys(objs, keys) {
+        const set = new Set();
+        const uniques = [];
+        for(let i = 0; i < objs.length; ++i) {
+            const obj = objs[i];
+            const key = keys.map(k => obj[k]).toString();
+            if(!set.has(obj[key])) {
+                uniques.push(obj);
+            }
+        }
+        return uniques;
+    },
+    /**
+     * Assigns all columns from `schema` to a new object, with the values of `record` for corresponding column properties.
+     * @param {Record<string, import("../config/relationships.js").SchemaColumnDefinition>} schema 
+     * @param {object} record 
+     * @returns {object}
+     */
+    getObjectFromSchemaAndRecord(schema, record) {
+        let newObject = {};
+        for(const key in schema) {
+            const colDef = schema[key];
+            newObject[colDef.alias] = record[colDef.commandAlias];
+        }
+        return newObject;
+    },
+    /**
+     * Gets all related records given a `pKeyValue` and the 
+     * relating key, `fKey` to index into each record from `records`.
+     * @param {object[]} records 
+     * @param {string|number|bigint} pKeyValue 
+     * @param {string} fKey 
+     * @returns {object[]}
+     */
+    getRelatedRecords(records, pKeyValue, fKey) {
+        let relatedRecords = [];
+        for(let i = 0; i < records.length; ++i) {
+            const rec = records[i];
+            if(pKeyValue === rec[fKey]) {
+                relatedRecords.push(rec);
+            }
+        }
+        return relatedRecords;
+    },
+    /**
+     * Assigns all keys and values from `source` that start with `$` to `target`. 
+     * The reference of `target` does not change.
+     * @param {object} source 
+     * @param {object} target 
+     * @returns {object} The same reference to `target`.
+     */
+    assignKeysThatStartWith$To(source, target) {
+        for(const key in source) {
+            if(key.startsWith("$")) {
+                target[key] = source[key];
+            }
+        }
+        return target;
+    }
+}

@@ -125,7 +125,7 @@ export const Optimized = {
         const uniques = [];
         for(let i = 0; i < objs.length; ++i) {
             const obj = objs[i];
-            const key = keys.map(k => obj[k]).toString();
+            const key = this.map(keys, k => obj[k]).toString();
             if(!set.has(obj[key])) {
                 uniques.push(obj);
             }
@@ -178,5 +178,20 @@ export const Optimized = {
             }
         }
         return target;
+    },
+    /**
+     * Same behavior as JavaScript's `Array.prototype.map()` function.
+     * @template T
+     * @template U
+     * @param {T[]} objs Objects to map
+     * @param {(o: T) => U} callback Function with the parameter `o` from `objs` and returns `U`.
+     * @returns {U[]} Mapped values from `objs`.
+     */
+    map(objs, callback) {
+        let arr = [];
+        for(let i = 0; i < objs.length; ++i) {
+            arr.push(callback(objs[i]));
+        }
+        return arr;
     }
 }

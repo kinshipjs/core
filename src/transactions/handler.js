@@ -181,83 +181,30 @@ export class KinshipExecutionHandler {
     }
 
     /**
-     * Returns a function to be used in a JavaScript `<Array>.map()` function that recursively maps relating records into a single record.
-     * @param {import("../context/context.js").AdapterReadyState} state
-     * @param {object[]} records All records returned from a SQL query.
-     * @param {object} record Record that is being worked on (this is handled recursively)
-     * @param {string} prepend String to prepend onto the key for the original record's value.
-     * @returns {(record: any, n?: number) => object} Function for use in a JavaScript `<Array>.map()` function for use on an array of the records filtered to only uniques by main primary key.
-     */
-    #map(state, records, record=records[0], prepend="", relationships=this.base.relationships) {
-        return (r) => {
-            /** @type {any} */
-            const mapping = {};
-            const processedTables = new Set();
-            for(const key in record) {
-                if(key.startsWith("$")) {
-                    mapping[key] = r[key];
-                    continue;
-                }
-                const [table] = key.split('<|');
-                if(processedTables.has(table)) {
-                    continue;
-                }
-                processedTables.add(table);
-                if(table === key) {
-                    const actualKey = prepend + key;
-                    if (r[actualKey] != null || prepend == '') {
-                        mapping[key] = r[actualKey];
-                    }
-                    continue;
-                }
-
-                // alter `record` so keys at this leaf are removed, and all keys altered to prepare for the next leaf.
-                const entries = Object.keys(record)
-                    .filter(k => k.startsWith(table + '<|'))
-                    .map(k => [k.substring(table.length+2), {}]);
-                const map = this.#map(state, records, Object.fromEntries(entries), prepend + table + '<|', relationships[table].relationships);
-                if (relationships[table].relationshipType === "1:1" || state.groupBy) {
-                    const _r = map(r);
-                    mapping[table] = Optimized.isEmptyObject(_r) ? null : _r;
-                } else {
-                    const pKey = relationships[table].primary.alias;
-                    const fKey = relationships[table].foreign.alias;
-                    const uniquelyRelatedRecords = this.#filterForUniqueRelatedRecords(records.filter((_r) => r[pKey] === _r[fKey]), table);
-                    // recursively map related records in case there are any further nested relationships.
-                    mapping[table] = uniquelyRelatedRecords.map(map);
-                }
-            }
-    
-            return mapping;
-        }
-    }
-
-    /**
      * Serializes an array of rows to a user-friendly object.
      * @param {boolean} isGroupBy
      * @param {object[]} records 
+     * @param {Record<string, import("../config/relationships.js").SchemaColumnDefinition>} schema
+     * @param {import("../config/relationships.js").Relationships<object>} relationships
+     * @param {number} depth 
+     * Used for when the command had a group by clause.
      */
-    #serialize2(isGroupBy, records, schema=this.base.schema, relationships=this.base.relationships, depth = 0) {
+    #serialize(isGroupBy, records, table=this.base.tableName, schema=this.base.schema, relationships=this.base.relationships, depth = 0) {
         if(records.length <= 0) return records;
         let finalRecords = [];
-        if(Optimized.isEmptyObject(relationships)) {
-            for(let i = 0; i < records.length; ++i) {
-                const record = records[i];
-                const newRecord = Optimized.getObjectFromSchemaAndRecord(schema, record);
-                finalRecords.push(newRecord);
+        const pKeys = this.base.getPrimaryKeys(table);
+        const uniqueRecordsByPrimaryKey = isGroupBy 
+            ? records 
+            : Optimized.getUniqueObjectsByKeys(records, Optimized.map(pKeys, key => key.commandAlias));
+        
+        for(let i = 0; i < uniqueRecordsByPrimaryKey.length; ++i) {
+            const record = uniqueRecordsByPrimaryKey[i];
+            const newRecord = Optimized.getObjectFromSchemaAndRecord(schema, record);
+            if(isGroupBy && depth === 0) {
+                Optimized.assignKeysThatStartWith$To(record, newRecord);
             }
-            return finalRecords;
-        }
-        for(const key in relationships) {
-            const relationship = relationships[key];
-            // group by makes every record unique.
-            const uniqueRecordsByPrimaryKey = isGroupBy 
-                ? records 
-                : Optimized.getUniqueObjectsByKey(records, relationship.primary.alias);
-
-            for(let i = 0; i < uniqueRecordsByPrimaryKey.length; ++i) {
-                const record = uniqueRecordsByPrimaryKey[i];
-                // group by makes every record unique.
+            for(let key in relationships) {
+                const relationship = relationships[key];
                 const relatedRecords = isGroupBy 
                     ? [record] 
                     : Optimized.getRelatedRecords(
@@ -265,64 +212,74 @@ export class KinshipExecutionHandler {
                         record[relationship.primary.alias], 
                         relationship.foreign.alias
                     );
-                const relatedRecordsSerialized = this.#serialize2(isGroupBy,
-                    relatedRecords, 
+                console.log({relationship});
+                // recurse with a new scope of records of only related records.
+                const relatedRecordsSerialized = this.#serialize(isGroupBy,
+                    relatedRecords,
+                    relationship.table,
                     relationship.schema, 
                     relationship.relationships,
                     depth + 1
                 );
-                
-                const newRecord = Optimized.getObjectFromSchemaAndRecord(schema, record);
-                if(isGroupBy && depth === 0) {
-                    Optimized.assignKeysThatStartWith$To(record, newRecord);
-                }
+
+                // set based on the type of relationship this was.
                 // group by makes every record unique, and thus every related record would become 1:1.
                 if(relationship.relationshipType === "1:1" || isGroupBy) {
                     newRecord[key] = relatedRecordsSerialized?.[0] ?? null;
                 } else {
                     newRecord[key] = relatedRecordsSerialized;
                 }
-
-                finalRecords.push(newRecord);
             }
+            finalRecords.push(newRecord);
         }
+
+        // // serialize each record for each relationship.
+        // for(const key in relationships) {
+        //     const relationship = relationships[key];
+        //     // group by makes every record unique.
+        //     const uniqueRecordsByPrimaryKey = isGroupBy 
+        //         ? records 
+        //         : Optimized.getUniqueObjectsByKey(records, relationship.primary.alias);
+
+        //     // loop through the unique records based on their primary key.
+        //     for(let i = 0; i < uniqueRecordsByPrimaryKey.length; ++i) {
+        //         const record = uniqueRecordsByPrimaryKey[i];
+        //         // group by makes every record unique.
+        //         const relatedRecords = isGroupBy 
+        //             ? [record] 
+        //             : Optimized.getRelatedRecords(
+        //                 records, 
+        //                 record[relationship.primary.alias], 
+        //                 relationship.foreign.alias
+        //             );
+
+        //         // recurse with a new scope of records of only related records.
+        //         const relatedRecordsSerialized = this.#serialize(isGroupBy,
+        //             relatedRecords,
+        //             relationship.table,
+        //             relationship.schema, 
+        //             relationship.relationships,
+        //             depth + 1
+        //         );
+                
+        //         // create a new object remapped from the schema.
+        //         const newRecord = Optimized.getObjectFromSchemaAndRecord(schema, record);
+        //         if(isGroupBy && depth === 0) {
+        //             Optimized.assignKeysThatStartWith$To(record, newRecord);
+        //         }
+
+        //         // set based on the type of relationship this was.
+        //         // group by makes every record unique, and thus every related record would become 1:1.
+        //         if(relationship.relationshipType === "1:1" || isGroupBy) {
+        //             newRecord[key] = relatedRecordsSerialized?.[0] ?? null;
+        //         } else {
+        //             newRecord[key] = relatedRecordsSerialized;
+        //         }
+
+        //         finalRecords.push(newRecord);
+        //     }
+        // }
         return finalRecords;
-    }
-
-    /**
-     * Serializes a given array of records, `records`, into object notation that a User would expect.
-     * @param {import("../context/context.js").AdapterReadyState} state
-     * @param {object[]} records Records to filter.
-     * @returns {object[]} Records, serialized into objects that a user would expect.
-     */
-    #serialize(state, records) {
-        return this.#serialize2(Boolean(state.groupBy), records);
-        if (records.length <= 0 || state.from.length === 1) return records;
-        const map = this.#map(state, records);
-        // group by is specific where each record returned will be its own result and will not be serialized like normal.
-        if(state.groupBy) {
-            return records.map(map);
-        }
-        return this.#filterForUniqueRelatedRecords(records).map(map);
-    }
-
-    /**
-     * Filters out duplicates of records that have the same primary key.
-     * @param {any[]} records Records to filter.
-     * @param {string=} table Table to get the primary key from. (default: original table name)
-     * @returns {any[]} A new array of records, where duplicates by primary key are filtered out. If no primary key is defined, then `records` is returned, untouched.
-     */
-    #filterForUniqueRelatedRecords(records, table=this.base.tableName) {
-        let pKeyInfo = this.base.getPrimaryKeys(table);
-        if(records === undefined || pKeyInfo.length <= 0) return records;
-        const pKeys = pKeyInfo.map(k => k.commandAlias);
-        const uniques = new Set();
-        return records.filter(r => {
-            // if(pKeys.filter(k => !(k in r)).length > 0) return true; // @TODO: This may need to be added back in ?
-            const fullKeyValue = pKeys.map(k => r[k]).join(',');
-            return !uniques.has(fullKeyValue) 
-                && !!uniques.add(fullKeyValue);
-        });
     }
 
     /**

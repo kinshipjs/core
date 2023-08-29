@@ -167,7 +167,7 @@ export const Optimized = {
     },
     /**
      * Assigns all columns from `schema` to a new object, with the values of `record` for corresponding column properties.
-     * @param {Record<string, import("../config/relationships.js").SchemaColumnDefinition>} schema 
+     * @param {Record<string, import("../context/adapter.js").SchemaColumnDefinition>} schema 
      * @param {object} record 
      * @returns {object}
      */

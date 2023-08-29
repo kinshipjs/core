@@ -19,7 +19,7 @@ export class KinshipBase {
     /** All relationships that have been configured on the context. 
      * @type {import("../config/relationships.js").Relationships<any>} */ relationships;
     /** Schema that represents the table the context is connected to. 
-     * @type {Record<string, import("../config/relationships.js").SchemaColumnDefinition>} */ schema;
+     * @type {Record<string, import("../context/adapter.js").SchemaColumnDefinition>} */ schema;
 
     /** Event handler for commands when they are executed.
      * @type {CommandListener} */ listener;
@@ -27,7 +27,7 @@ export class KinshipBase {
      * @type {Promise<import("./context.js").State>} */ promise;
 
     /** Caches primary keys for a table to improve speed.
-     * @type {Record<string, import("../config/relationships.js").SchemaColumnDefinition[]>} */ #primaryKeyCache = {};
+     * @type {Record<string, import("../context/adapter.js").SchemaColumnDefinition[]>} */ #primaryKeyCache = {};
 
     /**
      * @param {import("./adapter.js").KinshipAdapterConnection} adapter 
@@ -98,7 +98,7 @@ export class KinshipBase {
      * Name of the table to get the primary keys from. (default: the table the context represents)
      * @param {import("../config/relationships.js").Relationships<object>} relationships 
      * Used recursively for when `tableName` is not the table the context represents. 
-     * @returns {import("../config/relationships.js").SchemaColumnDefinition[]}
+     * @returns {import("../context/adapter.js").SchemaColumnDefinition[]}
      * Array of objects for column information that represent the primary key(s), or any empty array if none exist.
      */
     getPrimaryKeys(tableName=this.tableName, relationships=this.relationships) {
@@ -135,7 +135,7 @@ export class KinshipBase {
      * Gets the identity key that belongs to the table, if it exists.
      * @param {string} tableName 
      * Name of the table to get the identity key from.
-     * @returns {import("../config/relationships.js").SchemaColumnDefinition=}
+     * @returns {import("../context/adapter.js").SchemaColumnDefinition=}
      * Object for column information that represents the identity key, or undefined if one does not exist.
      */
     getIdentityKey(tableName=this.tableName) {
@@ -165,7 +165,7 @@ export class KinshipBase {
 
     /**
      * Returns true if the column is not a primary key and it is not a virtual column.
-     * @param {import("../config/relationships.js").SchemaColumnDefinition|string} column
+     * @param {import("../context/adapter.js").SchemaColumnDefinition|string} column
      * Column name (as it appears in the database) or the column information for the column.
      * @returns {boolean}
      * True if the column is a primary key or is a virtual column.
@@ -195,7 +195,7 @@ export class KinshipBase {
      * Call the adapter's describe function to get various information on a table.
      * @param {string} tableName 
      * Table to describe.
-     * @returns {Promise<Record<string, import("../config/relationships.js").SchemaColumnDefinition>>}
+     * @returns {Promise<Record<string, import("../context/adapter.js").SchemaColumnDefinition>>}
      */
     async describe(tableName) {
         const { cmd, args } = this.handleAdapterSerialize().forDescribe(tableName);
@@ -217,7 +217,7 @@ export class KinshipBase {
 
     /**
      * Gets all columns that are to be selected from this schema.
-     * @param {Record<string, import("../config/relationships.js").SchemaColumnDefinition>} schema
+     * @param {Record<string, import("../context/adapter.js").SchemaColumnDefinition>} schema
      * @returns {import("../clauses/choose.js").SelectClauseProperty[]}
      */
     getAllSelectColumnsFromSchema(schema=this.schema) {

@@ -274,34 +274,6 @@ export class RelationshipBuilder {
     } 
 }
 
-/** DescribedSchema  
- * 
- * Object representing the schema of a column in a table.
- * @typedef {object} SchemaColumnDefinition
- * @prop {string} table
- * The name of the table this column belongs to.
- * @prop {string} field
- * The name of the column as it appears in the database.
- * @prop {string} alias
- * The name of the column as it will appear in the results.
- * @prop {string} commandAlias
- * The name of the column as it is used inside of commands. (this is handled within Kinship.)
- * @prop {boolean} isPrimary
- * Column is a primary key.
- * @prop {boolean} isIdentity
- * Column is an identity key. (automatically increments)
- * @prop {boolean} isVirtual
- * Column is virtually generated.
- * @prop {boolean} isNullable
- * Column is nullable within the database.
- * @prop {boolean} isUnique
- * Column is unique (primary keys can set this to true as well)
- * @prop {"string"|"int"|"float"|"boolean"|"date"} datatype
- * Column general type.
- * @prop {() => import("../models/types.js").DataType|undefined} defaultValue
- * Function that returns the value specified in the database schema for database generated values on inserts.
- */
-
 /**
  * @template {object} T
  * @template TReturnIfTrue
@@ -340,7 +312,7 @@ export class RelationshipBuilder {
  * Information on the key pointing to the original table that holds this relationship.
  * @prop {import('../context/base.js').Column} foreign 
  * Information on the key pointing to the related table. (this key comes from the same table that is specified by `table`)
- * @prop {{[K in keyof T]: SchemaColumnDefinition}} schema
+ * @prop {{[K in keyof T]: import("../context/adapter.js").SchemaColumnDefinition}} schema
  * Various information about the table's columns.
  * @prop {Relationships<T>=} relationships
  * Further configured relationships that will be on this table.

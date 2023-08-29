@@ -184,7 +184,7 @@ export class KinshipExecutionHandler {
      * Serializes an array of rows to a user-friendly object.
      * @param {boolean} isGroupBy
      * @param {object[]} records 
-     * @param {Record<string, import("../config/relationships.js").SchemaColumnDefinition>} schema
+     * @param {Record<string, import("../context/adapter.js").SchemaColumnDefinition>} schema
      * @param {import("../config/relationships.js").Relationships<object>} relationships
      * @param {number} depth 
      * Used for when the command had a group by clause.

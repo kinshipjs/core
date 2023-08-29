@@ -128,7 +128,7 @@ import { KinshipAdapterError, KinshipNonUniqueKeyError } from "../exceptions.js"
  * @prop {(cmd: string, args: ExecutionArgument[]) => import("../models/maybe.js").MaybePromise<number>} forTruncate
  * Handles execution of a truncate command, given the command string and respective arguments for the command string.  
  * This should return a number representing the total number of rows affected from the command.
- * @prop {(cmd: string, args: ExecutionArgument[]) => import("../models/maybe.js").MaybePromise<{[fieldName: string]: import("../config/relationships.js").SchemaColumnDefinition}>} forDescribe
+ * @prop {(cmd: string, args: ExecutionArgument[]) => import("../models/maybe.js").MaybePromise<{[fieldName: string]: SchemaColumnDefinition}>} forDescribe
  * Handles execution of a describe command, given the command string and respective arguments for the command string.
  * This should return an object containing {@link DescribedSchema} objects. 
  */
@@ -192,6 +192,33 @@ import { KinshipAdapterError, KinshipNonUniqueKeyError } from "../exceptions.js"
  * Configuration that belongs to `T` which initializes the connection to the database.
  * @returns {KinshipAdapterConnection}
  * Adapter configuration that is to be used within `Kinship`.
+ */
+
+/**
+ * Object representing the schema of a column in a table.
+ * @typedef {object} SchemaColumnDefinition
+ * @prop {string} table
+ * The name of the table this column belongs to.
+ * @prop {string} field
+ * The name of the column as it appears in the database.
+ * @prop {string} alias
+ * The name of the column as it will appear in the results.
+ * @prop {string} commandAlias
+ * The name of the column as it is used inside of commands. (this is handled within Kinship.)
+ * @prop {boolean} isPrimary
+ * Column is a primary key.
+ * @prop {boolean} isIdentity
+ * Column is an identity key. (automatically increments)
+ * @prop {boolean} isVirtual
+ * Column is virtually generated.
+ * @prop {boolean} isNullable
+ * Column is nullable within the database.
+ * @prop {boolean} isUnique
+ * Column is unique (primary keys can set this to true as well)
+ * @prop {"string"|"int"|"float"|"boolean"|"date"} datatype
+ * Column general type.
+ * @prop {() => import("../models/types.js").DataType|undefined} defaultValue
+ * Function that returns the value specified in the database schema for database generated values on inserts.
  */
 
 /** @enum {() => Error} */

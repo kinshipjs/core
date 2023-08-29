@@ -206,10 +206,6 @@ export class KinshipContext {
         return /** @type {any} */ (records);
     }
 
-    async resync() {
-        await this.#base.resync();
-    }
-
     /**
      * Truncate the table this context represents.
      * @returns {Promise<number>} Number of rows that were deleted.

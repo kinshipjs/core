@@ -63,7 +63,7 @@ export class KinshipExecutionHandler {
             // this.base.options.benchmarks.execute.end();
             //@ts-ignore
             // this.base.options.benchmarks.serialize.start();
-            data.records = this.#serialize(state, data.records);
+            data.records = this.#serialize(state.groupBy !== undefined, data.records);
             //@ts-ignore
             // this.base.options.benchmarks.serialize.end();
             await this.#applyAfter(data.records);
@@ -191,12 +191,11 @@ export class KinshipExecutionHandler {
      */
     #serialize(isGroupBy, records, table=this.base.tableName, schema=this.base.schema, relationships=this.base.relationships, depth = 0) {
         if(records.length <= 0) return records;
-        let finalRecords = [];
         const pKeys = this.base.getPrimaryKeys(table);
         const uniqueRecordsByPrimaryKey = isGroupBy 
             ? records 
             : Optimized.getUniqueObjectsByKeys(records, Optimized.map(pKeys, key => key.commandAlias));
-        
+        let finalRecords = [];
         for(let i = 0; i < uniqueRecordsByPrimaryKey.length; ++i) {
             const record = uniqueRecordsByPrimaryKey[i];
             const newRecord = Optimized.getObjectFromSchemaAndRecord(schema, record);
@@ -212,7 +211,6 @@ export class KinshipExecutionHandler {
                         record[relationship.primary.alias], 
                         relationship.foreign.alias
                     );
-                console.log({relationship});
                 // recurse with a new scope of records of only related records.
                 const relatedRecordsSerialized = this.#serialize(isGroupBy,
                     relatedRecords,
@@ -232,53 +230,6 @@ export class KinshipExecutionHandler {
             }
             finalRecords.push(newRecord);
         }
-
-        // // serialize each record for each relationship.
-        // for(const key in relationships) {
-        //     const relationship = relationships[key];
-        //     // group by makes every record unique.
-        //     const uniqueRecordsByPrimaryKey = isGroupBy 
-        //         ? records 
-        //         : Optimized.getUniqueObjectsByKey(records, relationship.primary.alias);
-
-        //     // loop through the unique records based on their primary key.
-        //     for(let i = 0; i < uniqueRecordsByPrimaryKey.length; ++i) {
-        //         const record = uniqueRecordsByPrimaryKey[i];
-        //         // group by makes every record unique.
-        //         const relatedRecords = isGroupBy 
-        //             ? [record] 
-        //             : Optimized.getRelatedRecords(
-        //                 records, 
-        //                 record[relationship.primary.alias], 
-        //                 relationship.foreign.alias
-        //             );
-
-        //         // recurse with a new scope of records of only related records.
-        //         const relatedRecordsSerialized = this.#serialize(isGroupBy,
-        //             relatedRecords,
-        //             relationship.table,
-        //             relationship.schema, 
-        //             relationship.relationships,
-        //             depth + 1
-        //         );
-                
-        //         // create a new object remapped from the schema.
-        //         const newRecord = Optimized.getObjectFromSchemaAndRecord(schema, record);
-        //         if(isGroupBy && depth === 0) {
-        //             Optimized.assignKeysThatStartWith$To(record, newRecord);
-        //         }
-
-        //         // set based on the type of relationship this was.
-        //         // group by makes every record unique, and thus every related record would become 1:1.
-        //         if(relationship.relationshipType === "1:1" || isGroupBy) {
-        //             newRecord[key] = relatedRecordsSerialized?.[0] ?? null;
-        //         } else {
-        //             newRecord[key] = relatedRecordsSerialized;
-        //         }
-
-        //         finalRecords.push(newRecord);
-        //     }
-        // }
         return finalRecords;
     }
 

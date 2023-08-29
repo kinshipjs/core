@@ -97,6 +97,38 @@ export const Optimized = {
         return true;
     },
     /**
+     * Same behavior as JavaScript's `Array.prototype.map()` function.
+     * @template T
+     * @template U
+     * @param {T[]} objs Objects to map
+     * @param {(o: T) => U} callback Function with the parameter `o` from `objs` and returns `U`.
+     * @returns {U[]} Mapped values from `objs`.
+     */
+    map(objs, callback) {
+        let arr = [];
+        for(let i = 0; i < objs.length; ++i) {
+            arr.push(callback(objs[i]));
+        }
+        return arr;
+    },
+    /**
+     * Same behavior as JavaScript's `Array.prototype.map()` function.
+     * @template T
+     * @param {T[]} objs Objects to map
+     * @param {(o: T) => boolean} callback Function with the parameter `o` from `objs` and returns `U`.
+     * @returns {T[]}} Mapped values from `objs`.
+     */
+    filter(objs, callback) {
+        let arr = [];
+        for(let i = 0; i < objs.length; ++i) {
+            const obj = objs[i];
+            if(callback(obj)) {
+                arr.push(obj);
+            }
+        }
+        return arr;
+    },
+    /**
      * Gets all unique objects within `objs` by the given `key`.
      * @param {object[]} objs 
      * @param {string} key 
@@ -126,8 +158,9 @@ export const Optimized = {
         for(let i = 0; i < objs.length; ++i) {
             const obj = objs[i];
             const key = this.map(keys, k => obj[k]).toString();
-            if(!set.has(obj[key])) {
+            if(!set.has(key)) {
                 uniques.push(obj);
+                set.add(key);
             }
         }
         return uniques;
@@ -178,20 +211,5 @@ export const Optimized = {
             }
         }
         return target;
-    },
-    /**
-     * Same behavior as JavaScript's `Array.prototype.map()` function.
-     * @template T
-     * @template U
-     * @param {T[]} objs Objects to map
-     * @param {(o: T) => U} callback Function with the parameter `o` from `objs` and returns `U`.
-     * @returns {U[]} Mapped values from `objs`.
-     */
-    map(objs, callback) {
-        let arr = [];
-        for(let i = 0; i < objs.length; ++i) {
-            arr.push(callback(objs[i]));
-        }
-        return arr;
     }
 }

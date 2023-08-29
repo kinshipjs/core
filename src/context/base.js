@@ -2,23 +2,32 @@
 import { CommandListener } from "../events.js";
 import { KinshipAdapterError, KinshipNonUniqueKeyError } from "../exceptions.js";
 import { ErrorTypes } from "./adapter.js";
+import { Optimized } from "./util.js";
 
 /**
  * Handles some interactions with the adapter, stores some information/helpers about the table, and handles all
  * asynchronous activity in a synchronous manner.
  */
 export class KinshipBase {
-    /** @type {import("./adapter.js").KinshipAdapterConnection} */ adapter;
-    /** @type {KinshipOptions} */ options;
+    /** Adapter that handles all serialization and execution of commands. 
+     * @type {import("./adapter.js").KinshipAdapterConnection} */ adapter;
+    /** Options that were given in the context constructor. 
+     * @type {KinshipOptions} */ options;
 
-    /** @type {string} */ tableName;
-    /** @type {import("../config/relationships.js").Relationships<any>} */ relationships;
-    /** @type {Record<string, import("../config/relationships.js").SchemaColumnDefinition>} */ schema;
+    /** Name of the table as it was given in the context constructor. 
+     * @type {string} */ tableName;
+    /** All relationships that have been configured on the context. 
+     * @type {import("../config/relationships.js").Relationships<any>} */ relationships;
+    /** Schema that represents the table the context is connected to. 
+     * @type {Record<string, import("../config/relationships.js").SchemaColumnDefinition>} */ schema;
 
-    /** @type {CommandListener} */ listener;
-    /** @type {Promise<import("./context.js").State>} */ promise;
+    /** Event handler for commands when they are executed.
+     * @type {CommandListener} */ listener;
+    /** Used to manage state without forcing the consumer to use await as state depends on asynchronous processes 
+     * @type {Promise<import("./context.js").State>} */ promise;
 
-    /** @type {Record<string, import("../config/relationships.js").SchemaColumnDefinition[]>} */ #primaryKeyCache = {};
+    /** Caches primary keys for a table to improve speed.
+     * @type {Record<string, import("../config/relationships.js").SchemaColumnDefinition[]>} */ #primaryKeyCache = {};
 
     /**
      * @param {import("./adapter.js").KinshipAdapterConnection} adapter 
@@ -99,13 +108,12 @@ export class KinshipBase {
 
         let keys = [];
         if (tableName === this.tableName) {
+            // covers the case where `table` is this table name.
             keys = Object.values(this.schema).filter(col => col.isPrimary);
-        } else {
+        } else if (tableName in relationships) {
             // covers the case where `table` equals the table name as it was declared in related configurations.
-            if (tableName in relationships) {
-                return Object.entries(relationships[tableName].schema).filter(([k,v]) => v.isPrimary).map(([k,v]) => v);
-            }
-
+            keys = Object.entries(relationships[tableName].schema).filter(([k,v]) => v.isPrimary).map(([k,v]) => v);
+        } else {
             // covers the case where `table` equals the actual table name as it appears in the database.
             const filtered = Object.values(relationships).filter(o => o.table === tableName);
             if (filtered.length > 0) {
@@ -119,7 +127,6 @@ export class KinshipBase {
                 }
             }
         }
-
         this.#primaryKeyCache[tableName] = keys;
         return keys;
     }

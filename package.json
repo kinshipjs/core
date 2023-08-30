@@ -1,0 +1,73 @@
+{
+    "name": "@kinshipjs/core",
+    "type": "module",
+    "version": "0.0.12-development",
+    "repository": {
+        "type": "git",
+        "url": "https://github.com/kinshipjs/core"
+    },
+    "github": "https://github.com/kinshipjs/core",
+    "homepage": "https://github.com/kinshipjs/core",
+    "description": "Database agnostic, type-safe, and syntax-friendly ORM for Node.js users.",
+    "module": "./dist/index.js",
+    "types": "./dist/types/index.d.ts",
+    "scripts": {
+        "build": "npm run build:source && npm run build:types",
+        "build:source": "tsup",
+        "build:types": "tsc",
+        "test": "node ./test/test.js",
+        "prepack": "npm run build"
+    },
+    "keywords": [
+        "mysql",
+        "sqlite",
+        "mssql",
+        "postgres",
+        "database",
+        "sql",
+        "efc",
+        "typescript",
+        "table",
+        "left join",
+        "query",
+        "insert",
+        "update",
+        "delete"
+    ],
+    "author": "Travis R. Zuleger",
+    "license": "MIT",
+    "devDependencies": {
+        "@kinshipjs/mysql2": "^0.0.2-development",
+        "@types/node": "^20.4.5",
+        "dotenv": "^16.3.1",
+        "tsup": "^7.1.0",
+        "typescript": "^5.1.6"
+    },
+    "exports": {
+        ".": {
+            "import": "./dist/index.js",
+            "types": "./dist/types/index.d.ts"
+        },
+        "./adapter": {
+            "import": "./dist/context/adapter.js",
+            "types": "./dist/types/context/adapter.d.ts"
+        },
+        "./errors": {
+            "import": "./dist/exceptions.js",
+            "types": "./dist/types/exceptions.d.ts"
+        }
+    },
+    "typesVersions": {
+        "*": {
+            ".": [
+                "./dist/types/index.d.ts"
+            ],
+            "adapter": [
+                "./dist/types/context/adapter.d.ts"
+            ],
+            "errors": [
+                "./dist/types/exceptions.d.ts"
+            ]
+        }
+    }
+}

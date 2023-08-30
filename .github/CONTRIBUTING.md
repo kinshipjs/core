@@ -1,0 +1,13 @@
+branches:
+  - stable
+  - name: main
+    prerelease: true
+  - name: test
+    prerelease: true
+debug: true
+ci: true
+dryRun: false
+plugins:
+  - "@semantic-release/commit-analyzer"
+  - "@semantic-release/release-notes-generator"
+  - "@semantic-release/github"

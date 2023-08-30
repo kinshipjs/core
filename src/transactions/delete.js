@@ -10,12 +10,12 @@ export class KinshipDeleteHandler extends KinshipExecutionHandler {
      * @protected
      * @param {any} state
      * @param {object[]} records
-     * @param {...any} args
+     * @param {...any} extraArgs
      * @returns {Promise<{ numRowsAffected: number, records: object[] }>}
      */
-    async _execute(state, records, { truncate }) {
+    async _execute(state, records, extraArgs) {
         let detail;
-        if(truncate) {
+        if(extraArgs && extraArgs.truncate) {
             return this.#handleTruncate();
         }
         if(records.length === 0) {

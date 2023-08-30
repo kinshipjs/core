@@ -191,6 +191,7 @@ export class KinshipExecutionHandler {
      */
     #serialize(isGroupBy, records, table=this.base.tableName, schema=this.base.schema, relationships=this.base.relationships, depth = 0) {
         if(records.length <= 0) return records;
+        if(records[0].$$count) return records;
         const pKeys = this.base.getPrimaryKeys(table);
         const uniqueRecordsByPrimaryKey = isGroupBy 
             ? records 

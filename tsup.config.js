@@ -1,8 +1,9 @@
 import { defineConfig } from 'tsup';
 export default defineConfig({
     entry: {
-        index: "src/index.js",
-        errors: "src/exceptions.js",
+        index: "./src/index.js",
+        errors: "./src/exceptions.js",
+        adapter: "./src/context/adapter.js"
     },
     outDir: 'dist',
     target: 'node22',

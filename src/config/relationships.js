@@ -3,12 +3,6 @@
 import { KinshipBase } from "../context/base.js";
 import { KinshipInvalidPropertyTypeError, KinshipSyntaxError } from "../exceptions.js";
 
-/** @enum {string} */
-export const RelationshipType = {
-    ONE_TO_ONE: "1:1",
-    ONE_TO_MANY: "1:n"
-}
-
 export class RelationshipBuilder {
     /** @type {KinshipBase} */ #base;
 
@@ -152,7 +146,7 @@ export class RelationshipBuilder {
             {
                 /** @type {any} */
                 const isPromise = this.configureRelationship(callback, 
-                    RelationshipType.ONE_TO_ONE, 
+                    RelationshipType.OneToOne, 
                     realTableName, 
                     relationships[codeTableName].relationships, 
                     `${prependTable}${codeTableName}_`, 
@@ -169,7 +163,7 @@ export class RelationshipBuilder {
             {
                 /** @type {any} */
                 const isPromise = this.configureRelationship(callback, 
-                    RelationshipType.ONE_TO_MANY, 
+                    RelationshipType.OneToMany, 
                     realTableName, 
                     relationships[codeTableName].relationships, 
                     `${prependTable}${codeTableName}_`, 
@@ -274,6 +268,12 @@ export class RelationshipBuilder {
     } 
 }
 
+/** @enum {number} */
+export const RelationshipType = {
+    OneToOne: 1,
+    OneToMany: 2
+}
+
 /**
  * @template {object} T
  * @template TReturnIfTrue
@@ -291,7 +291,7 @@ export class RelationshipBuilder {
 /**
  * @template {object} T
  * @typedef {{
- *   [K in keyof OnlyTableTypes<T>]: import("../models/string.js").FriendlyType<Relationship<OnlyTableTypes<T>[K], IfTableArray<T[K], "1:n", "1:1">>>
+ *   [K in keyof OnlyTableTypes<T>]: import("../models/string.js").FriendlyType<Relationship<OnlyTableTypes<T>[K], IfTableArray<T[K], (typeof RelationshipType)['OneToOne'], (typeof RelationshipType)['OneToMany']>>>
  * }} Relationships
  */
 
@@ -299,7 +299,7 @@ export class RelationshipBuilder {
  * 
  * Object model type representing a relationship between tables.
  * @template {object} T
- * @template {"1:1"|"1:n"} [TType="1:1"]
+ * @template {RelationshipType} [TType=RelationshipType]
  * Information regarding a relating table.
  * @typedef {object} Relationship
  * @prop {TType} relationshipType

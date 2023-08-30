@@ -4,6 +4,7 @@ import { KinshipBase } from "../context/base.js";
 import { Optimized, assertAsArray, getFilterConditionsFromWhere } from "../context/util.js";
 import { WhereBuilder } from "../clauses/where.js";
 import { KinshipInternalError } from "../exceptions.js";
+import { RelationshipType } from "../config/relationships.js";
 
 /**
  * Base class for handling execution of a given command.
@@ -183,55 +184,61 @@ export class KinshipExecutionHandler {
     /**
      * Serializes an array of rows to a user-friendly object.
      * @param {boolean} isGroupBy
-     * @param {object[]} records 
+     * @param {object[]} rows 
      * @param {Record<string, import("../context/adapter.js").SchemaColumnDefinition>} schema
      * @param {import("../config/relationships.js").Relationships<object>} relationships
      * @param {number} depth 
      * Used for when the command had a group by clause.
      */
-    #serialize(isGroupBy, records, table=this.base.tableName, schema=this.base.schema, relationships=this.base.relationships, depth = 0) {
-        if(records.length <= 0) return records;
-        if(records[0].$$count) return records;
+    #serialize(isGroupBy, 
+        rows, 
+        table=this.base.tableName, 
+        schema=this.base.schema, 
+        relationships=this.base.relationships, 
+        depth = 0
+    ) {
+        if(rows.length <= 0) return rows;
+        if(rows[0].$$count) return rows;
         const pKeys = this.base.getPrimaryKeys(table);
-        const uniqueRecordsByPrimaryKey = isGroupBy 
-            ? records 
-            : Optimized.getUniqueObjectsByKeys(records, Optimized.map(pKeys, key => key.commandAlias));
-        let finalRecords = [];
-        for(let i = 0; i < uniqueRecordsByPrimaryKey.length; ++i) {
-            const record = uniqueRecordsByPrimaryKey[i];
-            const newRecord = Optimized.getObjectFromSchemaAndRecord(schema, record);
+        const uniqueRowsByPrimaryKey = isGroupBy 
+            ? rows 
+            : Optimized.getUniqueObjectsByKeys(rows, Optimized.map(pKeys, key => key.commandAlias));
+        let serializedRows = [];
+        for(let i = 0; i < uniqueRowsByPrimaryKey.length; ++i) {
+            const row = uniqueRowsByPrimaryKey[i];
+            const newRow = Optimized.getObjectFromSchemaAndRecord(schema, row);
             if(isGroupBy && depth === 0) {
-                Optimized.assignKeysThatStartWith$To(record, newRecord);
+                Optimized.assignKeysThatStartWith$To(row, newRow);
             }
             for(let key in relationships) {
                 const relationship = relationships[key];
-                const relatedRecords = isGroupBy 
-                    ? [record] 
-                    : Optimized.getRelatedRecords(
-                        records, 
-                        record[relationship.primary.alias], 
+                const relatedRows = isGroupBy 
+                    ? [row] 
+                    : Optimized.getRelatedRows(
+                        rows, 
+                        row[relationship.primary.alias], 
                         relationship.foreign.alias
                     );
                 // recurse with a new scope of records of only related records.
-                const relatedRecordsSerialized = this.#serialize(isGroupBy,
-                    relatedRecords,
+                const relatedRowsSerialized = this.#serialize(isGroupBy,
+                    relatedRows,
                     relationship.table,
                     relationship.schema, 
                     relationship.relationships,
                     depth + 1
                 );
 
-                // set based on the type of relationship this was.
+                // set based on the type of relationship this is.
                 // group by makes every record unique, and thus every related record would become 1:1.
-                if(relationship.relationshipType === "1:1" || isGroupBy) {
-                    newRecord[key] = relatedRecordsSerialized?.[0] ?? null;
+                if(relationship.relationshipType === RelationshipType.OneToOne || isGroupBy) {
+                    newRow[key] = relatedRowsSerialized?.[0] ?? null;
                 } else {
-                    newRecord[key] = relatedRecordsSerialized;
+                    newRow[key] = relatedRowsSerialized;
                 }
             }
-            finalRecords.push(newRecord);
+            serializedRows.push(newRow);
         }
-        return finalRecords;
+        return serializedRows;
     }
 
     /**

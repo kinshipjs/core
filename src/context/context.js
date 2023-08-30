@@ -430,7 +430,7 @@ export class KinshipContext {
      * Reference to the same `KinshipContext`.
      */
     hasOne(callback) {
-        this.#builders.relationships.configureRelationship(callback, RelationshipType.ONE_TO_ONE);
+        this.#builders.relationships.configureRelationship(callback, RelationshipType.OneToOne);
         return this;
     }
 
@@ -443,7 +443,7 @@ export class KinshipContext {
      * Reference to the same `KinshipContext`.
      */
     hasMany(callback) {
-        this.#builders.relationships.configureRelationship(callback, RelationshipType.ONE_TO_MANY);
+        this.#builders.relationships.configureRelationship(callback, RelationshipType.OneToMany);
         return this;
     }
 

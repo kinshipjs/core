@@ -187,7 +187,7 @@ export const Optimized = {
      * @param {string} fKey 
      * @returns {object[]}
      */
-    getRelatedRecords(records, pKeyValue, fKey) {
+    getRelatedRows(records, pKeyValue, fKey) {
         let relatedRecords = [];
         for(let i = 0; i < records.length; ++i) {
             const rec = records[i];

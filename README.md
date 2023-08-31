@@ -5,4 +5,3 @@
 Kinship is a relatively new approach (in JavaScript and NodeJS) to interfacing with your back-end databases using strong type mapping and friendly syntax to enhance your development experience.
 
 You can learn more about Kinship on the [Kinship website](https://kinshipjs.dev/)
-

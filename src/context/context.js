@@ -729,15 +729,13 @@ export class KinshipDataContext {
     }
 
     /**
-     * @param {(records: TAliasModel[]) => void} resolve
-     * @returns {Promise<TAliasModel[]>}
+     * @param {(records: TAliasModel[]) => TAliasModel[]} resolve
      */
     async then(resolve) {
         this.#tryUseSavedState();
         const { records } = await this.#handlers.query.handle(undefined);
         this.#resetState();
         resolve(/** @type {any} */(records));
-        return /** @type {any} */(records);
     }
 
 }

@@ -164,7 +164,7 @@ const lastId = await lastIds.where(m => m.Id.equals(1)).checkout();
 //     console.log({n});
 // }
 
-const allPlaylists = await playlists;
+const allPlaylists = await users;
 console.log(allPlaylists);
 
 process.exit(1);

@@ -412,7 +412,7 @@ export const RelationshipType = {
  *   ]-?: 
  *      T[K] extends import("../models/types.js").DataType|object[]|undefined 
  *          ? never 
- *          : T[K]
+ *          : NonNullable<T[K]>
  * }} OnlyTables
  */
 
@@ -433,7 +433,7 @@ export const RelationshipType = {
  * Filters out an object model type to only have keys that are valued with `object` arrays.
  * @template {object} T 
  * The abstract model to check properties for recursive `object`s.
- * @typedef {{[K in keyof Required<T> as T[K] extends (object[]|undefined) ? K : never]-?: T[K] extends (infer R extends object)[]|undefined ? Required<R> : never}} OnlyTableArrays
+ * @typedef {{[K in keyof Required<T> as T[K] extends (object[]|undefined) ? K : never]-?: T[K] extends (infer R extends object)[]|undefined ? NonNullable<R> : never}} OnlyTableArrays
  */
 
 /** OnlyTableTypes  

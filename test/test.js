@@ -164,5 +164,7 @@ async function testDelete(janeDoe) {
     console.log({n});
 }
 
+await ctx.select(m => [m.FirstName]);
+
 await testQuery();
 process.exit(1);

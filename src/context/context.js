@@ -201,8 +201,11 @@ export class KinshipContext {
      */
     async select(callback=undefined) {
         this.#tryUseSavedState();
-        const { records } = await this.#handlers.query.handle(undefined, callback);
-        this.#resetState();
+        try {
+            var { records } = await this.#handlers.query.handle(undefined, callback);
+        } finally {
+            this.#resetState();
+        }
         return /** @type {any} */ (records);
     }
 
@@ -211,8 +214,11 @@ export class KinshipContext {
      * @returns {Promise<number>} Number of rows that were deleted.
      */
     async truncate() {
-        const { numRowsAffected } = await this.#handlers.delete.handle(undefined, { truncate: true });
-        this.#resetState();
+        try {
+            var { numRowsAffected } = await this.#handlers.delete.handle(undefined, { truncate: true });
+        } finally {
+            this.#resetState();
+        }
         return numRowsAffected;
     }
 
@@ -248,12 +254,15 @@ export class KinshipContext {
      */
     async update(records) {
         this.#tryUseSavedState();
-        if(typeof records === 'function') {
-            var { numRowsAffected } = await this.#handlers.update.handle(undefined, records);
-        } else {
-            var { numRowsAffected }  = await this.#handlers.update.handle(records);
+        try {
+            if(typeof records === 'function') {
+                var { numRowsAffected } = await this.#handlers.update.handle(undefined, records);
+            } else {
+                var { numRowsAffected }  = await this.#handlers.update.handle(records);
+            }
+        } finally {
+            this.#resetState();
         }
-        this.#resetState()
         return numRowsAffected;
     }
 
@@ -726,6 +735,33 @@ export class KinshipContext {
      */
     async prepare() {
 
+    }
+
+    /**
+     * Accepts a callback that is the context itself, except:
+     * 
+     * The context will be altered slightly, where only the transactions, `insert`, `update`, and `delete` 
+     * can be used.
+     * 
+     * The context is no longer connected to the table itself, it is now connected to a cloned temp table.
+     * 
+     * If the callback completes with no errors, then the temp table will be moved into the official table.
+     * @private
+     * If the callback fails, then the temp table is dropped, and nothing else is done.
+     * @param {(ctx: Omit<typeof this, "select">) => Promise<void>} callback 
+     */
+    async transaction(callback) {
+        const proxy = new Proxy(this, {
+            get(t,p,r) {
+                if(p === 'select') {
+
+                }
+            }
+        })
+    }
+
+    async commit() {
+        
     }
 }
 

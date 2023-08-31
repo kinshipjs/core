@@ -198,6 +198,7 @@ export class KinshipExecutionHandler {
         depth = 0
     ) {
         if(rows.length <= 0) return rows;
+        if(rows[0].$$count) return rows;
         const pKeys = this.base.getPrimaryKeys(table);
         const uniqueRowsByPrimaryKey = isGroupBy 
             ? rows 

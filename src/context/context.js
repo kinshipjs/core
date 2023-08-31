@@ -188,31 +188,16 @@ export class KinshipDataContext {
         return records;
     }
 
-    // /**
-    //  * Query an array of selected columns or all columns from the context.
-    //  * @template {import("../clauses/choose.js").SelectedColumnsModel<TAliasModel>|TAliasModel} [TSelectedColumns=TAliasModel]
-    //  * The new model type that the context represents. (inferred from usage of `callback`)
-    //  * @param {((model: import("../clauses/choose.js").SpfSelectCallbackModel<TAliasModel>) => 
-    //  *  import("../models/maybe.js").MaybeArray<keyof TSelectedColumns>)=} callback
-    //  * Callback model that allows the user to select which columns to grab.  
-    //  * If nothing is passed, then all columns are grabbed from `TAliasModel`.
-    //  * @returns {KinshipContext<TTableModel, (TSelectedColumns extends TAliasModel 
-    //  *  ? TAliasModel 
-    //  *  : import("../models/string.js").Reconstructed<TAliasModel, TSelectedColumns>)>}
-    //  * All rows queried from the database serialized into a user-friendly format.
-    //  */
-    // select(callback=undefined) {
-        
-    //     return /** @type {any} */ (this);
-    // }
-
     /**
      * Truncate the table this context represents.
      * @returns {Promise<number>} Number of rows that were deleted.
      */
     async truncate() {
-        const { numRowsAffected } = await this.#handlers.delete.handle(undefined, { truncate: true });
-        this.#resetState();
+        try {
+            var { numRowsAffected } = await this.#handlers.delete.handle(undefined, { truncate: true });
+        } finally {
+            this.#resetState();
+        }
         return numRowsAffected;
     }
 
@@ -248,12 +233,15 @@ export class KinshipDataContext {
      */
     async update(records) {
         this.#tryUseSavedState();
-        if(typeof records === 'function') {
-            var { numRowsAffected } = await this.#handlers.update.handle(undefined, records);
-        } else {
-            var { numRowsAffected }  = await this.#handlers.update.handle(records);
+        try {
+            if(typeof records === 'function') {
+                var { numRowsAffected } = await this.#handlers.update.handle(undefined, records);
+            } else {
+                var { numRowsAffected }  = await this.#handlers.update.handle(records);
+            }
+        } finally {
+            this.#resetState();
         }
-        this.#resetState()
         return numRowsAffected;
     }
 
@@ -737,7 +725,29 @@ export class KinshipDataContext {
         this.#resetState();
         resolve(/** @type {any} */(records));
     }
+  
+    /*
+     * Accepts a callback that is the context itself, except:
+     * 
+     * The context will be altered slightly, where only the transactions, `insert`, `update`, and `delete` 
+     * can be used.
+     * 
+     * The context is no longer connected to the table itself, it is now connected to a cloned temp table.
+     * 
+     * If the callback completes with no errors, then the temp table will be moved into the official table.
+     * @private
+     * If the callback fails, then the temp table is dropped, and nothing else is done.
+     * @param {(ctx: Omit<typeof this, "select">) => Promise<void>} callback 
+     */
+    async transaction(callback) {
+        const proxy = new Proxy(this, {
+            get(t,p,r) {
+                if(p === 'select') {
 
+                }
+            }
+        })
+    }
 }
 
 /**

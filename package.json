@@ -1,7 +1,7 @@
 {
     "name": "@kinshipjs/core",
     "type": "module",
-    "version": "0.0.8-development",
+    "version": "0.0.14-development",
     "repository": {
         "type": "git",
         "url": "https://github.com/kinshipjs/core"
@@ -12,8 +12,7 @@
     "module": "./dist/index.js",
     "types": "./dist/types/index.d.ts",
     "scripts": {
-        "build": "npm run clean && npm run build:source && npm run build:types",
-        "clean": "del /S /Q .\\dist",
+        "build": "npm run build:source && npm run build:types",
         "build:source": "tsup",
         "build:types": "tsc",
         "test": "node ./test/test.js",
@@ -41,7 +40,6 @@
         "@kinshipjs/mysql2": "^0.0.2-development",
         "@types/node": "^20.4.5",
         "dotenv": "^16.3.1",
-        "semantic-release": "^21.0.7",
         "tsup": "^7.1.0",
         "typescript": "^5.1.6"
     },
@@ -51,12 +49,25 @@
             "types": "./dist/types/index.d.ts"
         },
         "./adapter": {
-            "import": "./dist/adapter.js",
+            "import": "./dist/context/adapter.js",
             "types": "./dist/types/context/adapter.d.ts"
         },
         "./errors": {
             "import": "./dist/exceptions.js",
             "types": "./dist/types/exceptions.d.ts"
+        }
+    },
+    "typesVersions": {
+        "*": {
+            ".": [
+                "./dist/types/index.d.ts"
+            ],
+            "adapter": [
+                "./dist/types/context/adapter.d.ts"
+            ],
+            "errors": [
+                "./dist/types/exceptions.d.ts"
+            ]
         }
     }
 }

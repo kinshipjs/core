@@ -16,7 +16,7 @@ export class KinshipInsertHandler extends KinshipExecutionHandler {
     async _execute(state, records) {
         const { cmd, args } = this.base.handleAdapterSerialize().forInsert(this.#getDetail(records));
         try {
-            const insertIds = await this.base.handleAdapterExecute().forQuery(cmd, args);
+            const insertIds = await this.base.handleAdapterExecute().forInsert(cmd, args);
             this.base.listener.emitInsertSuccess({ cmd, args, results: insertIds });
             this.#fixIdentityKeys(records, insertIds);
             /** @type {WhereBuilder<TTableModel>} */

@@ -1,1 +1,1 @@
-export { KinshipContext } from './context/context.js';
+export { KinshipDataContext as KinshipContext } from './context/context.js';

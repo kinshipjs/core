@@ -12,14 +12,16 @@ import { OrderByBuilder } from "../clauses/order-by.js";
 import { RelationshipBuilder, RelationshipType } from "../config/relationships.js";
 import { ChooseBuilder } from "../clauses/choose.js";
 
+/** @template {object} T @typedef {import("../models/string.js").FriendlyType<import("../config/relationships.js").OnlyDataTypes<T>>} OnlyDataTypes */
+
 /**
- * Establishes a connection directly to a table within your database.
- * @template {object|undefined} TTableModel
+ * Establishes a connection directly to a table within your database.  
+ * @template {object} TTableModel
  * Type of the model that represents the table and its columns, in their exact form.
- * @template {object|undefined} [TAliasModel=import("../models/string.js").FriendlyType<import("../config/relationships.js").OnlyDataTypes<TTableModel>>]
+ * @template {object} [TAliasModel=OnlyDataTypes<TTableModel>]
  * Type of the model, `TTableModel`, which will be augmented as new clauses are called. (dynamically inferred throughout lifespan of object)
  */
-export class KinshipContext {
+export class KinshipDataContext {
     /* -------------------------Private Properties------------------------- */
     // Properties to maintain a flow and state of the context.
 
@@ -62,7 +64,7 @@ export class KinshipContext {
     //  * Existing `KinshipContext` object to base this new context off of.
     //  */
     /**
-     * Create a brand new KinshipContext.
+     * Instantiate a new `KinshipContext` object.
      * @param {import("./adapter.js").KinshipAdapterConnection} adapter
      * Kinship adapter used to connect to your database. 
      * @param {string=} tableName 
@@ -71,7 +73,7 @@ export class KinshipContext {
      * Optional additional configurations. 
      */
     constructor(adapter, tableName=undefined, options=undefined) {
-        if(adapter instanceof KinshipContext) {
+        if(adapter instanceof KinshipDataContext) {
             // when an existing KinshipContext is passed in, then this new context will be based off that context.
             this.#base = adapter.#base;
             this.#builders = adapter.#builders;
@@ -102,13 +104,13 @@ export class KinshipContext {
 
     /**
      * Check out the state of the context as a static reference without having to rebuild any clause(s) again.
-     * @returns {Promise<KinshipContext<TTableModel, TAliasModel>>}
+     * @returns {Promise<KinshipDataContext<TTableModel, TAliasModel>>}
      * A new `KinshipContext` object where the base state is saved from previously called clause functions.
      */
     async checkout() {
-        /** @type {KinshipContext<TTableModel,TAliasModel>} */
+        /** @type {KinshipDataContext<TTableModel,TAliasModel>} */
         //@ts-ignore one arg parameter is internally available.
-        const ctx = new KinshipContext(this);
+        const ctx = new KinshipDataContext(this);
         const savedState = await this.#base.resync();
         ctx.#savedState = /** @type {State} */ (JSON.parse(JSON.stringify(savedState)));
         ctx.#savedState.where = savedState.where
@@ -186,25 +188,23 @@ export class KinshipContext {
         return records;
     }
 
-    /**
-     * Query an array of selected columns or all columns from the context.
-     * @template {import("../clauses/choose.js").SelectedColumnsModel<TAliasModel>|TAliasModel} [TSelectedColumns=TAliasModel]
-     * The new model type that the context represents. (inferred from usage of `callback`)
-     * @param {((model: import("../clauses/choose.js").SpfSelectCallbackModel<TAliasModel>) => 
-     *  import("../models/maybe.js").MaybeArray<keyof TSelectedColumns>)=} callback
-     * Callback model that allows the user to select which columns to grab.  
-     * If nothing is passed, then all columns are grabbed from `TAliasModel`.
-     * @returns {Promise<(TSelectedColumns extends TAliasModel 
-     *  ? TAliasModel 
-     *  : import("../models/string.js").Reconstructed<TAliasModel, TSelectedColumns>)[]>}
-     * All rows queried from the database serialized into a user-friendly format.
-     */
-    async select(callback=undefined) {
-        this.#tryUseSavedState();
-        const { records } = await this.#handlers.query.handle(undefined, callback);
-        this.#resetState();
-        return /** @type {any} */ (records);
-    }
+    // /**
+    //  * Query an array of selected columns or all columns from the context.
+    //  * @template {import("../clauses/choose.js").SelectedColumnsModel<TAliasModel>|TAliasModel} [TSelectedColumns=TAliasModel]
+    //  * The new model type that the context represents. (inferred from usage of `callback`)
+    //  * @param {((model: import("../clauses/choose.js").SpfSelectCallbackModel<TAliasModel>) => 
+    //  *  import("../models/maybe.js").MaybeArray<keyof TSelectedColumns>)=} callback
+    //  * Callback model that allows the user to select which columns to grab.  
+    //  * If nothing is passed, then all columns are grabbed from `TAliasModel`.
+    //  * @returns {KinshipContext<TTableModel, (TSelectedColumns extends TAliasModel 
+    //  *  ? TAliasModel 
+    //  *  : import("../models/string.js").Reconstructed<TAliasModel, TSelectedColumns>)>}
+    //  * All rows queried from the database serialized into a user-friendly format.
+    //  */
+    // select(callback=undefined) {
+        
+    //     return /** @type {any} */ (this);
+    // }
 
     /**
      * Truncate the table this context represents.
@@ -268,12 +268,12 @@ export class KinshipContext {
      * @param {((model: import("../clauses/choose.js").SpfSelectCallbackModel<TAliasModel>) => 
      *  import("../models/maybe.js").MaybeArray<keyof TSelectedColumns>)=} callback
      * Callback model that allows the user to select which columns to grab.  
-     * @returns {KinshipContext<TTableModel, (TSelectedColumns extends TAliasModel 
+     * @returns {KinshipDataContext<TTableModel, (TSelectedColumns extends TAliasModel 
      *  ? TAliasModel 
      *  : import("../models/string.js").Reconstructed<TAliasModel, TSelectedColumns>)>}
      * Reference to the same `KinshipContext`.
      */
-    choose(callback) {
+    select(callback) {
         this.#afterResync((oldState) => this.#builders.choose.getState(oldState, callback));
         return /** @type {any} */ (this);
     }
@@ -285,7 +285,7 @@ export class KinshipContext {
      * The new model type that the context represents. (inferred from usage of `callback`)
      * @param {(model: import("../clauses/group-by.js").SpfGroupByCallbackModel<TTableModel>, aggregates: import("../clauses/group-by.js").Aggregates) => import("../models/maybe.js").MaybeArray<keyof TGroupedColumns>} callback
      * Property reference callback that is used to determine which column(s) and aggregates should be selected and grouped on.
-     * @returns {KinshipContext<TTableModel, import("../models/string.js").Reconstructed<TAliasModel, TGroupedColumns>>}
+     * @returns {KinshipDataContext<TTableModel, import("../models/string.js").Reconstructed<TAliasModel, TGroupedColumns>>}
      * Reference to the same `KinshipContext`.
      */
     groupBy(callback) {
@@ -304,7 +304,7 @@ export class KinshipContext {
      *   }) => void
      * } callback
      * Property reference callback that is used to determine which related tables should be included.
-     * @returns {KinshipContext<TTableModel, import("../models/string.js").FriendlyType<TAliasModel & {[K in keyof TIncludedColumn as K extends keyof TTableModel ? K : never]: Exclude<TTableModel[K], undefined>}>>} 
+     * @returns {KinshipDataContext<TTableModel, import("../models/string.js").FriendlyType<TAliasModel & {[K in keyof TIncludedColumn as K extends keyof TTableModel ? K : never]: Exclude<TTableModel[K], undefined>}>>} 
      * Reference to the same `KinshipContext`.
      */
     include(callback) {
@@ -317,7 +317,7 @@ export class KinshipContext {
      * This method will override any previous `.skip()` calls.
      * @param {number} numberOfRecords 
      * Number of rows to skip.
-     * @returns {KinshipContext<TTableModel, TAliasModel>}
+     * @returns {KinshipDataContext<TTableModel, TAliasModel>}
      * Reference to the same `KinshipContext`.
      */
     skip(numberOfRecords) {
@@ -334,7 +334,7 @@ export class KinshipContext {
      *      |import("../clauses/order-by.js").SortByCallbackModelProp
      * >} callback
      * Property reference callback that is used to determine which column or columns will be used to sort the queried rows.
-     * @returns {KinshipContext<TTableModel, TAliasModel>}
+     * @returns {KinshipDataContext<TTableModel, TAliasModel>}
      * Reference to the same `KinshipContext`.
      */
     sortBy(callback) {
@@ -347,7 +347,7 @@ export class KinshipContext {
      * This method will override any previous `.take()` calls.
      * @param {number} numberOfRecords 
      * Number of rows to retrieve.
-     * @returns {KinshipContext<TTableModel, TAliasModel>}
+     * @returns {KinshipDataContext<TTableModel, TAliasModel>}
      * Reference to the same `KinshipContext`.
      */
     take(numberOfRecords) {
@@ -360,7 +360,7 @@ export class KinshipContext {
      * This method will stack, meaning it will not override previous `.where()` calls.   
      * @param {(model: import("../clauses/where.js").ChainObject<TAliasModel>) => void} callback
      * Property reference callback which gives context to a {@link WhereBuilder} object for building filters.
-     * @returns {KinshipContext<TTableModel, TAliasModel>} 
+     * @returns {KinshipDataContext<TTableModel, TAliasModel>} 
      * Reference to the same `KinshipContext`.
      */
     where(callback) {
@@ -673,14 +673,14 @@ export class KinshipContext {
 
     /**
      * Creates a new context with the initial state set to the state of this state.
-     * @template {object|undefined} [T=TTableModel]
-     * @template {object|undefined} [U=TAliasModel]
-     * @returns {KinshipContext<T, U>}
+     * @template {object} [T=TTableModel]
+     * @template {object} [U=TAliasModel]
+     * @returns {KinshipDataContext<T, U>}
      */
     #newContext() {
-        /** @type {KinshipContext<T, U>} */
+        /** @type {KinshipDataContext<T, U>} */
         //@ts-ignore One parameter constructor is only available to this getter.
-        const ctx = new KinshipContext(this);
+        const ctx = new KinshipDataContext(this);
         return ctx;
     }
 
@@ -727,6 +727,19 @@ export class KinshipContext {
     async prepare() {
 
     }
+
+    /**
+     * @param {(records: TAliasModel[]) => void} resolve
+     * @returns {Promise<TAliasModel[]>}
+     */
+    async then(resolve) {
+        this.#tryUseSavedState();
+        const { records } = await this.#handlers.query.handle(undefined);
+        this.#resetState();
+        resolve(/** @type {any} */(records));
+        return /** @type {any} */(records);
+    }
+
 }
 
 /**

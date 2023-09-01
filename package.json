@@ -1,7 +1,7 @@
 {
     "name": "@kinshipjs/core",
     "type": "module",
-    "version": "0.0.16-development",
+    "version": "0.0.20-development",
     "repository": {
         "type": "git",
         "url": "https://github.com/kinshipjs/core"

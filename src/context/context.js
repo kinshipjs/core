@@ -721,12 +721,13 @@ export class KinshipContext {
 
     /**
      * @param {(records: TAliasModel[]) => TAliasModel[]} resolve
+     * @returns {Promise<TAliasModel[]>}
      */
     async then(resolve) {
         this.#tryUseSavedState();
         const { records } = await this.#handlers.query.handle(undefined);
         this.#resetState();
-        resolve(/** @type {any} */(records));
+        return resolve(/** @type {any} */(records));
     }
   
     /*
@@ -771,7 +772,7 @@ export class KinshipContext {
 /**
  * @template T
  * @param {T} contexts 
- * @returns {{ execute: (callback: (contexts: T) => Promise<void>) => Promise<void>}}
+ * @returns {{ execute: (callback: (contexts: T, rollback: () => Error) => Promise<void>) => Promise<void>}}
  */
 export function transaction(contexts) {
     return {
@@ -781,7 +782,7 @@ export function transaction(contexts) {
                 //@ts-ignore
                 await ctx._transactionStart();
             }
-            const results = await callback(contexts);
+            const results = await callback(contexts, () => { throw Error() });
             for(const key in contexts) {
                 const ctx = contexts[key];
                 //@ts-ignore

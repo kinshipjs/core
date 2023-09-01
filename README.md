@@ -17,6 +17,8 @@ npm i -D @kinshipjs/mysql2
 
 ### Initialize types
 
+Initialize your types for Kinship to help you work with.
+
 ```ts
 interface User {
     id?: string;
@@ -211,8 +213,56 @@ await users.delete(user);
 await users.where(m => m.id.equals(1)).delete();
 ```
 
-### Truncate records (requires property `disableSafeDeleteMode` to be true in the `options` on the constructor)
+### Truncate records 
+
+Truncate your entire table. (requires property `disableSafeDeleteMode` to be true in the `options` on the constructor)
 
 ```ts
 await users.truncate();
+```
+
+### All or nothing transactions
+
+Call multiple transactional functions where if one fails, then all will fail.
+
+```ts
+import { transaction } from '@kinshipjs/core';
+
+/**
+ * Deletes all current roles that a user `firstName` `lastName` has and gives them the `Admin` role (if one exists)  
+ * If no Admin role exists, then nothing is done.
+ * @param firstName First name of the user to give admin role.
+ * @param lastName Last name of the user to give admin role.
+ */
+async function giveUserAdminRole(firstName, lastName) {
+    return await transaction({ users, xUserRoles, roles }).execute(async ({ users, xUserRoles, roles }, rollback) => {
+        const [johnDoe] = await users
+            .where(m => m.FirstName.equals(firstName)
+                .and(m => m.LastName.equals(lastName)));
+        
+        const johnDoesCurrentRoles = await xUserRoles.where(m => m.UserId.equals(johnDoe.Id));
+    
+        await xUserRoles.delete(johnDoesCurrentRoles);
+    
+        const [adminRole] = await roles.where(m => m.Title.equals("Admin"));
+
+        if(!adminRole) {
+            // note: rollback does not need to be thrown here. If any error is thrown, then the transaction is rolled back.
+            // if no admin role exists, then user's current roles won't be deleted.
+            throw rollback();
+        }
+        const [xUserRole] = await xUserRoles.insert({
+            UserId: johnDoe.Id,
+            RoleId: adminRole.Id
+        });
+
+        return { ...johnDoe, xUserRoles: [{ ...xUserRole, Role: adminRole }]};
+    });
+}
+
+const johnDoe = await giveUserAdminRole("John", "Doe");
+console.log(johnDoe);
+/**
+ * prints: { Id: 1, FirstName: "John", LastName: "Doe", xUserRoles: [ UserId: 1, RoleId: 1, Role: { Id: 1, Title: "Admin", Description: "administrative privileges" } ] }
+ */ 
 ```

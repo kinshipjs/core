@@ -212,7 +212,6 @@ export class KinshipExecutionHandler {
         for(let i = 0; i < uniqueRowsByPrimaryKey.length; ++i) {
             const row = uniqueRowsByPrimaryKey[i];
             const newRow = Optimized.getObjectFromSchemaAndRecord(schema, row);
-            console.log({row, newRow});
             if(isGroupBy && depth === 0) {
                 Optimized.assignKeysThatStartWith$To(row, newRow);
             }

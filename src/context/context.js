@@ -21,7 +21,7 @@ import { ChooseBuilder } from "../clauses/choose.js";
  * @template {object} [TAliasModel=OnlyDataTypes<TTableModel>]
  * Type of the model, `TTableModel`, which will be augmented as new clauses are called. (dynamically inferred throughout lifespan of object)
  */
-export class KinshipDataContext {
+export class KinshipContext {
     /* -------------------------Private Properties------------------------- */
     // Properties to maintain a flow and state of the context.
 
@@ -73,7 +73,7 @@ export class KinshipDataContext {
      * Optional additional configurations. 
      */
     constructor(adapter, tableName=undefined, options=undefined) {
-        if(adapter instanceof KinshipDataContext) {
+        if(adapter instanceof KinshipContext) {
             // when an existing KinshipContext is passed in, then this new context will be based off that context.
             this.#base = adapter.#base;
             this.#builders = adapter.#builders;
@@ -104,18 +104,21 @@ export class KinshipDataContext {
 
     /**
      * Check out the state of the context as a static reference without having to rebuild any clause(s) again.
-     * @returns {Promise<KinshipDataContext<TTableModel, TAliasModel>>}
+     * @returns {KinshipContext<TTableModel, TAliasModel>}
      * A new `KinshipContext` object where the base state is saved from previously called clause functions.
      */
-    async checkout() {
-        /** @type {KinshipDataContext<TTableModel,TAliasModel>} */
+    checkout() {
+        /** @type {KinshipContext<TTableModel,TAliasModel>} */
         //@ts-ignore one arg parameter is internally available.
-        const ctx = new KinshipDataContext(this);
-        const savedState = await this.#base.resync();
-        ctx.#savedState = /** @type {State} */ (JSON.parse(JSON.stringify(savedState)));
-        ctx.#savedState.where = savedState.where
-            //@ts-ignore marked private but is available for use internally.
-            ?._clone();
+        const ctx = new KinshipContext(this);
+        ctx.#afterResync((oldState) => {
+            ctx.#savedState = /** @type {State} */ (JSON.parse(JSON.stringify(oldState)));
+            ctx.#savedState.where = oldState.where
+                //@ts-ignore marked private but is available for use internally.
+                ?._clone();
+            return oldState;
+        });
+        this.#resetState();
         return ctx;
     }
 
@@ -256,7 +259,7 @@ export class KinshipDataContext {
      * @param {((model: import("../clauses/choose.js").SpfSelectCallbackModel<TAliasModel>) => 
      *  import("../models/maybe.js").MaybeArray<keyof TSelectedColumns>)=} callback
      * Callback model that allows the user to select which columns to grab.  
-     * @returns {KinshipDataContext<TTableModel, (TSelectedColumns extends TAliasModel 
+     * @returns {KinshipContext<TTableModel, (TSelectedColumns extends TAliasModel 
      *  ? TAliasModel 
      *  : import("../models/string.js").Reconstructed<TAliasModel, TSelectedColumns>)>}
      * Reference to the same `KinshipContext`.
@@ -273,7 +276,7 @@ export class KinshipDataContext {
      * The new model type that the context represents. (inferred from usage of `callback`)
      * @param {(model: import("../clauses/group-by.js").SpfGroupByCallbackModel<TTableModel>, aggregates: import("../clauses/group-by.js").Aggregates) => import("../models/maybe.js").MaybeArray<keyof TGroupedColumns>} callback
      * Property reference callback that is used to determine which column(s) and aggregates should be selected and grouped on.
-     * @returns {KinshipDataContext<TTableModel, import("../models/string.js").Reconstructed<TAliasModel, TGroupedColumns>>}
+     * @returns {KinshipContext<TTableModel, import("../models/string.js").Reconstructed<TAliasModel, TGroupedColumns>>}
      * Reference to the same `KinshipContext`.
      */
     groupBy(callback) {
@@ -292,7 +295,7 @@ export class KinshipDataContext {
      *   }) => void
      * } callback
      * Property reference callback that is used to determine which related tables should be included.
-     * @returns {KinshipDataContext<TTableModel, import("../models/string.js").FriendlyType<TAliasModel & {[K in keyof TIncludedColumn as K extends keyof TTableModel ? K : never]: Exclude<TTableModel[K], undefined>}>>} 
+     * @returns {KinshipContext<TTableModel, import("../models/string.js").FriendlyType<TAliasModel & {[K in keyof TIncludedColumn as K extends keyof TTableModel ? K : never]: Exclude<TTableModel[K], undefined>}>>} 
      * Reference to the same `KinshipContext`.
      */
     include(callback) {
@@ -305,7 +308,7 @@ export class KinshipDataContext {
      * This method will override any previous `.skip()` calls.
      * @param {number} numberOfRecords 
      * Number of rows to skip.
-     * @returns {KinshipDataContext<TTableModel, TAliasModel>}
+     * @returns {KinshipContext<TTableModel, TAliasModel>}
      * Reference to the same `KinshipContext`.
      */
     skip(numberOfRecords) {
@@ -322,7 +325,7 @@ export class KinshipDataContext {
      *      |import("../clauses/order-by.js").SortByCallbackModelProp
      * >} callback
      * Property reference callback that is used to determine which column or columns will be used to sort the queried rows.
-     * @returns {KinshipDataContext<TTableModel, TAliasModel>}
+     * @returns {KinshipContext<TTableModel, TAliasModel>}
      * Reference to the same `KinshipContext`.
      */
     sortBy(callback) {
@@ -335,7 +338,7 @@ export class KinshipDataContext {
      * This method will override any previous `.take()` calls.
      * @param {number} numberOfRecords 
      * Number of rows to retrieve.
-     * @returns {KinshipDataContext<TTableModel, TAliasModel>}
+     * @returns {KinshipContext<TTableModel, TAliasModel>}
      * Reference to the same `KinshipContext`.
      */
     take(numberOfRecords) {
@@ -348,7 +351,7 @@ export class KinshipDataContext {
      * This method will stack, meaning it will not override previous `.where()` calls.   
      * @param {(model: import("../clauses/where.js").ChainObject<TAliasModel>) => void} callback
      * Property reference callback which gives context to a {@link WhereBuilder} object for building filters.
-     * @returns {KinshipDataContext<TTableModel, TAliasModel>} 
+     * @returns {KinshipContext<TTableModel, TAliasModel>} 
      * Reference to the same `KinshipContext`.
      */
     where(callback) {
@@ -663,12 +666,12 @@ export class KinshipDataContext {
      * Creates a new context with the initial state set to the state of this state.
      * @template {object} [T=TTableModel]
      * @template {object} [U=TAliasModel]
-     * @returns {KinshipDataContext<T, U>}
+     * @returns {KinshipContext<T, U>}
      */
     #newContext() {
-        /** @type {KinshipDataContext<T, U>} */
+        /** @type {KinshipContext<T, U>} */
         //@ts-ignore One parameter constructor is only available to this getter.
-        const ctx = new KinshipDataContext(this);
+        const ctx = new KinshipContext(this);
         return ctx;
     }
 
@@ -735,18 +738,30 @@ export class KinshipDataContext {
      * The context is no longer connected to the table itself, it is now connected to a cloned temp table.
      * 
      * If the callback completes with no errors, then the temp table will be moved into the official table.
-     * @private
      * If the callback fails, then the temp table is dropped, and nothing else is done.
-     * @param {(ctx: Omit<typeof this, "select">) => Promise<void>} callback 
+     */
+
+    /**
+     * @template {object} T
+     * @typedef {{
+     *   update: (model: ((model: T) => Partial<T>|void)|T|T[]) => Promise<void>
+     *   delete: (model: T|T[]|void) => Promise<void>
+    * } & {
+     *   [K in keyof Omit<KinshipContext<T>, "delete"|"update">]: (...args: Parameters<KinshipContext<T>[K]>) => TransactionContext<T>
+     * }} TransactionContext
+     */
+
+    /**
+     * Handle multiple transactions in an all-or-nothing fashion, where if one fails, then the rest will fail.
+     * @param {(ctx: this) => Promise<void>} callback
+     * Callback where all commands called on `ctx` are handled within a transaction instead of by themselves.
      */
     async transaction(callback) {
-        const proxy = new Proxy(this, {
-            get(t,p,r) {
-                if(p === 'select') {
-
-                }
-            }
-        })
+        this.#base.isTransaction = true;
+        const cnn = await this.#base.handleAdapterExecute().forTransactionBegin();
+        const results = await callback(this);
+        await this.#base.handleAdapterExecute().forTransactionEnd(cnn);
+        return results;
     }
 }
 

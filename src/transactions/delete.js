@@ -14,16 +14,10 @@ export class KinshipDeleteHandler extends KinshipExecutionHandler {
      * @returns {Promise<{ numRowsAffected: number, records: object[] }>}
      */
     async _execute(state, records, extraArgs) {
-        let detail;
         if(extraArgs && extraArgs.truncate) {
             return this.#handleTruncate();
         }
-        if(records.length === 0) {
-            detail = this.#explicit(state);
-        } else {
-            detail = this.#implicit(records);
-        }
-        const { cmd, args } = this.base.handleAdapterSerialize().forDelete(detail);
+        const { cmd, args } = this._serialize(state, records);
         try {
             const numRowsAffected = await this.base.handleAdapterExecute().forDelete(cmd, args);
             this.base.listener.emitDeleteSuccess({ cmd, args, results: [numRowsAffected] });
@@ -35,6 +29,22 @@ export class KinshipDeleteHandler extends KinshipExecutionHandler {
             this.base.listener.emitDeleteFail({ cmd, args, err });
             throw err;
         }
+    }
+
+    /**
+     * @protected
+     * @param {any} state
+     * @param {object[]} records
+     * @returns {{ cmd: string, args: any[] }}
+     */
+    _serialize(state, records) {
+        let detail;
+        if(records.length === 0) {
+            detail = this.#explicit(state);
+        } else {
+            detail = this.#implicit(records);
+        }
+        return this.base.handleAdapterSerialize().forDelete(detail);
     }
 
     /**

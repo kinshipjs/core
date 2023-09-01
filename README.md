@@ -4,7 +4,6 @@
 
 Kinship is a relatively new approach (in JavaScript and NodeJS) to interfacing with your back-end databases using strong type mapping and friendly syntax to enhance your development experience.
 
-
 You can learn more about Kinship on the [Kinship website](https://kinshipjs.dev/)
 
 ## Get Started
@@ -16,7 +15,7 @@ npm i -D @kinshipjs/core
 npm i -D @kinshipjs/mysql2
 ```
 
-Initialize types
+### Initialize types
 
 ```ts
 interface User {
@@ -45,7 +44,9 @@ interface xUserRole {
 }
 ```
 
-Initialize contexts
+### Initialize contexts
+
+Construct `KinshipContext` objects to connect to your database tables.
 
 ```ts
 import { KinshipContext } from '@kinshipjs/core';
@@ -66,7 +67,9 @@ const roles = new KinshipContext<Role>(connection, "Role");
 const userRoles = new KinshipContext<xUserRole>(connection, "xUserRole");
 ```
 
-Configure relationships (optional)
+### Configure relationships (optional)
+
+Configure one-to-one and one-to-many relationships between tables.
 
 ```ts
 users.hasMany(m => m.userRoles.fromTable("xUserRole").withKeys("id", "userId")
@@ -75,7 +78,9 @@ roles.hasMany(m => m.userRoles.fromTable("xUserRole").withKeys("id", "roleId")
     .andThatHasOne(m => m.role.fromTable("User").withKeys("userId", "id")));
 ```
 
-Configure triggers (optional and allows for advanced work)
+### Configure triggers (optional and allows for advanced work)
+
+Configure triggers to execute before or after certain commands are executed. (opens up cascading)
 
 ```ts
 import { v4 } from 'uuid' // optional
@@ -109,7 +114,9 @@ users.afterInsert(async u => {
 
 ```
 
-Configure event handlers (optional)
+### Configure event handlers (optional)
+
+Configure event handlers to execute after a command successfully or unsuccessfully executes.
 
 ```ts
 users.onSuccess(({ dateISO, cmdRaw }) => {
@@ -121,21 +128,26 @@ users.onFail(({ dateISO, cmdRaw, err }) => {
 });
 ```
 
-Query records
+### Query records
+
+Query records using various clauses.
 
 ```ts
-const allUsers = await users.select();
-const allUsersAndRoles = await users.include(m => m.userRoles.thenInclude(m => m.role)).select();
-const onlyUsersWithFirstNameJohn = await users.where(m => m.firstName.equals("John")).select();
-const usersSortedByLastNameZtoA = await users.sortBy(m => m.lastName.desc()).select();
+// any of these clauses can be used in any given order.
+const allUsers = await users;
+const allUsersAndRoles = await users.include(m => m.userRoles.thenInclude(m => m.role));
+const onlyUsersWithFirstNameJohn = await users.where(m => m.firstName.equals("John"));
+const usersSortedByLastNameZtoA = await users.sortBy(m => m.lastName.desc());
 const usersGroupedByFirstName = await users.groupBy((m, aggregates) => [m.firstName, aggregates.total()]);
-const firstUser = await users.take(1).select();
-const secondUser = await users.skip(1).take(1).select();
+const firstUser = await users.take(1);
+const secondUser = await users.skip(1).take(1);
 const onlyIds = await users.select(m => m.Id);
-const onlyFullName = await users.select(m => [m.FirstName, m.LastName]);
+const onlyFirstNameAndLastName = await users.select(m => [m.FirstName, m.LastName]);
 ```
 
-Insert records
+### Insert records
+
+Insert one or more records.
 
 ```ts
 const user = {
@@ -162,10 +174,12 @@ const insertedUsers = await users.insert([
 ]);
 ```
 
-Update records
+### Update records
+
+Update one or more records implicitly (using objects that have the primary key already defined) or explicitly (using a where clause)
 
 ```ts
-const [user] = await users.take(1).select();
+const [user] = await users.take(1);
 // implicitly by the row's primary key.
 user.firstName = "Jordan";
 const numRowsAffected = await users.update(user);
@@ -184,10 +198,12 @@ await users.where(m => m.id.equals(1)).update(m => {
 });
 ```
 
-Delete records
+### Delete records
+
+Delete one or more records implicitly (using objects that have the primary key already defined) or explicitly (using a where clause)
 
 ```ts
-const [user] = await users.take(1).select();
+const [user] = await users.take(1);
 // implicitly by the row's primary key.
 await users.delete(user);
 
@@ -195,7 +211,7 @@ await users.delete(user);
 await users.where(m => m.id.equals(1)).delete();
 ```
 
-Truncate records (requires property `disableSafeDeleteMode` to be true in the `options` on the constructor)
+### Truncate records (requires property `disableSafeDeleteMode` to be true in the `options` on the constructor)
 
 ```ts
 await users.truncate();

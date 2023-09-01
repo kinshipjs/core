@@ -57,16 +57,8 @@ export class KinshipExecutionHandler {
         }
         try {
             await this.#applyBefore(records);
-            //@ts-ignore
-            // this.base.options.benchmarks.execute.start();
             const data = await this._execute(state, records, ...args);
-            //@ts-ignore
-            // this.base.options.benchmarks.execute.end();
-            //@ts-ignore
-            // this.base.options.benchmarks.serialize.start();
             data.records = this.#serialize(state.groupBy !== undefined, data.records);
-            //@ts-ignore
-            // this.base.options.benchmarks.serialize.end();
             await this.#applyAfter(data.records);
             return data;
         } catch(err) {
@@ -179,6 +171,16 @@ export class KinshipExecutionHandler {
      */
     async _execute(state, records, ...args) {
         throw new KinshipImplementationError(`Child class must implement the function, "._execute".`);
+    }
+
+    /**
+     * @protected
+     * @param {any} state
+     * @param {object[]} records
+     * @returns {{ cmd: string, args: any[] }}
+     */
+    _serialize(state, records, ...args) {
+        throw new KinshipImplementationError(`Child class must implement the function, "._serialize".`);
     }
 
     /**

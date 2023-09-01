@@ -74,13 +74,6 @@ export class KinshipNotImplementedError extends Error {
     }
 }
 
-export class KinshipNonUniqueKeyError extends Error {
-    constructor() {
-        super(`An attempt to insert a duplicate key has occurred.`);
-        this.name = `KinshipNonUniqueKeyError`;
-    }
-}
-
 export class KinshipSafeDeleteModeEnabledError extends Error {
     constructor() {
         super(`An attempt to delete all records or truncate the context has been made. `
@@ -94,5 +87,63 @@ export class KinshipSafeUpdateModeEnabledError extends Error {
         super(`An attempt to update all records within the context has been made. `
         + `If this was not a mistake, you can disable this setting within the constructor options by passing true into \`disableSafeUpdateMode\``);
         this.name = `KinshipSafeUpdateModeEnabledError`;
+    }
+}
+
+/** @enum {(originalError: Error) => Error} */
+export const ErrorTypes = {
+    NonUniqueKey: (originalError) => new KinshipNonUniqueKeyError(originalError),
+    NotSupported: (originalError) => new KinshipNotSupportedError(originalError),
+    InsertedValueCannotBeNull: (originalError) => new KinshipInsertedValueCannotBeNullError(originalError),
+    UpdatedValueCannotBeNull: (originalError) => new KinshipUpdatedValueCannotBeNullError(originalError),
+    UpdateConstraintError: (originalError) => new KinshipUpdateConstraintError(originalError),
+    DeleteConstraintError: (originalError) => new KinshipDeleteConstraintError(originalError),
+}
+
+export class KinshipNonUniqueKeyError extends Error {
+    constructor(originalError) {
+        super(`An attempt to insert a duplicate key has occurred.`);
+        this.name = `KinshipNonUniqueKeyError`;
+        this.originalError = originalError;
+    }
+}
+
+export class KinshipNotSupportedError extends Error {
+    constructor(originalError) {
+        super(`This adapter does not support this use of this function.`);
+        this.name = `KinshipNotSupportedError`;
+        this.originalError = originalError;
+    }
+}
+
+export class KinshipInsertedValueCannotBeNullError extends Error {
+    constructor(originalError) {
+        super(`One or more columns were attempted to be inserted while their value cannot be null.`);
+        this.name = `KinshipValueCannotBeNullError`;
+        this.originalError = originalError;
+    }
+}
+
+export class KinshipUpdatedValueCannotBeNullError extends Error {
+    constructor(originalError) {
+        super(`One or more columns were attempted to be updated while their value cannot be null.`);
+        this.name = `KinshipValueCannotBeNullError`;
+        this.originalError = originalError;
+    }
+}
+
+export class KinshipUpdateConstraintError extends Error {
+    constructor(originalError) {
+        super(`An update failed because of a constraint.`);
+        this.name = `KinshipUpdateConstraintError`;
+        this.originalError = originalError;
+    }
+}
+
+export class KinshipDeleteConstraintError extends Error {
+    constructor(originalError) {
+        super(`A delete failed because of a constraint.`);
+        this.name = `KinshipDeleteConstraintError`;
+        this.originalError = originalError;
     }
 }

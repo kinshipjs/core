@@ -1,6 +1,6 @@
 //@ts-check
 
-import { KinshipAdapterError, KinshipNonUniqueKeyError } from "../exceptions.js";
+import { ErrorTypes, KinshipAdapterError, KinshipNonUniqueKeyError, KinshipNotSupportedError } from "../exceptions.js";
 
 /**
  * Data passed for the scope of the custom adapter to help serialize a query command.
@@ -229,7 +229,3 @@ import { KinshipAdapterError, KinshipNonUniqueKeyError } from "../exceptions.js"
  * Function that returns the value specified in the database schema for database generated values on inserts.
  */
 
-/** @enum {() => Error} */
-export const ErrorTypes = {
-    NonUniqueKey: () => new KinshipNonUniqueKeyError()
-}

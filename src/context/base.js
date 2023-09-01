@@ -1,7 +1,7 @@
 //@ts-check
 import { CommandListener } from "../events.js";
 import { KinshipAdapterError, KinshipNonUniqueKeyError } from "../exceptions.js";
-import { ErrorTypes } from "./adapter.js";
+import { ErrorTypes } from "../exceptions.js";
 import { Optimized } from "./util.js";
 
 /**

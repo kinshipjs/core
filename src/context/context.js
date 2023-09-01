@@ -151,13 +151,13 @@ export class KinshipContext {
      * Delete records based on their primary key.  
      * If no primary key exists on the record, then they will be ignored.
      * @overload
-     * @param {import("../models/maybe.js").MaybeArray<TAliasModel>} records
+     * @param {import("../models/maybe.js").MaybeArray<TTableModel>} records
      * Records to delete using their primary key(s).
      * @returns {Promise<number>} Number of rows delete.
      */
     /**
      * Deletes records in the table connected to this context.
-     * @param {import("../models/maybe.js").MaybeArray<TAliasModel>=} records 
+     * @param {import("../models/maybe.js").MaybeArray<TTableModel>=} records 
      * Records to delete using their primary key(s) or undefined if using `.where()`.
      * @returns {Promise<number>} Number of rows deleted.
      */
@@ -170,9 +170,9 @@ export class KinshipContext {
 
     /**
      * Insert records into the table.
-     * @param {import("../models/maybe.js").MaybeArray<TAliasModel>} records
+     * @param {import("../models/maybe.js").MaybeArray<TTableModel>} records
      * Record or records to insert into the database.
-     * @returns {Promise<TAliasModel[]>} 
+     * @returns {Promise<TTableModel[]>} 
      * The same records that were inserted, with updated properties of any default values.  
      * __Default values include virtual columns, database defaults, and user defined defaults.__
      */
@@ -183,7 +183,7 @@ export class KinshipContext {
         if(whereClause) { 
             const ctx = this.#newContext();
             ctx.#afterResync((oldState) => ({ ...oldState, where: whereClause }));
-            records = /** @type {TAliasModel[]} */ (await ctx.select());
+            records = /** @type {TTableModel[]} */ (/** @type {unknown} */ (await ctx));
         } else {
             records = data.records;
         }
@@ -207,7 +207,7 @@ export class KinshipContext {
     /**
      * Update records based on their primary key.  
      * @overload
-     * @param {import("../models/maybe.js").MaybeArray<TAliasModel>} records
+     * @param {import("../models/maybe.js").MaybeArray<TTableModel>} records
      * Records to update.  
      * __If any record does not have a primary key, then that record is ignored in the update.__
      * @returns {Promise<number>} Number of updated rows.
@@ -228,7 +228,7 @@ export class KinshipContext {
      */
     /**
      * Update rows in the table.
-     * @param {import("../models/maybe.js").MaybeArray<TAliasModel>|((m: TTableModel) => Partial<TTableModel>|void)} records 
+     * @param {import("../models/maybe.js").MaybeArray<TTableModel>|((m: TTableModel) => Partial<TTableModel>|void)} records 
      * A record, or an array of records to be updated on primary key 
      * or a callback that specifies which column should be updated to what value.
      * __If any record does not have a primary key, then that record is ignored in the update.__
@@ -752,16 +752,42 @@ export class KinshipContext {
      */
 
     /**
+     * @private
      * Handle multiple transactions in an all-or-nothing fashion, where if one fails, then the rest will fail.
-     * @param {(ctx: this) => Promise<void>} callback
-     * Callback where all commands called on `ctx` are handled within a transaction instead of by themselves.
      */
-    async transaction(callback) {
-        this.#base.isTransaction = true;
-        const cnn = await this.#base.handleAdapterExecute().forTransactionBegin();
-        const results = await callback(this);
-        await this.#base.handleAdapterExecute().forTransactionEnd(cnn);
-        return results;
+    async _transactionStart() {
+        await this.#base.handleAdapterExecute().forTransactionBegin();
+    }
+
+    /**
+     * @private
+     * Handle multiple transactions in an all-or-nothing fashion, where if one fails, then the rest will fail.
+     */
+    async _transactionEnd() {
+        await this.#base.handleAdapterExecute().forTransactionEnd();
+    }
+}
+
+/**
+ * @template T
+ * @param {T} contexts 
+ * @returns {{ execute: (callback: (contexts: T) => Promise<void>) => Promise<void>}}
+ */
+export function transaction(contexts) {
+    return {
+        async execute(callback) {
+            for(const key in contexts) {
+                const ctx = contexts[key];
+                //@ts-ignore
+                await ctx._transactionStart();
+            }
+            const results = await callback(contexts);
+            for(const key in contexts) {
+                const ctx = contexts[key];
+                //@ts-ignore
+                await ctx._transactionEnd();
+            }
+        }
     }
 }
 

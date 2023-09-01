@@ -1,5 +1,5 @@
 //@ts-check
-import { KinshipContext } from "../src/context/context.js";
+import { KinshipContext, transaction } from "../src/context/context.js";
 import { adapter, createMySql2Pool } from "@kinshipjs/mysql2";
 import { config } from 'dotenv';
 
@@ -66,24 +66,11 @@ const connection = adapter(pool);
 const lastIds = new KinshipContext(connection, "LastIdAssigned")
 /** @type {KinshipContext<User>} */
 const users = new KinshipContext(connection, "User");
-const playlists = new KinshipContext(chinookConnection, "Playlist");
+/** @type {KinshipContext<xUserRole>} */
+const xUserRoles = new KinshipContext(connection, "xUserRole");
+/** @type {KinshipContext<Role>} */
+const roles = new KinshipContext(connection, "Role");
 const lastId = lastIds.where(m => m.Id.equals(1)).checkout();
-
-users.onSuccess(({cmdRaw, cmdSanitized, args}) => {
-    console.log(cmdRaw);
-});
-
-users.onFail(({cmdRaw, cmdSanitized, args}) => {
-    console.log(cmdRaw);
-});
-
-lastIds.onSuccess(({cmdRaw}) => {
-    console.log(cmdRaw);
-});
-
-lastIds.onFail(({cmdRaw}) => {
-    console.log(cmdRaw);
-});
 
 users.hasMany(m => m.userRoles
         .fromTable("xUserRole")
@@ -94,7 +81,9 @@ users.hasMany(m => m.userRoles
     )
 );
 
+// assign last Id to every record before it is inserted.
 users.beforeInsert((m, { $$itemNumber, lastUserId }) => {
+    // appending '__' forces the property to change no matter what.
     m.Id = `U-${(lastUserId + $$itemNumber).toString().padStart(7, '0')}`;
 }, async () => {
     // Retrieve the latest Id from the LastRowNumber table.
@@ -115,7 +104,24 @@ users.beforeInsert((m, { $$itemNumber, lastUserId }) => {
     }
 });
 
-users.afterInsert(() => {}, async (numRecords) => {
+users.afterInsert(async (u) => {
+    // insert cascading
+    await transaction({ xUserRoles }).execute(async ({ xUserRoles: xUserRolesCtx }) => {
+        console.log(JSON.stringify({u}, undefined, 2));
+        if(!u.userRoles) {
+            return;
+        }
+        let roles = /** @type {Role[]} */ (u.userRoles.map(ur => ur.role).filter(r => Boolean(r)));
+        if(roles.length > 0) {
+            // only inserts xRefs.
+            const needsUpdating = roles.filter(r => Boolean(r.Id));
+            await xUserRolesCtx.insert(needsUpdating.map(r => ({
+                UserId: u.Id,
+                RoleId: r.Id
+            })));
+        }
+    });
+}, async (numRecords) => {
     // Update the LastRowNumber table so the User Id is reflected.
     const results = await lastId.select();
     const [lastUserId] = results;
@@ -148,5 +154,17 @@ async function testDelete(janeDoe) {
     const n = await users.where(m => m.Id.equals(janeDoe.Id)).delete();
     console.log({n});
 }
+
+const [adminRole] = await roles.where(m => m.Title.startsWith("admin"));
+await users.where(m => m.LastName.equals("Barry")).delete();
+await users.insert({
+    FirstName: "Bob",
+    LastName: "Barry",
+    userRoles: [
+        {
+            role: adminRole
+        }
+    ]
+});
 
 process.exit(1);

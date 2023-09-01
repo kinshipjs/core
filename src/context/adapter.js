@@ -131,6 +131,14 @@ import { KinshipAdapterError, KinshipNonUniqueKeyError } from "../exceptions.js"
  * @prop {(cmd: string, args: ExecutionArgument[]) => import("../models/maybe.js").MaybePromise<{[fieldName: string]: SchemaColumnDefinition}>} forDescribe
  * Handles execution of a describe command, given the command string and respective arguments for the command string.
  * This should return an object containing {@link DescribedSchema} objects. 
+ * @prop {() => import("../models/maybe.js").MaybePromise<any>} forTransactionBegin
+ * Begins a transaction, where each transactional function (e.g., `insert`, `delete`, `update`) will be called
+ * in conjunction of eachother, meaning that if one fails, all will fail.  
+ * This should return the same object that can commit/rollback the database.
+ * @prop {(originalConnection: any) => import("../models/maybe.js").MaybePromise<void>} forTransactionEnd
+ * Begins a transaction, where each transactional function (e.g., `insert`, `delete`, `update`) will be called
+ * in conjunction of eachother, meaning that if one fails, all will fail.  
+ * `originalConnection` is the same object that is returned from `transactionBegin`, to maintain the same connection.
  */
 
 /** 

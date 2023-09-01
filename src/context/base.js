@@ -25,6 +25,8 @@ export class KinshipBase {
      * @type {CommandListener} */ listener;
     /** Used to manage state without forcing the consumer to use await as state depends on asynchronous processes 
      * @type {Promise<import("./context.js").State>} */ promise;
+     
+     isTransaction = false;
 
     /** Caches primary keys for a table to improve speed.
      * @type {Record<string, import("../context/adapter.js").SchemaColumnDefinition[]>} */ #primaryKeyCache = {};

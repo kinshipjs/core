@@ -12,11 +12,13 @@ import { OrderByBuilder } from "../clauses/order-by.js";
 import { RelationshipBuilder, RelationshipType } from "../config/relationships.js";
 import { ChooseBuilder } from "../clauses/choose.js";
 
+/** @template {object} T @typedef {import("../models/string.js").FriendlyType<import("../config/relationships.js").OnlyDataTypes<T>>} OnlyDataTypes */
+
 /**
- * Establishes a connection directly to a table within your database.
- * @template {object|undefined} TTableModel
+ * Establishes a connection directly to a table within your database.  
+ * @template {object} TTableModel
  * Type of the model that represents the table and its columns, in their exact form.
- * @template {object|undefined} [TAliasModel=import("../models/string.js").FriendlyType<import("../config/relationships.js").OnlyDataTypes<TTableModel>>]
+ * @template {object} [TAliasModel=OnlyDataTypes<TTableModel>]
  * Type of the model, `TTableModel`, which will be augmented as new clauses are called. (dynamically inferred throughout lifespan of object)
  */
 export class KinshipContext {
@@ -62,7 +64,7 @@ export class KinshipContext {
     //  * Existing `KinshipContext` object to base this new context off of.
     //  */
     /**
-     * Create a brand new KinshipContext.
+     * Instantiate a new `KinshipContext` object.
      * @param {import("./adapter.js").KinshipAdapterConnection} adapter
      * Kinship adapter used to connect to your database. 
      * @param {string=} tableName 
@@ -102,18 +104,21 @@ export class KinshipContext {
 
     /**
      * Check out the state of the context as a static reference without having to rebuild any clause(s) again.
-     * @returns {Promise<KinshipContext<TTableModel, TAliasModel>>}
+     * @returns {KinshipContext<TTableModel, TAliasModel>}
      * A new `KinshipContext` object where the base state is saved from previously called clause functions.
      */
-    async checkout() {
+    checkout() {
         /** @type {KinshipContext<TTableModel,TAliasModel>} */
         //@ts-ignore one arg parameter is internally available.
         const ctx = new KinshipContext(this);
-        const savedState = await this.#base.resync();
-        ctx.#savedState = /** @type {State} */ (JSON.parse(JSON.stringify(savedState)));
-        ctx.#savedState.where = savedState.where
-            //@ts-ignore marked private but is available for use internally.
-            ?._clone();
+        ctx.#afterResync((oldState) => {
+            ctx.#savedState = /** @type {State} */ (JSON.parse(JSON.stringify(oldState)));
+            ctx.#savedState.where = oldState.where
+                //@ts-ignore marked private but is available for use internally.
+                ?._clone();
+            return oldState;
+        });
+        this.#resetState();
         return ctx;
     }
 
@@ -187,32 +192,15 @@ export class KinshipContext {
     }
 
     /**
-     * Query an array of selected columns or all columns from the context.
-     * @template {import("../clauses/choose.js").SelectedColumnsModel<TAliasModel>|TAliasModel} [TSelectedColumns=TAliasModel]
-     * The new model type that the context represents. (inferred from usage of `callback`)
-     * @param {((model: import("../clauses/choose.js").SpfSelectCallbackModel<TAliasModel>) => 
-     *  import("../models/maybe.js").MaybeArray<keyof TSelectedColumns>)=} callback
-     * Callback model that allows the user to select which columns to grab.  
-     * If nothing is passed, then all columns are grabbed from `TAliasModel`.
-     * @returns {Promise<(TSelectedColumns extends TAliasModel 
-     *  ? TAliasModel 
-     *  : import("../models/string.js").Reconstructed<TAliasModel, TSelectedColumns>)[]>}
-     * All rows queried from the database serialized into a user-friendly format.
-     */
-    async select(callback=undefined) {
-        this.#tryUseSavedState();
-        const { records } = await this.#handlers.query.handle(undefined, callback);
-        this.#resetState();
-        return /** @type {any} */ (records);
-    }
-
-    /**
      * Truncate the table this context represents.
      * @returns {Promise<number>} Number of rows that were deleted.
      */
     async truncate() {
-        const { numRowsAffected } = await this.#handlers.delete.handle(undefined, { truncate: true });
-        this.#resetState();
+        try {
+            var { numRowsAffected } = await this.#handlers.delete.handle(undefined, { truncate: true });
+        } finally {
+            this.#resetState();
+        }
         return numRowsAffected;
     }
 
@@ -248,12 +236,15 @@ export class KinshipContext {
      */
     async update(records) {
         this.#tryUseSavedState();
-        if(typeof records === 'function') {
-            var { numRowsAffected } = await this.#handlers.update.handle(undefined, records);
-        } else {
-            var { numRowsAffected }  = await this.#handlers.update.handle(records);
+        try {
+            if(typeof records === 'function') {
+                var { numRowsAffected } = await this.#handlers.update.handle(undefined, records);
+            } else {
+                var { numRowsAffected }  = await this.#handlers.update.handle(records);
+            }
+        } finally {
+            this.#resetState();
         }
-        this.#resetState()
         return numRowsAffected;
     }
 
@@ -273,7 +264,7 @@ export class KinshipContext {
      *  : import("../models/string.js").Reconstructed<TAliasModel, TSelectedColumns>)>}
      * Reference to the same `KinshipContext`.
      */
-    choose(callback) {
+    select(callback) {
         this.#afterResync((oldState) => this.#builders.choose.getState(oldState, callback));
         return /** @type {any} */ (this);
     }
@@ -673,8 +664,8 @@ export class KinshipContext {
 
     /**
      * Creates a new context with the initial state set to the state of this state.
-     * @template {object|undefined} [T=TTableModel]
-     * @template {object|undefined} [U=TAliasModel]
+     * @template {object} [T=TTableModel]
+     * @template {object} [U=TAliasModel]
      * @returns {KinshipContext<T, U>}
      */
     #newContext() {
@@ -726,6 +717,51 @@ export class KinshipContext {
      */
     async prepare() {
 
+    }
+
+    /**
+     * @param {(records: TAliasModel[]) => TAliasModel[]} resolve
+     */
+    async then(resolve) {
+        this.#tryUseSavedState();
+        const { records } = await this.#handlers.query.handle(undefined);
+        this.#resetState();
+        resolve(/** @type {any} */(records));
+    }
+  
+    /*
+     * Accepts a callback that is the context itself, except:
+     * 
+     * The context will be altered slightly, where only the transactions, `insert`, `update`, and `delete` 
+     * can be used.
+     * 
+     * The context is no longer connected to the table itself, it is now connected to a cloned temp table.
+     * 
+     * If the callback completes with no errors, then the temp table will be moved into the official table.
+     * If the callback fails, then the temp table is dropped, and nothing else is done.
+     */
+
+    /**
+     * @template {object} T
+     * @typedef {{
+     *   update: (model: ((model: T) => Partial<T>|void)|T|T[]) => Promise<void>
+     *   delete: (model: T|T[]|void) => Promise<void>
+    * } & {
+     *   [K in keyof Omit<KinshipContext<T>, "delete"|"update">]: (...args: Parameters<KinshipContext<T>[K]>) => TransactionContext<T>
+     * }} TransactionContext
+     */
+
+    /**
+     * Handle multiple transactions in an all-or-nothing fashion, where if one fails, then the rest will fail.
+     * @param {(ctx: this) => Promise<void>} callback
+     * Callback where all commands called on `ctx` are handled within a transaction instead of by themselves.
+     */
+    async transaction(callback) {
+        this.#base.isTransaction = true;
+        const cnn = await this.#base.handleAdapterExecute().forTransactionBegin();
+        const results = await callback(this);
+        await this.#base.handleAdapterExecute().forTransactionEnd(cnn);
+        return results;
     }
 }
 

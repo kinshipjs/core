@@ -175,7 +175,9 @@ export const Optimized = {
         let newObject = {};
         for(const key in schema) {
             const colDef = schema[key];
-            newObject[colDef.alias] = record[colDef.commandAlias];
+            if(record[colDef.commandAlias]) {
+                newObject[colDef.alias] = record[colDef.commandAlias];
+            }
         }
         return newObject;
     },

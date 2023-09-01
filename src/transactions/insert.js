@@ -14,7 +14,7 @@ export class KinshipInsertHandler extends KinshipExecutionHandler {
      * @returns {Promise<{ numRowsAffected: number, records: TTableModel[], whereClause?: WhereBuilder<TTableModel> }>}
      */
     async _execute(state, records) {
-        const { cmd, args } = this.base.handleAdapterSerialize().forInsert(this.#getDetail(records));
+        const { cmd, args } = this._serialize(state, records);
         try {
             const insertIds = await this.base.handleAdapterExecute().forInsert(cmd, args);
             this.base.listener.emitInsertSuccess({ cmd, args, results: insertIds });
@@ -30,6 +30,16 @@ export class KinshipInsertHandler extends KinshipExecutionHandler {
             this.base.listener.emitInsertFail({ cmd, args, err });
             throw err;
         }
+    }
+
+    /**
+     * @protected
+     * @param {any} state
+     * @param {object[]} records
+     * @returns {{ cmd: string, args: any[] }}
+     */
+    _serialize(state, records) {
+        return this.base.handleAdapterSerialize().forInsert(this.#getDetail(records));
     }
 
     #getDetail(records) {

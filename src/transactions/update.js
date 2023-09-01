@@ -15,14 +15,7 @@ export class KinshipUpdateHandler extends KinshipExecutionHandler {
      * @returns {Promise<{ numRowsAffected: number, records: TTableModel[] }>}
      */
     async _execute(state, records, callback=undefined) {
-        let detail;
-        if(callback !== undefined) {
-            detail = this.#explicit(state, callback);
-            records = [];
-        } else {
-            detail = this.#implicit(records);
-        }
-        const { cmd, args } = this.base.handleAdapterSerialize().forUpdate(detail);
+        const { cmd, args } = this._serialize(state, records, callback);
         try {
             const numRowsAffected = await this.base.handleAdapterExecute().forUpdate(cmd, args);
             this.base.listener.emitUpdateSuccess({ cmd, args, results: [numRowsAffected] });
@@ -34,6 +27,25 @@ export class KinshipUpdateHandler extends KinshipExecutionHandler {
             this.base.listener.emitUpdateFail({ cmd, args, err });
             throw err;
         }
+    }
+
+    /**
+     * @protected
+     * @template {object|undefined} TTableModel
+     * @param {any} state
+     * @param {TTableModel[]} records
+     * @param {((m: TTableModel) => Partial<TTableModel>|void)=} callback
+     * @returns {{ cmd: string, args: any[] }}
+     */
+    _serialize(state, records, callback) {
+        let detail;
+        if(callback !== undefined) {
+            detail = this.#explicit(state, callback);
+            records = [];
+        } else {
+            detail = this.#implicit(records);
+        }
+        return this.base.handleAdapterSerialize().forUpdate(detail);
     }
 
     /**

@@ -425,14 +425,14 @@ export class WhereBuilder {
 /**
  * @template {object} TTableModel
  * @template {object} [TOriginalModel=TTableModel]
- * @typedef {{[K in keyof Required<TTableModel>]: 
- *      TTableModel[K] extends object|undefined
- *          ? WhereBuilder<TOriginalModel, K & keyof TOriginalModel>
- *          : TTableModel[K] extends (infer T extends object)[]|undefined 
-    *          ? ChainObject<Required<T>, TOriginalModel> 
-    *          : TTableModel[K] extends object|undefined 
-    *              ? ChainObject<Exclude<TTableModel[K], undefined>, TOriginalModel> 
-    *              : never}} ChainObject
+ * @typedef {{[K in keyof TTableModel]-?:
+ *   NonNullable<TTableModel[K]> extends import('../models/types.js').DataType
+ *     ? WhereBuilder<TTableModel, K & keyof TTableModel>
+ *   : NonNullable<TTableModel[K]> extends (infer U extends object)[]
+ *     ? ChainObject<Required<U>, TOriginalModel> 
+ *   : NonNullable<TTableModel[K]> extends object
+ *     ? ChainObject<Required<TTableModel[K]>, TOriginalModel> 
+ *   : never}} ChainObject
  */
 
 /**

@@ -70,7 +70,7 @@ const users = new KinshipContext(connection, "User");
 const xUserRoles = new KinshipContext(connection, "xUserRole");
 /** @type {KinshipContext<Role>} */
 const roles = new KinshipContext(connection, "Role");
-const lastId = lastIds.where(m => m.Id.equals(1)).checkout();
+const lastId = lastIds.where(m => m.Id.equals(1));
 
 users.hasMany(m => m.userRoles
         .fromTable("xUserRole")
@@ -80,6 +80,10 @@ users.hasMany(m => m.userRoles
         .withKeys("RoleId", "Id")
     )
 );
+
+users.onFail(({cmdRaw}) => {
+    console.log(cmdRaw);
+})
 
 // assign last Id to every record before it is inserted.
 users.beforeInsert((m, { $$itemNumber, lastUserId }) => {
@@ -131,7 +135,26 @@ users.afterInsert(async (u) => {
 
 async function testCount() {
     var count = await users.count();
-    console.log({count});
+}
+
+async function testQuery() {
+    var us = await users;
+    us = await users.where(m => m.Id.equals("U-0000001"));
+    us = await users.sortBy(m => m.FirstName);
+    var grouped = await users.groupBy(m => m.LastName);
+    us = await users.take(1);
+    us = await users.skip(1).take(1);
+    us = await users.take(1).skip(1);
+    us = await users.where(m => m.Id.equals("U-0000001")).sortBy(m => m.LastName);
+    us = await users.sortBy(m => m.LastName).where(m => m.Id.equals("U-0000001"));
+    const usersByLastNameStartingWithA = users.where(m => m.LastName.startsWith("A"));
+    us = await usersByLastNameStartingWithA;
+}
+
+async function testIncludes() {
+    await users.include(m => m.userRoles);
+    await users;
+    throw Error();
 }
 
 async function testInsert() {
@@ -155,16 +178,15 @@ async function testDelete(janeDoe) {
     console.log({n});
 }
 
-const [adminRole] = await roles.where(m => m.Title.startsWith("admin"));
-await users.where(m => m.LastName.equals("Barry")).delete();
-await users.insert({
-    FirstName: "Bob",
-    LastName: "Barry",
-    userRoles: [
-        {
-            role: adminRole
-        }
-    ]
+users.onSuccess(({ cmdRaw }) => {
+    console.log(cmdRaw + "\n");
 });
+
+await testIncludes();
+await testCount();
+await testQuery();
+const johnDoe = await testInsert();
+await testUpdate(johnDoe);
+await testDelete(johnDoe);
 
 process.exit(1);

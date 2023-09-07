@@ -34,12 +34,13 @@ export class KinshipExecutionHandler {
     /**
      * Handles the execution of a command and its respective triggers if any exist.
      * @template {object} T
+     * @param {Promise<import("../context/context.js").State>} promise
      * @param {import("../models/maybe.js").MaybeArray<T>|undefined} records
      * @param {...any} args
      * @returns {Promise<{ numRowsAffected: number, records: T[], whereClause?: WhereBuilder<T>}>}
      */
-    async handle(records, ...args) {
-        let state = await this.base.resync();
+    async handle(promise, records, ...args) {
+        let state = await promise;
         state = this.#prepareState(state);
         if(!state) {
             throw new KinshipInternalError();

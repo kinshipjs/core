@@ -15,7 +15,9 @@ export class KinshipQueryHandler extends KinshipExecutionHandler {
     async _execute(state, records, ...[callback]) {
         // these MUST be called in this order, otherwise certain columns get escaped twice.
         state = this.#useCallbackToSelectColumns(state, callback);
-        state = this.#assertPrimaryKeysExist(state);
+        if(state.select[0].alias !== '$$count') {
+            state = this.#assertPrimaryKeysExist(state);
+        }
 
         const detail = this.#getDetail(state);
         const { cmd, args } = this.base.handleAdapterSerialize().forQuery(detail);

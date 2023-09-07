@@ -17,6 +17,7 @@ export class RelationshipBuilder {
     /**
      * Configure a relationship using a callback.
      * @template {object} TTableModel
+     * @param {import('../context/context.js').KinshipContext['_afterResync']} afterResync
      * @param {HasOneCallback<TTableModel>|HasManyCallback<TTableModel>} callback
      * @param {RelationshipType} relationshipType
      * @param {string} table
@@ -24,7 +25,8 @@ export class RelationshipBuilder {
      * @param {string} prependTable
      * @param {string} prependColumn
      */
-    configureRelationship(callback, 
+    configureRelationship(afterResync,
+        callback, 
         relationshipType, 
         table=this.#base.tableName, 
         relationships=this.#base.relationships, 
@@ -32,10 +34,11 @@ export class RelationshipBuilder {
         prependColumn='',
     ) {
         /** @type {any} */
-        const isPromise = callback(this.#newProxy(table, relationships, prependTable, prependColumn, relationshipType));
+        const isPromise = callback(this.#newProxy(afterResync, table, relationships, prependTable, prependColumn, relationshipType));
         if(isPromise && "then" in isPromise && "catch" in isPromise) {
             throw new KinshipSyntaxError(`Callback must not be asynchronous.`);
         }
+        
     }
 
     /**
@@ -49,13 +52,15 @@ export class RelationshipBuilder {
      * @returns {import("../context/context.js").State}
      */
     getStateForInclude(oldState, callback) {
-        callback(this.#newIncludeProxy(oldState));
-        return oldState;
+        const clonedState = JSON.parse(JSON.stringify(oldState));
+        callback(this.#newIncludeProxy(clonedState));
+        return clonedState;
     }
 
     /**
      * With forwarded data from the proxy, configures the real table name for the table
      * that this relationship is configured with.
+     * @param {import('../context/context.js').KinshipContext['_afterResync']} afterResync
      * @param {string} table
      * @param {string} prependTable
      * @param {string} prependColumn
@@ -65,7 +70,8 @@ export class RelationshipBuilder {
      * @param {string} realTableName 
      * @returns 
      */
-    #fromTable(table,
+    #fromTable(afterResync,
+        table,
         prependTable, 
         prependColumn, 
         relationships, 
@@ -74,7 +80,7 @@ export class RelationshipBuilder {
         realTableName, 
     ) {
         return {
-            withKeys: (primaryKey, foreignKey) => this.#withKeys(
+            withKeys: (primaryKey, foreignKey) => this.#withKeys(afterResync,
                 table,
                 prependTable,
                 prependColumn,
@@ -92,6 +98,7 @@ export class RelationshipBuilder {
      * With forwarded data from the proxy, finishes the configuration for the table
      * by calling a describe on the database to receive the schema, as well as saving all data to the `KinshipBase`.
      * @template {object} TTableModel
+     * @param {import('../context/context.js').KinshipContext['_afterResync']} afterResync
      * @param {string} table
      * @param {string} prependTable
      * @param {string} prependColumn
@@ -103,7 +110,8 @@ export class RelationshipBuilder {
      * @param {string} foreignKey 
      * @returns {AndThatHasCallbacks<TTableModel>}
      */
-    #withKeys(table,
+    #withKeys(afterResync,
+        table,
         prependTable, 
         prependColumn, 
         relationships, 
@@ -130,7 +138,7 @@ export class RelationshipBuilder {
             schema: {},
             relationships: {}
         };
-        this.#base.afterResync(async (oldState) => {
+        afterResync(async (oldState) => {
             const schema = await this.#base.describe(realTableName);
             for(const key in schema) {
                 schema[key].table = relationships[codeTableName].alias;
@@ -145,7 +153,8 @@ export class RelationshipBuilder {
             ) => 
             {
                 /** @type {any} */
-                const isPromise = this.configureRelationship(callback, 
+                const isPromise = this.configureRelationship(afterResync, 
+                    callback, 
                     RelationshipType.OneToOne, 
                     realTableName, 
                     relationships[codeTableName].relationships, 
@@ -162,7 +171,8 @@ export class RelationshipBuilder {
             ) => 
             {
                 /** @type {any} */
-                const isPromise = this.configureRelationship(callback, 
+                const isPromise = this.configureRelationship(afterResync, 
+                    callback, 
                     RelationshipType.OneToMany, 
                     realTableName, 
                     relationships[codeTableName].relationships, 
@@ -179,6 +189,7 @@ export class RelationshipBuilder {
     };
 
     /**
+     * @param {import('../context/context.js').KinshipContext['_afterResync']} afterResync
      * @param {RelationshipType} relationshipType
      * @param {string} table
      * @param {any} relationships
@@ -187,6 +198,7 @@ export class RelationshipBuilder {
      * @returns {any}
      */
     #newProxy(
+        afterResync,
         table, 
         relationships, 
         prependTable, 
@@ -199,7 +211,8 @@ export class RelationshipBuilder {
                 if (p in relationships) throw Error(`A relationship already exists for the table, "${p}"`);
                 
                 return {
-                    fromTable: (realTableName) => this.#fromTable(table,
+                    fromTable: (realTableName) => this.#fromTable(afterResync,
+                        table,
                         prependTable,
                         prependColumn,
                         relationships,
@@ -207,7 +220,8 @@ export class RelationshipBuilder {
                         p, 
                         realTableName
                     ),
-                    withKeys: (primaryKey, foreignKey) => this.#withKeys(table,
+                    withKeys: (primaryKey, foreignKey) => this.#withKeys(afterResync,
+                        table,
                         prependTable,
                         prependColumn,
                         relationships,

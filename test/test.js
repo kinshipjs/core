@@ -1,5 +1,5 @@
 //@ts-check
-import { KinshipContext } from "../src/context/context.js";
+import { KinshipContext, transaction } from "../src/context/context.js";
 import { adapter, createMySql2Pool } from "@kinshipjs/mysql2";
 import { config } from 'dotenv';
 
@@ -66,24 +66,11 @@ const connection = adapter(pool);
 const lastIds = new KinshipContext(connection, "LastIdAssigned")
 /** @type {KinshipContext<User>} */
 const users = new KinshipContext(connection, "User");
-const playlists = new KinshipContext(chinookConnection, "Playlist");
-const lastId = lastIds.where(m => m.Id.equals(1)).checkout();
-
-users.onSuccess(({cmdRaw, cmdSanitized, args}) => {
-    console.log(cmdRaw);
-});
-
-users.onFail(({cmdRaw, cmdSanitized, args}) => {
-    console.log(cmdRaw);
-});
-
-lastIds.onSuccess(({cmdRaw}) => {
-    console.log(cmdRaw);
-});
-
-lastIds.onFail(({cmdRaw}) => {
-    console.log(cmdRaw);
-});
+/** @type {KinshipContext<xUserRole>} */
+const xUserRoles = new KinshipContext(connection, "xUserRole");
+/** @type {KinshipContext<Role>} */
+const roles = new KinshipContext(connection, "Role");
+const lastId = lastIds.where(m => m.Id.equals(1));
 
 users.hasMany(m => m.userRoles
         .fromTable("xUserRole")
@@ -94,7 +81,13 @@ users.hasMany(m => m.userRoles
     )
 );
 
+users.onFail(({cmdRaw}) => {
+    console.log(cmdRaw);
+})
+
+// assign last Id to every record before it is inserted.
 users.beforeInsert((m, { $$itemNumber, lastUserId }) => {
+    // appending '__' forces the property to change no matter what.
     m.Id = `U-${(lastUserId + $$itemNumber).toString().padStart(7, '0')}`;
 }, async () => {
     // Retrieve the latest Id from the LastRowNumber table.
@@ -115,7 +108,24 @@ users.beforeInsert((m, { $$itemNumber, lastUserId }) => {
     }
 });
 
-users.afterInsert(() => {}, async (numRecords) => {
+users.afterInsert(async (u) => {
+    // insert cascading
+    await transaction({ xUserRoles }).execute(async ({ xUserRoles: xUserRolesCtx }) => {
+        console.log(JSON.stringify({u}, undefined, 2));
+        if(!u.userRoles) {
+            return;
+        }
+        let roles = /** @type {Role[]} */ (u.userRoles.map(ur => ur.role).filter(r => Boolean(r)));
+        if(roles.length > 0) {
+            // only inserts xRefs.
+            const needsUpdating = roles.filter(r => Boolean(r.Id));
+            await xUserRolesCtx.insert(needsUpdating.map(r => ({
+                UserId: u.Id,
+                RoleId: r.Id
+            })));
+        }
+    });
+}, async (numRecords) => {
     // Update the LastRowNumber table so the User Id is reflected.
     const results = await lastId.select();
     const [lastUserId] = results;
@@ -125,7 +135,26 @@ users.afterInsert(() => {}, async (numRecords) => {
 
 async function testCount() {
     var count = await users.count();
-    console.log({count});
+}
+
+async function testQuery() {
+    var us = await users;
+    us = await users.where(m => m.Id.equals("U-0000001"));
+    us = await users.sortBy(m => m.FirstName);
+    var grouped = await users.groupBy(m => m.LastName);
+    us = await users.take(1);
+    us = await users.skip(1).take(1);
+    us = await users.take(1).skip(1);
+    us = await users.where(m => m.Id.equals("U-0000001")).sortBy(m => m.LastName);
+    us = await users.sortBy(m => m.LastName).where(m => m.Id.equals("U-0000001"));
+    const usersByLastNameStartingWithA = users.where(m => m.LastName.startsWith("A"));
+    us = await usersByLastNameStartingWithA;
+}
+
+async function testIncludes() {
+    await users.include(m => m.userRoles);
+    await users;
+    throw Error();
 }
 
 async function testInsert() {
@@ -148,5 +177,16 @@ async function testDelete(janeDoe) {
     const n = await users.where(m => m.Id.equals(janeDoe.Id)).delete();
     console.log({n});
 }
+
+users.onSuccess(({ cmdRaw }) => {
+    console.log(cmdRaw + "\n");
+});
+
+await testIncludes();
+await testCount();
+await testQuery();
+const johnDoe = await testInsert();
+await testUpdate(johnDoe);
+await testDelete(johnDoe);
 
 process.exit(1);

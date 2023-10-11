@@ -34,12 +34,13 @@ export class KinshipExecutionHandler {
     /**
      * Handles the execution of a command and its respective triggers if any exist.
      * @template {object} T
+     * @param {Promise<import("../context/context.js").State>} promise
      * @param {import("../models/maybe.js").MaybeArray<T>|undefined} records
      * @param {...any} args
      * @returns {Promise<{ numRowsAffected: number, records: T[], whereClause?: WhereBuilder<T>}>}
      */
-    async handle(records, ...args) {
-        let state = await this.base.resync();
+    async handle(promise, records, ...args) {
+        let state = await promise;
         state = this.#prepareState(state);
         if(!state) {
             throw new KinshipInternalError();
@@ -58,7 +59,7 @@ export class KinshipExecutionHandler {
         try {
             await this.#applyBefore(records);
             const data = await this._execute(state, records, ...args);
-            data.records = this.#serialize(state.groupBy !== undefined, data.records);
+            data.records = this.#serializeRows(state.groupBy !== undefined, state.from.length > 1, data.records);
             await this.#applyAfter(data.records);
             return data;
         } catch(err) {
@@ -186,19 +187,22 @@ export class KinshipExecutionHandler {
     /**
      * Serializes an array of rows to a user-friendly object.
      * @param {boolean} isGroupBy
+     * @param {boolean} isJoined
      * @param {object[]} rows 
      * @param {Record<string, import("../adapter.js").SchemaColumnDefinition>} schema
      * @param {import("../config/relationships.js").Relationships<object>} relationships
      * @param {number} depth 
      * Used for when the command had a group by clause.
      */
-    #serialize(isGroupBy, 
+    #serializeRows(isGroupBy, 
+        isJoined,
         rows, 
         table=this.base.tableName, 
         schema=this.base.schema, 
         relationships=this.base.relationships, 
         depth = 0
     ) {
+        if(!isJoined) return rows;
         if(rows.length <= 0) return rows;
         if(rows[0].$$count) return rows;
         const pKeys = this.base.getPrimaryKeys(table);
@@ -222,7 +226,8 @@ export class KinshipExecutionHandler {
                         relationship.foreign.alias
                     );
                 // recurse with a new scope of records of only related records.
-                const relatedRowsSerialized = this.#serialize(isGroupBy,
+                const relatedRowsSerialized = this.#serializeRows(isGroupBy,
+                    isJoined,
                     relatedRows,
                     relationship.table,
                     relationship.schema, 

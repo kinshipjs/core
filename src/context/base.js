@@ -22,8 +22,6 @@ export class KinshipBase {
 
     /** Event handler for commands when they are executed.
      * @type {CommandListener} */ listener;
-    /** Used to manage state without forcing the consumer to use await as state depends on asynchronous processes 
-     * @type {Promise<import("./context.js").State>} */ promise;
      
      isTransaction = false;
 
@@ -46,13 +44,6 @@ export class KinshipBase {
         this.relationships = {};
         this.schema = {};
         this.listener = new CommandListener(tableName);
-        this.promise = Promise.resolve(/** @type {import("./context.js").State} */ ({}));
-        
-        this.afterResync(async (oldState) => {
-            const schema = await this.describe(tableName);
-            this.schema = schema;
-            return oldState;
-        });
     }
 
     /**
@@ -72,27 +63,6 @@ export class KinshipBase {
         });
     }
 
-    /**
-     * Triggers `callback` only once the context has caught up with resynchronizing with asynchronous tasks.
-     * @param {(oldState: import("./context.js").State) => import("./context.js").State|Promise<import("./context.js").State>} callback 
-     * Callback that works on data within `Kinship` that requires the context to be resynchronized first.
-     */
-    afterResync(callback) {
-        this.promise = this.promise.then((oldState) => {
-            return callback(oldState);
-        }).catch(err => {
-            throw err;
-        });
-    }
-
-    /**
-     * Resynchronizes the context, returning the last state returned from the chain of promises.
-     * @returns {Promise<import("./context.js").State>}
-     */
-    async resync() {
-        return await this.promise;
-    }
-    
     /**
      * Gets all of the primary keys that belong to the table, if any exist.
      * @param {string} tableName 

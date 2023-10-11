@@ -31,8 +31,7 @@ export class KinshipContext {
      * @type {Builders<TTableModel, TAliasModel>} */ #builders;
     /** Handlers for transactions with the database. 
      * @type {Handlers} */ #handlers;
-    /** Saved state of the context, set when `.checkout()` is called.
-     * @type {State=} */ #savedState;
+    /** @type {Promise<State>} */ #promise = Promise.resolve(/** @type {State} */ ({}))
 
     /* -------------------------Constructor------------------------- */
     
@@ -78,6 +77,10 @@ export class KinshipContext {
             this.#base = adapter.#base;
             this.#builders = adapter.#builders;
             this.#handlers = adapter.#handlers;
+            this.#promise = new Promise(res => {
+                adapter.#promise.then(oldState => res(oldState));
+            });
+            this.#promise = adapter.#promise.then(oldState => oldState);
         } else {
             if(typeof tableName !== "string") {
                 throw Error(`The parameter, \`tableName\` must be a valid string.`);
@@ -95,6 +98,11 @@ export class KinshipContext {
                 relationships: new RelationshipBuilder(this.#base),
                 choose: new ChooseBuilder(this.#base)
             };
+            this._afterResync(async (oldState) => {
+                const schema = await this.#base.describe(tableName);
+                this.#base.schema = schema;
+                return oldState;
+            });
             this.#resetState();
         }
     }
@@ -103,32 +111,11 @@ export class KinshipContext {
     // Users can perform some transaction with the database using the state of the context.
 
     /**
-     * Check out the state of the context as a static reference without having to rebuild any clause(s) again.
-     * @returns {KinshipContext<TTableModel, TAliasModel>}
-     * A new `KinshipContext` object where the base state is saved from previously called clause functions.
-     */
-    checkout() {
-        /** @type {KinshipContext<TTableModel,TAliasModel>} */
-        //@ts-ignore one arg parameter is internally available.
-        const ctx = new KinshipContext(this);
-        ctx.#afterResync((oldState) => {
-            ctx.#savedState = /** @type {State} */ (JSON.parse(JSON.stringify(oldState)));
-            ctx.#savedState.where = oldState.where
-                //@ts-ignore marked private but is available for use internally.
-                ?._clone();
-            return oldState;
-        });
-        this.#resetState();
-        return ctx;
-    }
-
-    /**
      * Retrieve the number of rows from the built query.
      * @returns {Promise<number>} Number of rows retrieved.
      */
     async count() {
-        this.#tryUseSavedState();
-        this.#afterResync((oldState) => ({
+        this._afterResync((oldState) => ({
             ...oldState,
             select: [{
                 table: "",
@@ -137,7 +124,7 @@ export class KinshipContext {
                 aggregate: ""
             }],
         }));
-        const { records } = await this.#handlers.query.handle(undefined);
+        const { records } = await this.#handlers.query.handle(this.#promise, undefined);
         this.#resetState();
         return /** @type {any} */ (records[0]).$$count;
     }
@@ -151,43 +138,39 @@ export class KinshipContext {
      * Delete records based on their primary key.  
      * If no primary key exists on the record, then they will be ignored.
      * @overload
-     * @param {import("../models/maybe.js").MaybeArray<TAliasModel>} records
+     * @param {import("../models/maybe.js").MaybeArray<TTableModel>} records
      * Records to delete using their primary key(s).
      * @returns {Promise<number>} Number of rows delete.
      */
     /**
      * Deletes records in the table connected to this context.
-     * @param {import("../models/maybe.js").MaybeArray<TAliasModel>=} records 
+     * @param {import("../models/maybe.js").MaybeArray<TTableModel>=} records 
      * Records to delete using their primary key(s) or undefined if using `.where()`.
      * @returns {Promise<number>} Number of rows deleted.
      */
     async delete(records=undefined) {
-        this.#tryUseSavedState();
-        const { numRowsAffected } = await this.#handlers.delete.handle(records);
-        this.#resetState()
+        const { numRowsAffected } = await this.#handlers.delete.handle(this.#promise, records);
         return numRowsAffected;
     }
 
     /**
      * Insert records into the table.
-     * @param {import("../models/maybe.js").MaybeArray<TAliasModel>} records
+     * @param {import("../models/maybe.js").MaybeArray<TTableModel>} records
      * Record or records to insert into the database.
-     * @returns {Promise<TAliasModel[]>} 
+     * @returns {Promise<TTableModel[]>} 
      * The same records that were inserted, with updated properties of any default values.  
      * __Default values include virtual columns, database defaults, and user defined defaults.__
      */
     async insert(records) {
-        this.#tryUseSavedState();
-        const { numRowsAffected, whereClause, ...data } = await this.#handlers.insert.handle(records);
+        const { numRowsAffected, whereClause, ...data } = await this.#handlers.insert.handle(this.#promise, records);
         // If `whereClause` is NOT undefined, then the handler determined that virtual columns exist, so we must requery
         if(whereClause) { 
             const ctx = this.#newContext();
-            ctx.#afterResync((oldState) => ({ ...oldState, where: whereClause }));
-            records = /** @type {TAliasModel[]} */ (await ctx.select());
+            ctx._afterResync((oldState) => ({ ...oldState, where: whereClause }));
+            records = /** @type {TTableModel[]} */ (/** @type {unknown} */ (await ctx));
         } else {
             records = data.records;
         }
-        this.#resetState();
         return records;
     }
 
@@ -196,18 +179,15 @@ export class KinshipContext {
      * @returns {Promise<number>} Number of rows that were deleted.
      */
     async truncate() {
-        try {
-            var { numRowsAffected } = await this.#handlers.delete.handle(undefined, { truncate: true });
-        } finally {
-            this.#resetState();
-        }
+        var { numRowsAffected } = await this.#handlers.delete.handle(this.#promise, undefined, { truncate: true });
+
         return numRowsAffected;
     }
 
     /**
      * Update records based on their primary key.  
      * @overload
-     * @param {import("../models/maybe.js").MaybeArray<TAliasModel>} records
+     * @param {import("../models/maybe.js").MaybeArray<TTableModel>} records
      * Records to update.  
      * __If any record does not have a primary key, then that record is ignored in the update.__
      * @returns {Promise<number>} Number of updated rows.
@@ -228,23 +208,19 @@ export class KinshipContext {
      */
     /**
      * Update rows in the table.
-     * @param {import("../models/maybe.js").MaybeArray<TAliasModel>|((m: TTableModel) => Partial<TTableModel>|void)} records 
+     * @param {import("../models/maybe.js").MaybeArray<TTableModel>|((m: TTableModel) => Partial<TTableModel>|void)} records 
      * A record, or an array of records to be updated on primary key 
      * or a callback that specifies which column should be updated to what value.
      * __If any record does not have a primary key, then that record is ignored in the update.__
      * @returns {Promise<number>} Number of updated rows.
      */
     async update(records) {
-        this.#tryUseSavedState();
-        try {
-            if(typeof records === 'function') {
-                var { numRowsAffected } = await this.#handlers.update.handle(undefined, records);
-            } else {
-                var { numRowsAffected }  = await this.#handlers.update.handle(records);
-            }
-        } finally {
-            this.#resetState();
+        if(typeof records === 'function') {
+            var { numRowsAffected } = await this.#handlers.update.handle(this.#promise, undefined, records);
+        } else {
+            var { numRowsAffected }  = await this.#handlers.update.handle(this.#promise, records);
         }
+
         return numRowsAffected;
     }
 
@@ -265,8 +241,9 @@ export class KinshipContext {
      * Reference to the same `KinshipContext`.
      */
     select(callback) {
-        this.#afterResync((oldState) => this.#builders.choose.getState(oldState, callback));
-        return /** @type {any} */ (this);
+        const ctx = this.#newContext();
+        ctx._afterResync((oldState) => ctx.#builders.choose.getState(oldState, callback));
+        return /** @type {any} */ (ctx);
     }
 
     /**
@@ -280,8 +257,9 @@ export class KinshipContext {
      * Reference to the same `KinshipContext`.
      */
     groupBy(callback) {
-        this.#afterResync((oldState) => this.#builders.groupBy.getState(oldState, callback));
-        return /** @type {any} */ (this);
+        const ctx = this.#newContext();
+        ctx._afterResync((oldState) => ctx.#builders.groupBy.getState(oldState, callback));
+        return /** @type {any} */ (ctx);
     }
 
     /**
@@ -299,8 +277,9 @@ export class KinshipContext {
      * Reference to the same `KinshipContext`.
      */
     include(callback) {
-        this.#afterResync((oldState) => this.#builders.relationships.getStateForInclude(oldState, callback));
-        return /** @type {any} */ (this);
+        const ctx = this.#newContext();
+        ctx._afterResync((oldState) => ctx.#builders.relationships.getStateForInclude(oldState, callback));
+        return /** @type {any} */ (ctx);
     }
 
     /**
@@ -312,8 +291,9 @@ export class KinshipContext {
      * Reference to the same `KinshipContext`.
      */
     skip(numberOfRecords) {
-        this.#afterResync((oldState) => ({ ...oldState, offset: numberOfRecords}));
-        return this;
+        const ctx = this.#newContext();
+        ctx._afterResync((oldState) => ({ ...oldState, offset: numberOfRecords}));
+        return ctx;
     }
 
     /**
@@ -329,8 +309,9 @@ export class KinshipContext {
      * Reference to the same `KinshipContext`.
      */
     sortBy(callback) {
-        this.#afterResync((oldState) => this.#builders.orderBy.getState(oldState, callback));
-        return this;
+        const ctx = this.#newContext();
+        ctx._afterResync((oldState) => ctx.#builders.orderBy.getState(oldState, callback));
+        return ctx;
     }
     
     /**
@@ -342,8 +323,9 @@ export class KinshipContext {
      * Reference to the same `KinshipContext`.
      */
     take(numberOfRecords) {
-        this.#afterResync((oldState) => ({ ...oldState, limit: numberOfRecords }));
-        return this;
+        const ctx = this.#newContext();
+        ctx._afterResync((oldState) => ({ ...oldState, limit: numberOfRecords }));
+        return ctx;
     }
 
     /**
@@ -355,8 +337,9 @@ export class KinshipContext {
      * Reference to the same `KinshipContext`.
      */
     where(callback) {
-        this.#afterResync((oldState) => this.#where(callback, oldState));
-        return this;
+        const ctx = this.#newContext();
+        ctx._afterResync((oldState) => ctx.#where(callback, oldState));
+        return ctx;
     }
 
     /**
@@ -421,7 +404,7 @@ export class KinshipContext {
      * Reference to the same `KinshipContext`.
      */
     hasOne(callback) {
-        this.#builders.relationships.configureRelationship(callback, RelationshipType.OneToOne);
+        this.#builders.relationships.configureRelationship(this._afterResync.bind(this), callback, RelationshipType.OneToOne);
         return this;
     }
 
@@ -434,7 +417,7 @@ export class KinshipContext {
      * Reference to the same `KinshipContext`.
      */
     hasMany(callback) {
-        this.#builders.relationships.configureRelationship(callback, RelationshipType.OneToMany);
+        this.#builders.relationships.configureRelationship(this._afterResync.bind(this), callback, RelationshipType.OneToMany);
         return this;
     }
 
@@ -644,22 +627,13 @@ export class KinshipContext {
      * Resets the state of this context to its saved state, or to the default base state if no saved state exists.
      */
     #resetState() {
-        this.#afterResync(() => ({
+        this._afterResync(() => ({
             select: this.#base.getAllSelectColumnsFromSchema(),
             from: [{
                 alias: this.#base.tableName,
                 realName: this.#base.tableName
             }]
         }));
-    }
-
-    /**
-     * Adds the saved state of this context in the next transaction.
-     */
-    #tryUseSavedState() {
-        if(this.#savedState) {
-            this.#afterResync((oldState) => /** @type {State} */ (this.#savedState));
-        }
     }
 
     /**
@@ -676,12 +650,18 @@ export class KinshipContext {
     }
 
     /**
+     * @private
      * Wrapper for `this.#base.afterResync` to only trigger the callback once the context has caught up with asynchronous work. 
      * @param {(oldState: import("./context.js").State) => import("./context.js").State|Promise<import("./context.js").State>} callback
      * Callback that returns the new state. 
      */
-    #afterResync(callback) {
-        this.#base.afterResync(callback);
+    _afterResync(callback) {
+        this.#promise = this.#promise.then((oldState) => {
+            const newState = callback(oldState);
+            return newState;
+        }).catch(err => {
+            throw err;
+        });
     }
 
     /* -------------------------Disposable Functions------------------------- */
@@ -720,48 +700,52 @@ export class KinshipContext {
     }
 
     /**
-     * @param {(records: TAliasModel[]) => TAliasModel[]} resolve
+     * @param {(records: TAliasModel[]) => void} resolve
+     * @returns {Promise<TAliasModel[]>}
      */
     async then(resolve) {
-        this.#tryUseSavedState();
-        const { records } = await this.#handlers.query.handle(undefined);
-        this.#resetState();
+        const { records } = await this.#handlers.query.handle(this.#promise, undefined);
         resolve(/** @type {any} */(records));
+        return /** @type {TAliasModel[]} */ (records);
     }
-  
-    /*
-     * Accepts a callback that is the context itself, except:
-     * 
-     * The context will be altered slightly, where only the transactions, `insert`, `update`, and `delete` 
-     * can be used.
-     * 
-     * The context is no longer connected to the table itself, it is now connected to a cloned temp table.
-     * 
-     * If the callback completes with no errors, then the temp table will be moved into the official table.
-     * If the callback fails, then the temp table is dropped, and nothing else is done.
-     */
 
     /**
-     * @template {object} T
-     * @typedef {{
-     *   update: (model: ((model: T) => Partial<T>|void)|T|T[]) => Promise<void>
-     *   delete: (model: T|T[]|void) => Promise<void>
-    * } & {
-     *   [K in keyof Omit<KinshipContext<T>, "delete"|"update">]: (...args: Parameters<KinshipContext<T>[K]>) => TransactionContext<T>
-     * }} TransactionContext
-     */
-
-    /**
+     * @private
      * Handle multiple transactions in an all-or-nothing fashion, where if one fails, then the rest will fail.
-     * @param {(ctx: this) => Promise<void>} callback
-     * Callback where all commands called on `ctx` are handled within a transaction instead of by themselves.
      */
-    async transaction(callback) {
-        this.#base.isTransaction = true;
-        const cnn = await this.#base.handleAdapterExecute().forTransactionBegin();
-        const results = await callback(this);
-        await this.#base.handleAdapterExecute().forTransactionEnd(cnn);
-        return results;
+    async _transactionStart() {
+        await this.#base.handleAdapterExecute().forTransactionBegin();
+    }
+
+    /**
+     * @private
+     * Handle multiple transactions in an all-or-nothing fashion, where if one fails, then the rest will fail.
+     */
+    async _transactionEnd() {
+        await this.#base.handleAdapterExecute().forTransactionEnd();
+    }
+}
+
+/**
+ * @template T
+ * @param {T} contexts 
+ * @returns {{ execute: (callback: (contexts: T, rollback: () => Error) => Promise<void>) => Promise<void>}}
+ */
+export function transaction(contexts) {
+    return {
+        async execute(callback) {
+            for(const key in contexts) {
+                const ctx = contexts[key];
+                //@ts-ignore
+                await ctx._transactionStart();
+            }
+            const results = await callback(contexts, () => { throw Error() });
+            for(const key in contexts) {
+                const ctx = contexts[key];
+                //@ts-ignore
+                await ctx._transactionEnd();
+            }
+        }
     }
 }
 

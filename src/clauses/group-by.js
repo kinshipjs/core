@@ -2,7 +2,7 @@
 
 import { KinshipBase } from "../context/base.js";
 import { assertAsArray } from "../context/util.js";
-import { KinshipColumnDoesNotExistError, KinshipInternalError, KinshipInvalidPropertyTypeError, KinshipSyntaxError } from "../exceptions.js";
+import { KinshipColumnDoesNotExistError, KinshipInternalError, KinshipInvalidPropertyTypeError } from "../exceptions.js";
 
 /** @enum {number} */
 const AggregateType = {

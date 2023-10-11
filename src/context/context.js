@@ -65,7 +65,7 @@ export class KinshipContext {
     //  */
     /**
      * Instantiate a new `KinshipContext` object.
-     * @param {import("./adapter.js").KinshipAdapterConnection} adapter
+     * @param {import("../adapter.js").KinshipAdapterConnection} adapter
      * Kinship adapter used to connect to your database. 
      * @param {string=} tableName 
      * Name of the table that is being connected to.

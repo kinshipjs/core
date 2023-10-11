@@ -1,11 +1,11 @@
 //@ts-check
 
-import { ErrorTypes, KinshipAdapterError, KinshipNonUniqueKeyError, KinshipNotSupportedError } from "../exceptions.js";
+import { ErrorTypes, KinshipAdapterError } from "./exceptions.js";
 
 /**
  * Data passed for the scope of the custom adapter to help serialize a query command.
  * @typedef {object} SerializationQueryHandlerData
- * @prop {import("../clauses/where.js").WhereClausePropertyArray=} where
+ * @prop {import("./clauses/where.js").WhereClausePropertyArray=} where
  * Recursively nested array of objects where each object represents a condition.  
  * If the element is an array, then that means the condition is nested with the last element from that array.  
  * If undefined, then no `WHERE` clause was given.
@@ -15,15 +15,15 @@ import { ErrorTypes, KinshipAdapterError, KinshipNonUniqueKeyError, KinshipNotSu
  * @prop {number=} offset
  * Number representing the number of records to skip before grabbing.  
  * If undefined, then no `OFFSET` clause was given.
- * @prop {import("../clauses/order-by.js").SortByClauseProperty[]=} order_by
+ * @prop {import("./clauses/order-by.js").SortByClauseProperty[]=} order_by
  * Array of objects where each object represents a column to order by.  
  * If undefined, then no `ORDER BY` clause was given.
- * @prop {import("../clauses/group-by.js").GroupByClauseProperty[]=} group_by
+ * @prop {import("./clauses/group-by.js").GroupByClauseProperty[]=} group_by
  * Array of objects where each object represents a column to group by.  
  * If undefined, then no `GROUP BY` clause was given.
- * @prop {import("../clauses/choose.js").SelectClauseProperty[]} select
+ * @prop {import("./clauses/choose.js").SelectClauseProperty[]} select
  * Array of objects where each object represents a column to select.
- * @prop {[import("../config/relationships.js").MainTableFromClauseProperty, ...import("../config/relationships.js").FromClauseProperty[]]} from
+ * @prop {[import("./config/relationships.js").MainTableFromClauseProperty, ...import("./config/relationships.js").FromClauseProperty[]]} from
  * Array of objects where each object represents a table to join on.  
  * The first object will represent the main table the context is connected to. 
  */
@@ -62,7 +62,7 @@ import { ErrorTypes, KinshipAdapterError, KinshipNonUniqueKeyError, KinshipNotSu
  * Table the update is occurring on.
  * @prop {string[]} columns
  * Columns to be updated.  
- * @prop {import("../clauses/where.js").WhereClausePropertyArray} where
+ * @prop {import("./clauses/where.js").WhereClausePropertyArray} where
  * Recursively nested array of objects where each object represents a condition.  
  * If the element is an array, then that means the condition is nested with the last element from that array.
  * @prop {SerializationUpdateHandlerExplicitData=} explicit
@@ -74,7 +74,7 @@ import { ErrorTypes, KinshipAdapterError, KinshipNonUniqueKeyError, KinshipNotSu
  * @typedef {object} SerializationDeleteHandlerData
  * @prop {string} table
  * Table the delete is occurring on.
- * @prop {import("../clauses/where.js").WhereClausePropertyArray=} where
+ * @prop {import("./clauses/where.js").WhereClausePropertyArray=} where
  * Recursively nested array of objects where each object represents a condition.  
  * If the element is an array, then that means the condition is nested with the last element from that array.
  */
@@ -89,7 +89,7 @@ import { ErrorTypes, KinshipAdapterError, KinshipNonUniqueKeyError, KinshipNotSu
 
 /**
  * An argument that is to be passed alongside a command to fill in sanitized values.
- * @typedef {import("../models/types.js").DataType} ExecutionArgument
+ * @typedef {import("./models/types.js").DataType} ExecutionArgument
  */
 
 /**
@@ -112,30 +112,30 @@ import { ErrorTypes, KinshipAdapterError, KinshipNonUniqueKeyError, KinshipNotSu
 /**
  * Various handlers to handle execution of a command and the command's corresponding arguments for a given database language.
  * @typedef {object} ExecutionHandlers
- * @prop {(cmd: string, args: ExecutionArgument[]) => import("../models/maybe.js").MaybePromise<any[]>} forQuery
+ * @prop {(cmd: string, args: ExecutionArgument[]) => import("./models/maybe.js").MaybePromise<any[]>} forQuery
  * Handles execution of a query command, given the command string and respective arguments for the command string.  
  * This should return an array of objects where each object represents the row returned from the query.
- * @prop {(cmd: string, args: ExecutionArgument[]) => import("../models/maybe.js").MaybePromise<number[]>} forInsert
+ * @prop {(cmd: string, args: ExecutionArgument[]) => import("./models/maybe.js").MaybePromise<number[]>} forInsert
  * Handles execution of an insert command, given the command string and respective arguments for the command string.  
  * This should return an array of numbers, where each number represents a table's primary key's auto incremented number (if applicable)  
  * This array should be parallel with the array of records that were serialized in the `serialize(...).forInsert()` function.
- * @prop {(cmd: string, args: ExecutionArgument[]) => import("../models/maybe.js").MaybePromise<number>} forUpdate
+ * @prop {(cmd: string, args: ExecutionArgument[]) => import("./models/maybe.js").MaybePromise<number>} forUpdate
  * Handles execution of an update command, given the command string and respective arguments for the command string.  
  * This should return a number representing the total number of rows affected from the command.
- * @prop {(cmd: string, args: ExecutionArgument[]) => import("../models/maybe.js").MaybePromise<number>} forDelete
+ * @prop {(cmd: string, args: ExecutionArgument[]) => import("./models/maybe.js").MaybePromise<number>} forDelete
  * Handles execution of a delete command, given the command string and respective arguments for the command string.  
  * This should return a number representing the total number of rows affected from the command.
- * @prop {(cmd: string, args: ExecutionArgument[]) => import("../models/maybe.js").MaybePromise<number>} forTruncate
+ * @prop {(cmd: string, args: ExecutionArgument[]) => import("./models/maybe.js").MaybePromise<number>} forTruncate
  * Handles execution of a truncate command, given the command string and respective arguments for the command string.  
  * This should return a number representing the total number of rows affected from the command.
- * @prop {(cmd: string, args: ExecutionArgument[]) => import("../models/maybe.js").MaybePromise<{[fieldName: string]: SchemaColumnDefinition}>} forDescribe
+ * @prop {(cmd: string, args: ExecutionArgument[]) => import("./models/maybe.js").MaybePromise<{[fieldName: string]: SchemaColumnDefinition}>} forDescribe
  * Handles execution of a describe command, given the command string and respective arguments for the command string.
  * This should return an object containing {@link DescribedSchema} objects. 
- * @prop {() => import("../models/maybe.js").MaybePromise<any>} forTransactionBegin
+ * @prop {() => import("./models/maybe.js").MaybePromise<any>} forTransactionBegin
  * Begins a transaction, where each transactional function (e.g., `insert`, `delete`, `update`) will be called
  * in conjunction of eachother, meaning that if one fails, all will fail.  
  * This should return the same object that can commit/rollback the database.
- * @prop {(originalConnection: any) => import("../models/maybe.js").MaybePromise<void>} forTransactionEnd
+ * @prop {(originalConnection: any) => import("./models/maybe.js").MaybePromise<void>} forTransactionEnd
  * Begins a transaction, where each transactional function (e.g., `insert`, `delete`, `update`) will be called
  * in conjunction of eachother, meaning that if one fails, all will fail.  
  * `originalConnection` is the same object that is returned from `transactionBegin`, to maintain the same connection.
@@ -225,7 +225,8 @@ import { ErrorTypes, KinshipAdapterError, KinshipNonUniqueKeyError, KinshipNotSu
  * Column is unique (primary keys can set this to true as well)
  * @prop {"string"|"int"|"float"|"boolean"|"date"} datatype
  * Column general type.
- * @prop {() => import("../models/types.js").DataType|undefined} defaultValue
+ * @prop {() => import("./models/types.js").DataType|undefined} defaultValue
  * Function that returns the value specified in the database schema for database generated values on inserts.
  */
 
+/** @typedef {import("./clauses/where.js").WhereClausePropertyArray} WhereClausePropertyArray */

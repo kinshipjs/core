@@ -49,8 +49,8 @@
             "types": "./dist/types/index.d.ts"
         },
         "./adapter": {
-            "import": "./dist/context/adapter.js",
-            "types": "./dist/types/context/adapter.d.ts"
+            "import": "./dist/adapter.js",
+            "types": "./dist/types/adapter.d.ts"
         },
         "./errors": {
             "import": "./dist/exceptions.js",
@@ -62,10 +62,10 @@
             ".": [
                 "./dist/types/index.d.ts"
             ],
-            "adapter": [
-                "./dist/types/context/adapter.d.ts"
+            "./adapter": [
+                "./dist/types/adapter.d.ts"
             ],
-            "errors": [
+            "./errors": [
                 "./dist/types/exceptions.d.ts"
             ]
         }

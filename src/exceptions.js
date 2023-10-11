@@ -60,13 +60,6 @@ export class KinshipColumnDoesNotExistError extends Error {
     }
 }
 
-export class KinshipConstraintError extends Error {
-    constructor(message) {
-        super(message);
-        this.name = 'KinshipConstraintError';
-    }
-}
-
 export class KinshipNotImplementedError extends Error {
     constructor(message) {
         super(message);
@@ -90,60 +83,85 @@ export class KinshipSafeUpdateModeEnabledError extends Error {
     }
 }
 
-/** @enum {(originalError: Error) => Error} */
+/** Thrown when a database error occurs that can */
+export class KinshipUnknownDBError extends Error {
+    /**
+     * @param {string} message 
+     * @param {number} errCode 
+     * @param {string} sqlMessage 
+     */
+    constructor(message, errCode, sqlMessage) {
+        super(`${message} (Error Code: ${errCode}, Original Message: ${sqlMessage}) `);
+        this.sqlMsg = sqlMessage;
+        this.errCode = errCode;
+        this.name = this.constructor.name;
+    }
+}
+
+export class KinshipUnhandledDBError extends KinshipUnknownDBError {
+    /**
+     * @param {string} message
+     * @param {number} errCode 
+     * @param {string} sqlMessage 
+     */
+    constructor(message, errCode, sqlMessage) {
+        super(message, errCode, sqlMessage);
+    }
+}
+
 export const ErrorTypes = {
-    NonUniqueKey: (originalError) => new KinshipNonUniqueKeyError(originalError),
-    NotSupported: (originalError) => new KinshipNotSupportedError(originalError),
-    InsertedValueCannotBeNull: (originalError) => new KinshipInsertedValueCannotBeNullError(originalError),
-    UpdatedValueCannotBeNull: (originalError) => new KinshipUpdatedValueCannotBeNullError(originalError),
-    UpdateConstraintError: (originalError) => new KinshipUpdateConstraintError(originalError),
-    DeleteConstraintError: (originalError) => new KinshipDeleteConstraintError(originalError),
+    /** @type {(errCode: number, sqlMessage: string) => KinshipNonUniqueKeyError} */
+    NonUniqueKey: (errCode, sqlMessage) => new KinshipNonUniqueKeyError(errCode, sqlMessage),
+    /** @type {(errCode: number, sqlMessage: string) => KinshipValueCannotBeNullError} */
+    ValueCannotBeNull: (errCode, sqlMessage) => new KinshipValueCannotBeNullError(errCode, sqlMessage),
+    /** @type {(errCode: number, sqlMessage: string) => KinshipUpdateConstraintError} */
+    UpdateConstraintError: (errCode, sqlMessage) => new KinshipUpdateConstraintError(errCode, sqlMessage),
+    /** @type {(errCode: number, sqlMessage: string) => KinshipDeleteConstraintError} */
+    DeleteConstraintError: (errCode, sqlMessage) => new KinshipDeleteConstraintError(errCode, sqlMessage),
+    /** @type {(message: string, errCode: number, sqlMessage: string) => KinshipUnhandledDBError} */
+    UnhandledDBError: (message, errCode, sqlMessage) => new KinshipUnhandledDBError(message, errCode, sqlMessage),
+    /** @type {(message: string, errCode: number, sqlMessage: string) => KinshipUnknownDBError} */
+    UnknownDBError: (message, errCode, sqlMessage) => new KinshipUnknownDBError(message, errCode, sqlMessage),
 }
 
-export class KinshipNonUniqueKeyError extends Error {
-    constructor(originalError) {
-        super(`An attempt to insert a duplicate key has occurred.`);
-        this.name = `KinshipNonUniqueKeyError`;
-        this.originalError = originalError;
+/** @typedef {{[K in keyof ErrorTypes]: ErrorTypes[K]}} ErrorType */
+
+export class KinshipNonUniqueKeyError extends KinshipUnknownDBError {
+    /**
+     * @param {number} errCode 
+     * @param {string} sqlMessage 
+     */
+    constructor(errCode, sqlMessage) {
+        super(`An attempt to insert a duplicate key has occurred.`, errCode, sqlMessage);
     }
 }
 
-export class KinshipNotSupportedError extends Error {
-    constructor(originalError) {
-        super(`This adapter does not support this use of this function.`);
-        this.name = `KinshipNotSupportedError`;
-        this.originalError = originalError;
+export class KinshipValueCannotBeNullError extends KinshipUnknownDBError {
+    /**
+     * @param {number} errCode 
+     * @param {string} sqlMessage 
+     */
+    constructor(errCode, sqlMessage) {
+        super(`One or more columns were attempted to be inserted/updated with a value of null.`, errCode, sqlMessage);
     }
 }
 
-export class KinshipInsertedValueCannotBeNullError extends Error {
-    constructor(originalError) {
-        super(`One or more columns were attempted to be inserted while their value cannot be null.`);
-        this.name = `KinshipValueCannotBeNullError`;
-        this.originalError = originalError;
+export class KinshipUpdateConstraintError extends KinshipUnknownDBError {
+    /**
+     * @param {number} errCode 
+     * @param {string} sqlMessage 
+     */
+    constructor(errCode, sqlMessage) {
+        super(`An update failed because of a constraint.`, errCode, sqlMessage);
     }
 }
 
-export class KinshipUpdatedValueCannotBeNullError extends Error {
-    constructor(originalError) {
-        super(`One or more columns were attempted to be updated while their value cannot be null.`);
-        this.name = `KinshipValueCannotBeNullError`;
-        this.originalError = originalError;
-    }
-}
-
-export class KinshipUpdateConstraintError extends Error {
-    constructor(originalError) {
-        super(`An update failed because of a constraint.`);
-        this.name = `KinshipUpdateConstraintError`;
-        this.originalError = originalError;
-    }
-}
-
-export class KinshipDeleteConstraintError extends Error {
-    constructor(originalError) {
-        super(`A delete failed because of a constraint.`);
-        this.name = `KinshipDeleteConstraintError`;
-        this.originalError = originalError;
+export class KinshipDeleteConstraintError extends KinshipUnknownDBError {
+    /**
+     * @param {number} errCode 
+     * @param {string} sqlMessage 
+     */
+    constructor(errCode, sqlMessage) {
+        super(`A delete failed because of a constraint.`, errCode, sqlMessage);
     }
 }

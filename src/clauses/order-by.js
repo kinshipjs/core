@@ -1,6 +1,5 @@
 //@ts-check
 import { KinshipBase } from "../context/base.js";
-import { KinshipContext } from "../context/context.js";
 import { assertAsArray } from "../context/util.js";
 import { KinshipColumnDoesNotExistError, KinshipInvalidPropertyTypeError } from "../exceptions.js";
 

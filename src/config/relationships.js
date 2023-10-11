@@ -326,7 +326,7 @@ export const RelationshipType = {
  * Information on the key pointing to the original table that holds this relationship.
  * @prop {import('../context/base.js').Column} foreign 
  * Information on the key pointing to the related table. (this key comes from the same table that is specified by `table`)
- * @prop {{[K in keyof T]: import("../context/adapter.js").SchemaColumnDefinition}} schema
+ * @prop {{[K in keyof T]: import("../adapter.js").SchemaColumnDefinition}} schema
  * Various information about the table's columns.
  * @prop {Relationships<T>=} relationships
  * Further configured relationships that will be on this table.

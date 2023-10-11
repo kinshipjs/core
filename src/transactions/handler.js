@@ -189,7 +189,7 @@ export class KinshipExecutionHandler {
      * @param {boolean} isGroupBy
      * @param {boolean} isJoined
      * @param {object[]} rows 
-     * @param {Record<string, import("../context/adapter.js").SchemaColumnDefinition>} schema
+     * @param {Record<string, import("../adapter.js").SchemaColumnDefinition>} schema
      * @param {import("../config/relationships.js").Relationships<object>} relationships
      * @param {number} depth 
      * Used for when the command had a group by clause.

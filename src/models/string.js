@@ -70,7 +70,7 @@
  * @template {object} TOriginal
  * @template {string|symbol|number} Keys 
  * @typedef {{[K in Keys as Contains<K, "$$"> extends never 
- *   ? K 
+ *   ? K
  * : Car<K>]: Contains<K, "$$"> extends never 
  *   ? K extends keyof TOriginal
  *     ? TOriginal[K]

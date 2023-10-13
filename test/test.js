@@ -141,6 +141,8 @@ async function testQuery() {
     var us = await users;
     us = await users.where(m => m.Id.equals("U-0000001"));
     us = await users.sortBy(m => m.FirstName);
+    let onlyFirstNames = await users.select(m => m.FirstName);
+    let onlyFullNames = await users.select(m => [m.FirstName, m.LastName]);
     var grouped = await users.groupBy(m => m.LastName);
     us = await users.take(1);
     us = await users.skip(1).take(1);

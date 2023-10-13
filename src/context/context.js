@@ -235,8 +235,8 @@ export class KinshipContext {
      * @param {((model: import("../clauses/choose.js").SpfSelectCallbackModel<TAliasModel>) => 
      *  import("../models/maybe.js").MaybeArray<keyof TSelectedColumns>)=} callback
      * Callback model that allows the user to select which columns to grab.  
-     * @returns {KinshipContext<TTableModel, (TSelectedColumns extends TAliasModel 
-     *  ? TAliasModel 
+     * @returns {KinshipContext<TTableModel, (TSelectedColumns extends Required<TAliasModel>
+     *  ? TAliasModel
      *  : import("../models/string.js").Reconstructed<TAliasModel, TSelectedColumns>)>}
      * Reference to the same `KinshipContext`.
      */
@@ -707,22 +707,6 @@ export class KinshipContext {
         const { records } = await this.#handlers.query.handle(this.#promise, undefined);
         resolve(/** @type {any} */(records));
         return /** @type {TAliasModel[]} */ (records);
-    }
-
-    /**
-     * @private
-     * Handle multiple transactions in an all-or-nothing fashion, where if one fails, then the rest will fail.
-     */
-    async _transactionStart() {
-        await this.#base.handleAdapterExecute().forTransactionBegin();
-    }
-
-    /**
-     * @private
-     * Handle multiple transactions in an all-or-nothing fashion, where if one fails, then the rest will fail.
-     */
-    async _transactionEnd() {
-        await this.#base.handleAdapterExecute().forTransactionEnd();
     }
 }
 

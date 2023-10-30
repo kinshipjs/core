@@ -5,7 +5,7 @@ import { KinshipDeleteHandler } from "../transactions/delete.js";
 import { KinshipInsertHandler } from "../transactions/insert.js";
 import { KinshipQueryHandler } from "../transactions/query.js";
 import { KinshipUpdateHandler } from "../transactions/update.js";
-import { KinshipColumnDoesNotExistError, KinshipInvalidPropertyTypeError } from "../exceptions.js";
+import { ErrorTypes, KinshipColumnDoesNotExistError, KinshipInvalidPropertyTypeError } from "../exceptions.js";
 import { Where, WhereBuilder } from "../clauses/where.js";
 import { GroupByBuilder } from "../clauses/group-by.js";
 import { OrderByBuilder } from "../clauses/order-by.js";
@@ -711,23 +711,23 @@ export class KinshipContext {
 }
 
 /**
- * @template T
- * @param {T} contexts 
- * @returns {{ execute: (callback: (contexts: T, rollback: () => Error) => Promise<void>) => Promise<void>}}
+ * @param {import("../adapter.js").KinshipAdapterConnection} adapter
+ * @returns {{ execute: (callback: (rollback: () => Error) => Promise<void>) => Promise<void>}}
  */
-export function transaction(contexts) {
+export function transaction(adapter) {
     return {
         async execute(callback) {
-            for(const key in contexts) {
-                const ctx = contexts[key];
-                //@ts-ignore
-                await ctx._transactionStart();
-            }
-            const results = await callback(contexts, () => { throw Error() });
-            for(const key in contexts) {
-                const ctx = contexts[key];
-                //@ts-ignore
-                await ctx._transactionEnd();
+            const { commit, rollback } = await adapter.execute({
+                // @TODO: change this
+                KinshipAdapterError: (msg) => new Error(),
+                ErrorTypes
+            }).forTransaction();
+            try {
+                await callback(() => new Error());
+                await commit();
+            } catch(err) {
+                await rollback();
+                throw err;
             }
         }
     }

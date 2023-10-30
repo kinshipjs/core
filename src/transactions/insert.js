@@ -85,6 +85,16 @@ export class KinshipInsertHandler extends KinshipExecutionHandler {
         if(!this.base.hasAnyVirtualKeys) {
             return undefined;
         }
+        let pKeys = Object.keys(this.base.schema).filter(k => this.base.schema[k].isPrimary);
+        records = records.map(o => {
+            let newO = {};
+            for(const key in o) {
+                if(pKeys.includes(key)) {
+                    newO[key] = o[key];
+                }
+            }
+            return newO;
+        });
         const columns = getUniqueColumns(records);
         const values = getAllValues(records);
         const where = /** @type {typeof Where<any, any>} */ (Where)(this.base, columns[0]);

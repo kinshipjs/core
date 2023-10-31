@@ -82,38 +82,32 @@ roles.hasMany(m => m.userRoles.fromTable("xUserRole").withKeys("id", "roleId")
 
 ### Configure triggers (optional and allows for advanced work)
 
-Configure triggers to execute before or after certain commands are executed. (opens up cascading)
+Configure triggers to execute before or after certain commands are executed.  
+
+Triggers can be helpful if your application is planned to handle any sort of default values.
 
 ```ts
-import { v4 } from 'uuid' // optional
+import { v4 } from 'uuid'
+// Always assign a uuid to a User's id column before they are inserted.
 users.beforeInsert((m) => {
     m.id = v4();
 });
-// you can cascade insert/update/delete this way. (this is not meant to be copied verbatim)
-users.afterInsert(async u => {
-    if(!u.userRoles) {
-        return;
-    }
-    // start construction of the xref rows.
-    const userRoles = m.userRoles.map(ur => ({
-        userId: u.id,
-        user: u,
-        role: ur.role
-    }));
-    // add new trigger
-    const unsubscribe = roles.afterInsert(async r => {
-        // finish construction of the xref rows.
-        userRoles.forEach(ur => {
-            ur.roleId = r.id;
-        });
-        await xUserRoles.insert(userRoles);
-    });
-    // insert the role
-    await roles.insert(userRoles.map(ur => ur.role));
-    // unsubscribe from the trigger.
-    unsubscribe();
-});
 
+// Use a hook to set up any variables that only need to be set up once.
+// parameters that start with "$$" are always accessible to you.
+users.beforeInsert((m, { $$itemNumber, numRecordsDoubled, numUsersWithoutMiddleName }) => {
+    // This function will fire for EVERY record being inserted.
+    m.id = $$numRecordsDoubled * numUsersWithoutMiddleName; // definitely not recommended, just using it as an example.
+}, async ({ $$numRecords }) => {
+    // This function will fire only ONCE per `.insert()` call.
+    const x = await users.where(m => m.middleName.equals(null).or(m => m.middleName.equals(""))).count();
+
+    // any returned variables are immediately accessible in the main trigger function in the `args` parameter.
+    return {
+        numRecordsDoubled: $$numRecords * 2,
+        numUsersWithoutMiddleName: x
+    };
+});
 ```
 
 ### Configure event handlers (optional)

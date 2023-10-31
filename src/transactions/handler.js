@@ -238,7 +238,11 @@ export class KinshipExecutionHandler {
                 // set based on the type of relationship this is.
                 // group by makes every record unique, and thus every related record would become 1:1.
                 if(relationship.relationshipType === RelationshipType.OneToOne || isGroupBy) {
-                    newRow[key] = relatedRowsSerialized?.[0] ?? null;
+                    if(relatedRowsSerialized.length <= 0 || Object.values(relatedRowsSerialized[0]).filter(v => v !== null).length <= 0) {
+                        newRow[key] = null;
+                    } else {
+                        newRow[key] = relatedRowsSerialized?.[0] ?? null;
+                    }
                 } else {
                     newRow[key] = relatedRowsSerialized;
                 }

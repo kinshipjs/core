@@ -83,6 +83,13 @@ export class KinshipSafeUpdateModeEnabledError extends Error {
     }
 }
 
+export class RollbackInvokedError extends Error {
+    constructor(message) {
+        super(`A rollback was manually invoked: ${message}`);
+        this.name = `RollbackInvokedError`;
+    }
+}
+
 /** Thrown when a database error occurs that can */
 export class KinshipUnknownDBError extends Error {
     /**

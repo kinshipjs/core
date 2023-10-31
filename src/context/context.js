@@ -5,7 +5,7 @@ import { KinshipDeleteHandler } from "../transactions/delete.js";
 import { KinshipInsertHandler } from "../transactions/insert.js";
 import { KinshipQueryHandler } from "../transactions/query.js";
 import { KinshipUpdateHandler } from "../transactions/update.js";
-import { ErrorTypes, KinshipColumnDoesNotExistError, KinshipInvalidPropertyTypeError } from "../exceptions.js";
+import { ErrorTypes, KinshipColumnDoesNotExistError, KinshipInvalidPropertyTypeError, RollbackInvokedError } from "../exceptions.js";
 import { Where, WhereBuilder } from "../clauses/where.js";
 import { GroupByBuilder } from "../clauses/group-by.js";
 import { OrderByBuilder } from "../clauses/order-by.js";
@@ -712,7 +712,7 @@ export class KinshipContext {
 
 /**
  * @param {import("../adapter.js").KinshipAdapterConnection} adapter
- * @returns {{ execute: (callback: (rollback: () => Error) => Promise<void>) => Promise<void>}}
+ * @returns {{ execute: (callback: (rollback: (message: string) => RollbackInvokedError) => Promise<void>) => Promise<void>}}
  */
 export function transaction(adapter) {
     return {
@@ -723,7 +723,7 @@ export function transaction(adapter) {
                 ErrorTypes
             }).forTransaction();
             try {
-                await callback(() => new Error());
+                await callback((message) => new RollbackInvokedError(message));
                 await commit();
             } catch(err) {
                 await rollback();

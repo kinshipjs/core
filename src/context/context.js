@@ -453,6 +453,19 @@ export class KinshipContext {
     }
 
     /**
+     * Set a trigger for every record that returns from a query.
+     * @param {import("../transactions/handler.js").TriggerCallback<TTableModel>} callback
+     * Function that will be called after a query is completed.
+     * @param {import("../transactions/handler.js").TriggerHookCallback=} hook
+     * Function that is called once before the trigger and establishes static arguments to be available to `callback` within the `...args` parameter.
+     * @returns {InstanceType<KinshipQueryHandler>['afterUnsubscribe']}
+     * Function that can be called to unsubscribe from this trigger.
+     */
+    afterQuery(callback, hook=undefined) {
+        return this.#handlers.query.after(callback, hook);
+    }
+
+    /**
      * Set a trigger for every record that gets updated within the context, __after__ the update occurs.  
      * __If an update occurs explicitly (e.g., using `.where(...).update(m => ({ a: 1 }))`), then this trigger will not fire.__
      * @param {import("../transactions/handler.js").TriggerCallback<TTableModel>} callback

@@ -10,13 +10,12 @@ import {
 /**
  * Initializes the first parts of a WhereBuilder given the column name and table name.
  * @template {object} TTableModel
- * @template {keyof TOriginalModel} TColumn
- * @template {object} [TOriginalModel=TTableModel]
+ * @template {keyof TTableModel} TColumn
  * @param {KinshipBase} kinshipBase
  * @param {TColumn} column
  * @param {string} table
  * @param {"WHERE"|"WHERE NOT"} chain
- * @returns {WhereBuilder<TTableModel, TColumn, TOriginalModel>}
+ * @returns {WhereBuilder<TTableModel, TColumn, TTableModel>}
  */
 export function Where(kinshipBase, column, table=kinshipBase.tableName, chain="WHERE") {
     return new WhereBuilder(kinshipBase, column, table, chain);
@@ -25,7 +24,7 @@ export function Where(kinshipBase, column, table=kinshipBase.tableName, chain="W
 /**
  * Assists in building a WHERE clause.
  * @template {object} TTableModel import("../models/sql.js").Table model that the WHERE clause is being built for.
- * @template {keyof TOriginalModel} TColumn Initial column type for when the WhereBuilder is created.
+ * @template {keyof TTableModel} TColumn Initial column type for when the WhereBuilder is created.
  * @template {object} [TOriginalModel=TTableModel] Used to keep track of the original model when nesting conditions.
  */
 export class WhereBuilder {
@@ -63,7 +62,7 @@ export class WhereBuilder {
 
     /**
      * Adds a condition to the WHERE clause where if the specified column is equal to the value specified.
-     * @type {Condition<TOriginalModel, TColumn>} 
+     * @type {Condition<TTableModel, TColumn, TOriginalModel>} 
      */
     equals(value) {
         this.#current.value = /** @type {import('../models/types.js').DataType} */ (/** @type {any} */ (value) instanceof Date ? this.#kinshipBase.adapter.syntax.dateString(value) : value);
@@ -74,7 +73,7 @@ export class WhereBuilder {
 
     /**
      * Adds a condition to the WHERE clause where if the specified column is not equal to the value specified.
-     * @type {Condition<TOriginalModel, TColumn>} 
+     * @type {Condition<TTableModel, TColumn, TOriginalModel>} 
      */
     notEquals(value) {
         this.#current.value = /** @type {import('../models/types.js').DataType} */ (/** @type {any} */ (value) instanceof Date ? this.#kinshipBase.adapter.syntax.dateString(value) : value);
@@ -85,7 +84,7 @@ export class WhereBuilder {
 
     /**
      * Adds a condition to the WHERE clause where if the specified column is less than the value specified.
-     * @type {Condition<TOriginalModel, TColumn>} 
+     * @type {Condition<TTableModel, TColumn, TOriginalModel>} 
      */
     lessThan(value) {
         this.#current.value = /** @type {import('../models/types.js').DataType} */ (/** @type {any} */ (value) instanceof Date ? this.#kinshipBase.adapter.syntax.dateString(value) : value);
@@ -96,7 +95,7 @@ export class WhereBuilder {
 
     /**
      * Adds a condition to the WHERE clause where if the specified column is less than or equal to the value specified.
-     * @type {Condition<TOriginalModel, TColumn>} 
+     * @type {Condition<TTableModel, TColumn, TOriginalModel>} 
      */
     lessThanOrEqualTo(value) {
         this.#current.value = /** @type {import('../models/types.js').DataType} */ (/** @type {any} */ (value) instanceof Date ? this.#kinshipBase.adapter.syntax.dateString(value) : value);
@@ -107,7 +106,7 @@ export class WhereBuilder {
 
     /**
      * Adds a condition to the WHERE clause where if the specified column is greater than the value specified.
-     * @type {Condition<TOriginalModel, TColumn>} 
+     * @type {Condition<TTableModel, TColumn, TOriginalModel>} 
      */
     greaterThan(value) {
         this.#current.value = /** @type {import('../models/types.js').DataType} */ (/** @type {any} */ (value) instanceof Date ? this.#kinshipBase.adapter.syntax.dateString(value) : value);
@@ -118,7 +117,7 @@ export class WhereBuilder {
 
     /** 
      * Adds a condition to the WHERE clause where if the specified column is greater than or equal to the value specified.
-     * @type {Condition<TOriginalModel, TColumn>} 
+     * @type {Condition<TTableModel, TColumn, TOriginalModel>} 
      */
     greaterThanOrEqualTo(value) {
         this.#current.value = /** @type {import('../models/types.js').DataType} */ (/** @type {any} */ (value) instanceof Date ? this.#kinshipBase.adapter.syntax.dateString(value) : value);
@@ -129,9 +128,9 @@ export class WhereBuilder {
 
     /**
      * Adds a condition to the WHERE clause where if the specified column is between two numbers.
-     * @param {TOriginalModel[TColumn] extends number|undefined ? number : never} value1 
+     * @param {TTableModel[TColumn] extends number|undefined ? number : never} value1 
      * Lower range of the number to look between. (inclusive)
-     * @param {TOriginalModel[TColumn] extends number|undefined ? number : never} value2
+     * @param {TTableModel[TColumn] extends number|undefined ? number : never} value2
      * Upper range of the number to look between. (inclusive)
      * @returns {Chain<TOriginalModel>} A group of methods for optional chaining of conditions.
      */
@@ -149,7 +148,7 @@ export class WhereBuilder {
 
     /**
      * Adds a condition to the WHERE clause where if the specified column contains any of the values specified.
-     * @param {TOriginalModel[TColumn][]} values
+     * @param {TTableModel[TColumn][]} values
      * Array of values to check if the column equals any of.
      * @returns {Chain<TOriginalModel>} A group of methods for optional chaining of conditions.
      */
@@ -168,7 +167,7 @@ export class WhereBuilder {
     /**
      * Adds a condition to the WHERE clause where if the specified column, as a string, is like, by SQL's LIKE command syntax, the value specified.
      * This operation is case insensitive.
-     * @param {TOriginalModel[TColumn] extends string|undefined ? string : never} value
+     * @param {TTableModel[TColumn] extends string|undefined ? string : never} value
      * String value to check where the column is like.
      * @returns {Chain<TOriginalModel>} A group of methods for optional chaining of conditions.
      */
@@ -182,7 +181,7 @@ export class WhereBuilder {
     /**
      * Adds a condition to the WHERE clause where if the specified column, as a string, contains the value specified.
      * This operation is case insensitive.
-     * @param {TOriginalModel[TColumn] extends string|undefined ? string : never} value
+     * @param {TTableModel[TColumn] extends string|undefined ? string : never} value
      * String value to check where the column contains.
      * @returns {Chain<TOriginalModel>} A group of methods for optional chaining of conditions.
      */
@@ -196,7 +195,7 @@ export class WhereBuilder {
     /**
      * Adds a condition to the WHERE clause where if the specified column, as a string, contains the value specified.
      * This operation is case insensitive.
-     * @param {TOriginalModel[TColumn] extends string|undefined ? string : never} value
+     * @param {TTableModel[TColumn] extends string|undefined ? string : never} value
      * String value to check where the column contains.
      * @returns {Chain<TOriginalModel>} A group of methods for optional chaining of conditions.
      */
@@ -210,7 +209,7 @@ export class WhereBuilder {
     /**
      * Adds a condition to the WHERE clause where if the specified column, as a string, contains the value specified.
      * This operation is case insensitive.
-     * @param {TOriginalModel[TColumn] extends string|undefined ? string : never} value
+     * @param {TTableModel[TColumn] extends string|undefined ? string : never} value
      * String value to check where the column contains.
      * @returns {Chain<TOriginalModel>} A group of methods for optional chaining of conditions.
      */
@@ -352,32 +351,32 @@ export class WhereBuilder {
 
     /**
      * Synonym of `.equals()`.
-     * @type {Condition<TOriginalModel, TColumn>}
+     * @type {Condition<TTableModel, TColumn, TOriginalModel>}
      */
     eq = this.equals;
     /**
      * Synonym of `.notEquals()`.
-     * @type {Condition<TOriginalModel, TColumn>}
+     * @type {Condition<TTableModel, TColumn, TOriginalModel>}
      */
     neq = this.notEquals;
     /**
      * Synonym of `.lessThan()`.
-     * @type {Condition<TOriginalModel, TColumn>}
+     * @type {Condition<TTableModel, TColumn, TOriginalModel>}
      */
     lt = this.lessThan;
     /**
      * Synonym of `.lessThanOrEqualTo()`.
-     * @type {Condition<TOriginalModel, TColumn>}
+     * @type {Condition<TTableModel, TColumn, TOriginalModel>}
      */
     lteq = this.lessThanOrEqualTo;
     /**
      * Synonym of `.greaterThan()`.
-     * @type {Condition<TOriginalModel, TColumn>}
+     * @type {Condition<TTableModel, TColumn, TOriginalModel>}
      */
     gt = this.greaterThan;
     /**
      * Synonym of `.greaterThanOrEqualTo()`.
-     * @type {Condition<TOriginalModel, TColumn>}
+     * @type {Condition<TTableModel, TColumn, TOriginalModel>}
      */
     gteq = this.greaterThanOrEqualTo;
 }
@@ -427,7 +426,7 @@ export class WhereBuilder {
  * @template {object} [TOriginalModel=TTableModel]
  * @typedef {{[K in keyof TTableModel]-?:
  *   NonNullable<TTableModel[K]> extends import('../models/types.js').DataType
- *     ? WhereBuilder<TTableModel, K & keyof TTableModel>
+ *     ? WhereBuilder<TTableModel, K, TOriginalModel>
  *   : NonNullable<TTableModel[K]> extends (infer U extends object)[]
  *     ? ChainObject<Required<U>, TOriginalModel> 
  *   : NonNullable<TTableModel[K]> extends object
@@ -439,10 +438,11 @@ export class WhereBuilder {
  * Function definition for every type of condition to be created in a WHERE clause.
  * @template {object} TTableModel
  * @template {keyof TTableModel} TColumn
+ * @template {object} [TOriginalModel=TTableModel]
  * @callback Condition
  * @param {undefined extends TTableModel[TColumn] ? TTableModel[TColumn]|null : TTableModel[TColumn]} value
  * Value of the same type of the column being worked on to check the condition against.
- * @returns {Chain<TTableModel>}
+ * @returns {Chain<TOriginalModel>}
  * A group of methods for optional chaining of conditions.
  */
 

@@ -12,11 +12,9 @@ import { RelationshipType } from "../config/relationships.js";
 export class KinshipExecutionHandler {
     /** @protected @type {KinshipBase} */ base;
 
-    /** @type {TriggerCallback<any>=} */ #before;
-    /** @type {TriggerHookCallback=} */ #beforeHook;
+    /** @type {{ trigger: TriggerCallback<any>|undefined, hook: TriggerHookCallback|undefined }[]} */ #before;
 
-    /** @type {TriggerCallback<any>=} */ #after;
-    /** @type {TriggerHookCallback=} */ #afterHook;
+    /** @type {{ trigger: TriggerCallback<any>|undefined, hook: TriggerHookCallback|undefined }[]} */ #after;
     
     /**
      * Construct a new Execution handler that will handle the before and after triggers, 
@@ -25,10 +23,8 @@ export class KinshipExecutionHandler {
      */
     constructor(kinshipBase) {
         this.base = kinshipBase;
-        this.#before = undefined;
-        this.#beforeHook = undefined;
-        this.#after = undefined;
-        this.#afterHook = undefined;
+        this.#before = [];
+        this.#after = [];
     }
 
     /**
@@ -78,14 +74,13 @@ export class KinshipExecutionHandler {
      * Type of the model that the table represents.
      * @param {TriggerCallback<TAliasModel>} callback
      * @param {TriggerHookCallback=} hook
-     * @returns {typeof this['afterUnsubscribe']}
+     * @returns {() => void}
      */
     after(callback, hook) {
         if(hook === undefined) {
             hook = () => ({});
         }
-        this.#after = callback;
-        this.#afterHook = hook;
+        this.#after = [...this.#after, { trigger: callback, hook }];
         return this.afterUnsubscribe;
     }
 
@@ -100,31 +95,29 @@ export class KinshipExecutionHandler {
      * Type of the model that the table represents.
      * @param {TriggerCallback<TAliasModel>} callback
      * @param {TriggerHookCallback=} hook
-     * @returns {typeof this['beforeUnsubscribe']}
+     * @returns {() => void}
      */
     before(callback, hook) {
         if(hook === undefined) {
             hook = () => ({});
         }
-        this.#before = callback;
-        this.#beforeHook = hook;
-        return this.beforeUnsubscribe;
+        this.#before = [...this.#before, { trigger: callback, hook }];
+        return () => this.beforeUnsubscribe(this.#before.length);
+    }
+
+    /**
+     * Unsubscribe the `before` trigger.
+     * @param {number} n
+     */
+    beforeUnsubscribe(n) {
+        this.#before.splice(n, 1);
     }
 
     /**
      * Unsubscribe the `before` trigger.
      */
-    beforeUnsubscribe() {
-        this.#before = undefined;
-        this.#beforeHook = undefined;
-    }
-
-    /**
-     * Unsubscribe the `before` trigger.
-     */
-    afterUnsubscribe() {
-        this.#after = () => {};
-        this.#afterHook = () => ({});
+    afterUnsubscribe(n) {
+        this.#after.splice(n, 1);
     }
 
     /**
@@ -133,14 +126,17 @@ export class KinshipExecutionHandler {
      * @param {TAliasModel[]} records
      */
     async #applyBefore(records) {
-        let args = [];
-        if(this.#beforeHook) {
-            args = await this.#beforeHook(records.length);
-        }
-        if(this.#before) {
-            await Promise.all(records.map(async (r,n) => {
-                await /** @type {TriggerCallback<any>} */ (this.#before)(r, { $$itemNumber: n, ...args })
-            }));
+        for(const { trigger, hook } of this.#before) {
+            let args = [];
+            if(trigger) {
+                if(hook) {
+                    args = await hook(records.length);
+                }
+                for(let i = 0; i < records.length; ++i) {
+                    const record = records[i];
+                    await trigger(record, { $$itemNumber: i, ...args });
+                }
+            }
         }
     }
 
@@ -150,14 +146,17 @@ export class KinshipExecutionHandler {
      * @param {TAliasModel[]} records
      */
     async #applyAfter(records) {
-        let args = [];
-        if(this.#afterHook) {
-            args = await this.#afterHook(records.length);
-        }
-        if(this.#after) {
-            await Promise.all(records.map(async (r,n) => {
-                await /** @type {TriggerCallback<any>} */ (this.#after)(r, { $$itemNumber: n, ...args })
-            }));
+        for(const { trigger, hook } of this.#after) {
+            let args = [];
+            if(trigger) {
+                if(hook) {
+                    args = await hook(records.length);
+                }
+                for(let i = 0; i < records.length; ++i) {
+                    const record = records[i];
+                    await trigger(record, { $$itemNumber: i, ...args });
+                }
+            }
         }
     }
 

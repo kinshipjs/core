@@ -55,7 +55,7 @@ export class KinshipExecutionHandler {
         try {
             await this.#applyBefore(records);
             const data = await this._execute(state, records, ...args);
-            data.records = this.#serializeRows(state.groupBy !== undefined, state.from.length > 1, data.records);
+            data.records = this.#serializeRows(state.groupBy !== undefined, state.from.length > 1, data.records) ?? [];
             await this.#applyAfter(data.records);
             return data;
         } catch(err) {
@@ -237,7 +237,9 @@ export class KinshipExecutionHandler {
                 // set based on the type of relationship this is.
                 // group by makes every record unique, and thus every related record would become 1:1.
                 if(relationship.relationshipType === RelationshipType.OneToOne || isGroupBy) {
-                    if(relatedRowsSerialized.length <= 0 || Object.values(relatedRowsSerialized[0]).filter(v => v !== null).length <= 0) {
+                    if(relatedRowsSerialized == null 
+                        || relatedRowsSerialized.length <= 0 
+                        || Optimized.filter(Object.values(relatedRowsSerialized[0]), (v) => v != null && v != []).length <= 0) {
                         newRow[key] = null;
                     } else {
                         newRow[key] = relatedRowsSerialized?.[0] ?? null;
@@ -248,7 +250,8 @@ export class KinshipExecutionHandler {
             }
             serializedRows.push(newRow);
         }
-        return serializedRows;
+        const filtered = Optimized.filter(serializedRows, row => Optimized.filter(Object.values(row), val => val != null).length > 0);
+        return filtered.length <= 0 ? null : filtered;
     }
 
     /**

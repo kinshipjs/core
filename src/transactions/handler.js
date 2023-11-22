@@ -193,17 +193,27 @@ export class KinshipExecutionHandler {
      * @param {number} depth 
      * Used for when the command had a group by clause.
      */
+    /**
+     * Serializes an array of rows to a user-friendly object.
+     * @param {boolean} isGroupBy
+     * @param {boolean} isJoined
+     * @param {object[]} rows 
+     * @param {Record<string, import("../adapter.js").SchemaColumnDefinition>} schema
+     * @param {import("../config/relationships.js").Relationships<object>} relationships
+     * @param {number} depth 
+     * Used for when the command had a group by clause.
+     */
     #serializeRows(isGroupBy, 
         isJoined,
         rows, 
         table=this.base.tableName, 
         schema=this.base.schema, 
-        relationships=this.base.relationships, 
+        relationships=this.base.relationships,
         depth = 0
     ) {
         if(!isJoined) return rows;
         if(rows.length <= 0) return rows;
-        if(rows[0].$$count) return rows;
+        if("$$count" in rows[0]) return rows;
         const pKeys = this.base.getPrimaryKeys(table);
         const uniqueRowsByPrimaryKey = isGroupBy 
             ? rows 

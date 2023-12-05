@@ -209,12 +209,13 @@ export class KinshipExecutionHandler {
         table=this.base.tableName, 
         schema=this.base.schema, 
         relationships=this.base.relationships,
+        lastRelationships=relationships,
         depth = 0
     ) {
         if(!isJoined) return rows;
         if(rows.length <= 0) return rows;
         if("$$count" in rows[0]) return rows;
-        const pKeys = this.base.getPrimaryKeys(table);
+        const pKeys = this.base.getPrimaryKeys(table, lastRelationships);
         const uniqueRowsByPrimaryKey = isGroupBy 
             ? rows 
             : Optimized.getUniqueObjectsByKeys(rows, Optimized.map(pKeys, key => key.commandAlias));
@@ -241,6 +242,7 @@ export class KinshipExecutionHandler {
                     relationship.table,
                     relationship.schema, 
                     relationship.relationships,
+                    relationships,
                     depth + 1
                 );
 

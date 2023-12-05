@@ -1,7 +1,7 @@
 {
     "name": "@kinshipjs/core",
     "type": "module",
-    "version": "0.0.40-development",
+    "version": "0.0.42-development",
     "repository": {
         "type": "git",
         "url": "https://github.com/kinshipjs/core"
@@ -38,7 +38,7 @@
     "license": "MIT",
     "devDependencies": {
         "@kinshipjs/mysql2": "file:../adapters/mysql",
-        "@types/node": "^20.4.5",
+        "@types/node": "^20.10.3",
         "dotenv": "^16.3.1",
         "tsup": "^7.1.0",
         "typescript": "^5.1.6"
@@ -59,13 +59,10 @@
     },
     "typesVersions": {
         "*": {
-            ".": [
-                "./dist/types/index.d.ts"
-            ],
-            "./adapter": [
+            "adapter": [
                 "./dist/types/adapter.d.ts"
             ],
-            "./errors": [
+            "errors": [
                 "./dist/types/exceptions.d.ts"
             ]
         }

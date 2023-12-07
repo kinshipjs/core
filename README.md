@@ -2,7 +2,7 @@
 
 # What is Kinship?
 
-Kinship is a relatively new approach (in JavaScript and NodeJS) to interfacing with your back-end databases using strong type mapping and friendly syntax to enhance your development experience.
+Kinship is a Query Builder and a relatively new approach (in JavaScript and NodeJS) to interfacing with your back-end databases using strong type mapping and friendly syntax to enhance your development experience.
 
 You can learn more about Kinship on the [Kinship website](https://kinshipjs.dev/)
 
@@ -12,7 +12,14 @@ Install dependencies
 
 ```
 npm i -D @kinshipjs/core
-npm i -D @kinshipjs/mysql2
+# adapter:
+npm i -D @kinshipjs/mysql2 # Interface with a MySQL database
+# or
+npm i -D @kinshipjs/mssql # Interface with a Microsoft SQL Server database
+npm i -D @kinshipjs/postgres # Interface with a PostGRES database
+npm i -D @kinshipjs/sqlite # Interface with a SQLite database/file
+npm i -D @kinshipjs/mongodb # Interface with your mongodb database
+npm i -D @kinshipjs/json # Interface with a javascript object
 ```
 
 ### Initialize types

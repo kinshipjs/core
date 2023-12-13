@@ -131,7 +131,7 @@ import { ErrorTypes, KinshipAdapterError } from "./exceptions.js";
  * @prop {(cmd: string, args: ExecutionArgument[]) => import("./models/maybe.js").MaybePromise<{[fieldName: string]: SchemaColumnDefinition}>} forDescribe
  * Handles execution of a describe command, given the command string and respective arguments for the command string.
  * This should return an object containing {@link DescribedSchema} objects. 
- * @prop {() => import("./models/maybe.js").MaybePromise<{ commit: () => import("./models/maybe.js").MaybePromise<void>, rollback: () => import("./models/maybe.js").MaybePromise<void> }>} forTransaction
+ * @prop {<T>(callback: (rollback: (message: string) => void) => import("./models/maybe.js").MaybePromise<T>) => Promise<T>} forTransaction
  * Begins a transaction, where each transactional function (e.g., `insert`, `delete`, `update`) will be called
  * in conjunction of eachother, meaning that if one fails, all will fail.  
  * This should return the same object that can commit/rollback the database.

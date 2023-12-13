@@ -12,7 +12,6 @@ import { OrderByBuilder } from "../clauses/order-by.js";
 import { RelationshipBuilder, RelationshipType } from "../config/relationships.js";
 import { ChooseBuilder } from "../clauses/choose.js";
 
-/** @template {object} T @typedef {import("../models/string.js").FriendlyType<import("../config/relationships.js").OnlyDataTypes<T>>} OnlyDataTypes */
 
 /**
  * Establishes a connection directly to a table within your database.  
@@ -31,7 +30,9 @@ export class KinshipContext {
      * @type {Builders<TTableModel, TAliasModel>} */ #builders;
     /** Handlers for transactions with the database. 
      * @type {Handlers} */ #handlers;
-    /** @type {Promise<State>} */ #promise = Promise.resolve(/** @type {State} */ ({}))
+    /** @type {Promise<State>} */ #promise = Promise.resolve(/** @type {State} */ ({}));
+
+    /** @type {{[K in keyof TTableModel]: K}} */ $;
 
     /* -------------------------Constructor------------------------- */
     
@@ -172,6 +173,17 @@ export class KinshipContext {
             records = data.records;
         }
         return records;
+    }
+
+    /**
+     * Query the table given the state of the context.
+     * @param {(records: TAliasModel[]) => void} resolve
+     * @returns {Promise<TAliasModel[]>}
+     */
+    async then(resolve) {
+        const { records } = await this.#handlers.query.handle(this.#promise, undefined);
+        resolve(/** @type {any} */(records));
+        return /** @type {TAliasModel[]} */ (records);
     }
 
     /**
@@ -432,8 +444,7 @@ export class KinshipContext {
      * Function that will be called before the insert for every record that is to be inserted.
      * @param {import("../transactions/handler.js").TriggerHookCallback=} hook
      * Function that is called once before the trigger and establishes static arguments to be available to `callback` within the `...args` parameter.
-     * @returns {InstanceType<KinshipDeleteHandler>['afterUnsubscribe']}
-     * Function that can be called to unsubscribe from this trigger.
+     * @returns {InstanceType<KinshipDeleteHandler>['afterUnsubscribe']} Object that has two functions-- `once` and `unsubscribe`.
      */
     afterDelete(callback, hook=undefined) {
         return this.#handlers.delete.after(callback, hook);
@@ -445,8 +456,7 @@ export class KinshipContext {
      * Function that will be called before the insert for every record that is to be inserted.
      * @param {import("../transactions/handler.js").TriggerHookCallback=} hook
      * Function that is called once before the trigger and establishes static arguments to be available to `callback` within the `...args` parameter.
-     * @returns {InstanceType<KinshipDeleteHandler>['afterUnsubscribe']}
-     * Function that can be called to unsubscribe from this trigger.
+     * @returns {InstanceType<KinshipDeleteHandler>['afterUnsubscribe']} Object that has two functions-- `once` and `unsubscribe`.
      */
     afterInsert(callback, hook=undefined) {
         return this.#handlers.insert.after(callback, hook);
@@ -458,8 +468,7 @@ export class KinshipContext {
      * Function that will be called after a query is completed.
      * @param {import("../transactions/handler.js").TriggerHookCallback=} hook
      * Function that is called once before the trigger and establishes static arguments to be available to `callback` within the `...args` parameter.
-     * @returns {InstanceType<KinshipQueryHandler>['afterUnsubscribe']}
-     * Function that can be called to unsubscribe from this trigger.
+     * @returns {InstanceType<KinshipQueryHandler>['afterUnsubscribe']} Object that has two functions-- `once` and `unsubscribe`.
      */
     afterQuery(callback, hook=undefined) {
         return this.#handlers.query.after(callback, hook);
@@ -472,8 +481,7 @@ export class KinshipContext {
      * Function that will be called before the insert for every record that is to be inserted.
      * @param {import("../transactions/handler.js").TriggerHookCallback=} hook
      * Function that is called once before the trigger and establishes static arguments to be available to `callback` within the `...args` parameter.
-     * @returns {InstanceType<KinshipDeleteHandler>['afterUnsubscribe']}
-     * Function that can be called to unsubscribe from this trigger.
+     * @returns {InstanceType<KinshipDeleteHandler>['afterUnsubscribe']} Object that has two functions-- `once` and `unsubscribe`.
      */
     afterUpdate(callback, hook=undefined) {
         return this.#handlers.update.after(callback, hook);
@@ -481,13 +489,12 @@ export class KinshipContext {
 
     /**
      * Set a trigger for every record explicitly given that gets deleted within the context, __before__ the delete occurs.  
-     * __If a delete occurs explicitly (e.g., using `.where(...).delete()`), then this trigger will not fire.__
+     * __If a delete occurs explicitly (e.g., using `.where(...).delete()`), then this trigger will not fire.__  
      * @param {import("../transactions/handler.js").TriggerCallback<TTableModel>} callback
      * Function that will be called before the delete for every record that is to be deleted.
      * @param {import("../transactions/handler.js").TriggerHookCallback=} hook
      * Function that is called once before the trigger and establishes static arguments to be available to `callback` within the `...hookArgs` parameter.
-     * @returns {InstanceType<KinshipDeleteHandler>['beforeUnsubscribe']}
-     * Function that can be called to unsubscribe from this trigger.
+     * @returns {InstanceType<KinshipDeleteHandler>['beforeUnsubscribe']} Object that has two functions-- `once` and `unsubscribe`.
      */
     beforeDelete(callback, hook=undefined) {
         return this.#handlers.delete.before(callback, hook);
@@ -499,10 +506,10 @@ export class KinshipContext {
      * Function that will be called before the insert for every record that is to be inserted.
      * @param {import("../transactions/handler.js").TriggerHookCallback=} hook
      * Function that is called once before the trigger and establishes static arguments to be available to `callback` within the `...args` parameter.
-     * @returns {InstanceType<KinshipDeleteHandler>['beforeUnsubscribe']}
-     * Function that can be called to unsubscribe from this trigger.
+     * @returns {InstanceType<KinshipDeleteHandler>['beforeUnsubscribe']} Object that has two functions-- `once` and `unsubscribe`.
      */
     beforeInsert(callback, hook=undefined) {
+        const unsubscribe = this.#handlers.insert.before(callback, hook);
         return this.#handlers.insert.before(callback, hook);
     }
 
@@ -513,8 +520,7 @@ export class KinshipContext {
      * Function that will be called before the update for every record that is to be updated.
      * @param {import("../transactions/handler.js").TriggerHookCallback=} hook
      * Function that is called once before the trigger and establishes static arguments to be available to `callback` within the `...args` parameter.
-     * @returns {InstanceType<KinshipDeleteHandler>['beforeUnsubscribe']}
-     * Function that can be called to unsubscribe from this trigger.
+     * @returns {InstanceType<KinshipDeleteHandler>['beforeUnsubscribe']} Object that has two functions-- `once` and `unsubscribe`.
      */
     beforeUpdate(callback, hook=undefined) {
         return this.#handlers.update.before(callback, hook);
@@ -711,40 +717,104 @@ export class KinshipContext {
     async prepare() {
 
     }
-
-    /**
-     * @param {(records: TAliasModel[]) => void} resolve
-     * @returns {Promise<TAliasModel[]>}
-     */
-    async then(resolve) {
-        const { records } = await this.#handlers.query.handle(this.#promise, undefined);
-        resolve(/** @type {any} */(records));
-        return /** @type {TAliasModel[]} */ (records);
-    }
 }
 
 /**
- * @param {import("../adapter.js").KinshipAdapterConnection} adapter
- * @returns {{ execute: (callback: (rollback: (message: string) => RollbackInvokedError) => Promise<void>) => Promise<void>}}
+ * Perform an "all or nothing" transaction, where all commands placed within the transaction will only succeed if the passed callback resolves gracefully.  
+ * @example
+ * ```js
+ * const dbConnection = // ... preferred db connection
+ * const cnn = adapter(dbConnection); // respective adapter
+ * const ctx = new KinshipContext(cnn, "Foo");
+ * 
+ * function doStuff() {
+ *   throw new Error(`Uh oh!`);
+ * }
+ * 
+ * await transaction(cnn).execute(async rollback => {
+ *   await ctx.where(m => m.id.equals(5)).delete();
+ *   doStuff();
+ *   return 1;
+ * });
+ * 
+ * console.log("Hello world!"); // this code will never reach, and the Foo record with id, `5`, will not be deleted.
+ * ```
+ * @param {import("../adapter.js").KinshipAdapterConnection} adapterConnection
+ * The adapter connection to your database.
+ * @returns {{ execute: <TReturnType>(callback: (rollback: (message: string) => void) => import("../models/maybe.js").MaybePromise<TReturnType>) => Promise<TReturnType> }}
+ * Object with one property-- `execute`, which will accept a callback 
  */
-export function transaction(adapter) {
+export function transaction(adapterConnection) {
     return {
         async execute(callback) {
-            const { commit, rollback } = await adapter.execute({
-                // @TODO: change this
+            return await adapterConnection.execute({
                 KinshipAdapterError: (msg) => new Error(),
                 ErrorTypes
-            }).forTransaction();
-            try {
-                await callback((message) => new RollbackInvokedError(message));
-                await commit();
-            } catch(err) {
-                await rollback();
-                throw err;
-            }
+            }).forTransaction(callback);
         }
     }
 }
+
+// /**
+//  * @template {any} TArg
+//  * @template {TArg[]} TArgs
+//  * @param {TemplateStringsArray} strings
+//  * @param {[...TArgs]} args
+//  * @returns {Promise<InferDapperReturnType<TArgs>[]>}
+//  */
+// export async function $(strings, ...args) {
+//     return /** @type {any} */ ([]);
+// }
+
+/**
+ * @template {any[]} TArgs
+ * @typedef {TArgs[0] extends KinshipContext<infer _, infer __>
+ *  ? InferRowTypeFromContexts<TArgs> 
+ *  : InferRowTypeFromSelectedColumns<TArgs>} InferDapperReturnType
+ */
+
+/**
+ * infers type of "dapper" command by looking at the TArgs (the template literal arguments) and determining the KinshipContexts used.
+ * Then, all inferred model types from each context are intersected.
+ * @template {any[]} TArgs
+ * @typedef {import("../models/string.js").FriendlyType<TArgs['length'] extends 0 
+ *  ? {}
+ *  : TArgs[0] extends KinshipContext<infer _, infer T>
+ *      ? TArgs extends [infer _, ...infer Rest] 
+ *          ? (T & InferRowTypeFromContexts<Rest>)
+ *          : T
+ *      : TArgs extends [infer _, ...infer Rest] 
+ *          ? InferRowTypeFromContexts<Rest>
+ *          : {}>} InferRowTypeFromContexts
+ */
+
+/**
+ * Infers type from "dapper" command by looking at the TArgs (the template literal arguments) and determining the SELECT ... columns used.  
+ * Then, all inferred columns are combined as one object, where each type is inferred from their respective contexts that are also inferred via {@link InferRowTypeFromContexts}
+ * @template {any[]} TArgs
+ * @template {InferRowTypeEntriesFromSelectedColumns<TArgs>} [TEntries=InferRowTypeEntriesFromSelectedColumns<TArgs>]
+ * @typedef {import("../models/string.js").FriendlyType<{
+ *  [K in keyof TEntries as TEntries[K][0]]: TEntries[K][1]
+ * }>} InferRowTypeFromSelectedColumns
+ */
+
+/**
+ * @template {any[]} TArgs
+ * @template {InferRowTypeFromContexts<TArgs>} [TRowType=InferRowTypeFromContexts<TArgs>]
+ * @template {Exclude<TArgs[0], undefined>} [TFirstArrValue=Exclude<TArgs[0], undefined>]
+ * @typedef {import("../models/string.js").FriendlyType<TArgs['length'] extends 0
+ *  ? []
+ *  : TFirstArrValue extends KinshipContext
+ *      ? []
+ *      : TFirstArrValue extends keyof TRowType
+ *          ? TArgs extends [infer _, ...infer Rest]
+ *              ? [[TFirstArrValue, TRowType[TFirstArrValue]], ...InferRowTypeEntriesFromSelectedColumns<Rest, TRowType>]
+ *              : [[TFirstArrValue, TRowType[TFirstArrValue]]]
+ *          : []
+ * >} InferRowTypeEntriesFromSelectedColumns
+ */
+
+/** @template {object} T @typedef {import("../models/string.js").FriendlyType<import("../config/relationships.js").OnlyDataTypes<T>>} OnlyDataTypes */
 
 /**
  * Various builders to handle clause methods that assist building the state of the context.

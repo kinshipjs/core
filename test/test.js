@@ -1,5 +1,5 @@
 //@ts-check
-import { KinshipContext, transaction } from "../src/context/context.js";
+import { KinshipContext, transaction, $ } from "../src/context/context.js";
 import { adapter, createMySql2Pool } from "@kinshipjs/mysql2";
 import { config } from 'dotenv';
 
@@ -72,6 +72,18 @@ const xUserRoles = new KinshipContext(connection, "xUserRole");
 const roles = new KinshipContext(connection, "Role");
 const lastId = lastIds.where(m => m.Id.equals(1));
 
+const n = await $`SELECT 
+    ${users.$.Id},
+    ${users.$.FirstName}
+    FROM ${users}
+        LEFT JOIN ${xUserRoles} ON ${users.$.Id} = ${xUserRoles.$.UserId}
+        LEFT JOIN ${roles} ON ${roles.$.Id} = ${xUserRoles.$.RoleId}
+    WHERE ${users.$.LastName} LIKE ${"d%"}`;
+
+const blah = await transaction(connection).execute(async () => {
+    const [user] = await users.where(m => m.FirstName.equals("John"));
+})
+
 users.hasMany(m => m.userRoles
         .fromTable("xUserRole")
         .withKeys("Id", "UserId")
@@ -106,31 +118,6 @@ users.beforeInsert((m, { $$itemNumber, lastUserId }) => {
             lastUserId: 0
         };
     }
-});
-
-users.afterInsert(async (u) => {
-    // insert cascading
-    await transaction({ xUserRoles }).execute(async ({ xUserRoles: xUserRolesCtx }) => {
-        console.log(JSON.stringify({u}, undefined, 2));
-        if(!u.userRoles) {
-            return;
-        }
-        let roles = /** @type {Role[]} */ (u.userRoles.map(ur => ur.role).filter(r => Boolean(r)));
-        if(roles.length > 0) {
-            // only inserts xRefs.
-            const needsUpdating = roles.filter(r => Boolean(r.Id));
-            await xUserRolesCtx.insert(needsUpdating.map(r => ({
-                UserId: u.Id,
-                RoleId: r.Id
-            })));
-        }
-    });
-}, async (numRecords) => {
-    // Update the LastRowNumber table so the User Id is reflected.
-    const results = await lastId.select();
-    const [lastUserId] = results;
-    lastUserId.User += numRecords;
-    await lastIds.update(lastUserId);
 });
 
 async function testCount() {

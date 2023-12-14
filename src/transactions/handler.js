@@ -29,11 +29,11 @@ export class KinshipExecutionHandler {
      * Handles the execution of a command and its respective triggers if any exist.
      * @template {object} T
      * @param {Promise<import("../context/context.js").State>} promise
-     * @param {import("../models/maybe.js").MaybeArray<T>|undefined} records
-     * @param {...any} args
+     * @param {{ records?: import("../models/maybe.js").MaybeArray<T>|undefined, callback?: Function, transaction?: any, truncate?: boolean }=} data
      * @returns {Promise<{ numRowsAffected: number, records: T[], whereClause?: WhereBuilder<T>}>}
      */
-    async handle(promise, records, ...args) {
+    async handle(promise, data) {
+        let { records, callback, transaction, truncate } = { callback:undefined, records: undefined, transaction: undefined, truncate: undefined, ...data };
         // await the promise so the state is in sync.
         let state = await promise;
         // prepare the state for adapter usage.
@@ -54,7 +54,7 @@ export class KinshipExecutionHandler {
         }
         try {
             await this.#applyBefore(records);
-            const data = await this._execute(state, records, ...args);
+            const data = await this._execute(state, records ? records : callback, transaction, truncate);
             data.records = this.#serializeRows(state.groupBy !== undefined, state.from.length > 1, data.records) ?? [];
             await this.#applyAfter(data.records);
             return data;
@@ -200,10 +200,11 @@ export class KinshipExecutionHandler {
      * @template {object|undefined} TAliasModel
      * @param {import("../context/context.js").State} state
      * @param {import("../models/maybe.js").MaybeArray<TAliasModel>|Function|undefined} records
-     * @param {...any} args
+     * @param {any=} transaction
+     * @param {boolean=} truncate
      * @returns {Promise<{ numRowsAffected: number, records: TAliasModel[]}>}
      */
-    async _execute(state, records, ...args) {
+    async _execute(state, records, callback=undefined, transaction=undefined, truncate=undefined) {
         throw new KinshipImplementationError(`Child class must implement the function, "._execute".`);
     }
 

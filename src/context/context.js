@@ -32,8 +32,6 @@ export class KinshipContext {
      * @type {Handlers} */ #handlers;
     /** @type {Promise<State>} */ #promise = Promise.resolve(/** @type {State} */ ({}));
 
-    /** @type {{[K in keyof TTableModel]: K}} */ $;
-
     /* -------------------------Constructor------------------------- */
     
     // for some reason, when this is overloaded, errors end up existing with type inferrence.
@@ -150,7 +148,19 @@ export class KinshipContext {
      * @returns {Promise<number>} Number of rows deleted.
      */
     async delete(records=undefined) {
-        const { numRowsAffected } = await this.#handlers.delete.handle(this.#promise, records);
+        return this.#delete(records);
+    }
+
+    /**
+     * Deletes records in the table connected to this context.
+     * @param {import("../models/maybe.js").MaybeArray<TTableModel>=} records 
+     * Records to delete using their primary key(s) or undefined if using `.where()`.
+     * @param {any|undefined} transaction
+     * Transaction that is used instead of the connection object.
+     * @returns {Promise<number>} Number of rows deleted.
+     */
+    async #delete(records=undefined, transaction=undefined) {
+        const { numRowsAffected } = await this.#handlers.delete.handle(this.#promise, { records, transaction });
         return numRowsAffected;
     }
 
@@ -163,7 +173,21 @@ export class KinshipContext {
      * __Default values include virtual columns, database defaults, and user defined defaults.__
      */
     async insert(records) {
-        const { numRowsAffected, whereClause, ...data } = await this.#handlers.insert.handle(this.#promise, records);
+        return this.#insert(records);
+    }
+
+    /**
+     * Insert records into the table.
+     * @param {import("../models/maybe.js").MaybeArray<TTableModel>} records
+     * Record or records to insert into the database.
+     * @param {any|undefined} transaction
+     * Transaction that is used instead of the connection object.
+     * @returns {Promise<TTableModel[]>} 
+     * The same records that were inserted, with updated properties of any default values.  
+     * __Default values include virtual columns, database defaults, and user defined defaults.__
+     */
+    async #insert(records, transaction=undefined) {
+        const { numRowsAffected, whereClause, ...data } = await this.#handlers.insert.handle(this.#promise, { records, transaction });
         // If `whereClause` is NOT undefined, then the handler determined that virtual columns exist, so we must requery
         if(whereClause) { 
             const ctx = this.#newContext();
@@ -181,7 +205,7 @@ export class KinshipContext {
      * @returns {Promise<TAliasModel[]>}
      */
     async then(resolve) {
-        const { records } = await this.#handlers.query.handle(this.#promise, undefined);
+        const { records } = await this.#handlers.query.handle(this.#promise, {});
         resolve(/** @type {any} */(records));
         return /** @type {TAliasModel[]} */ (records);
     }
@@ -191,8 +215,17 @@ export class KinshipContext {
      * @returns {Promise<number>} Number of rows that were deleted.
      */
     async truncate() {
-        var { numRowsAffected } = await this.#handlers.delete.handle(this.#promise, undefined, { truncate: true });
+        return this.#truncate();
+    }
 
+    /**
+     * Truncate the table this context represents.
+     * @param {any|undefined} transaction
+     * Transaction that is used instead of the connection object.
+     * @returns {Promise<number>} Number of rows that were deleted.
+     */
+    async #truncate(transaction=undefined) {
+        const { numRowsAffected } = await this.#handlers.delete.handle(this.#promise, { transaction, truncate: true });
         return numRowsAffected;
     }
 
@@ -220,20 +253,81 @@ export class KinshipContext {
      */
     /**
      * Update rows in the table.
-     * @param {import("../models/maybe.js").MaybeArray<TTableModel>|((m: TTableModel) => Partial<TTableModel>|void)} records 
+     * @param {import("../models/maybe.js").MaybeArray<TTableModel>|((m: TTableModel) => Partial<TTableModel>|void)} recordsOrCallback 
      * A record, or an array of records to be updated on primary key 
      * or a callback that specifies which column should be updated to what value.
      * __If any record does not have a primary key, then that record is ignored in the update.__
      * @returns {Promise<number>} Number of updated rows.
      */
-    async update(records) {
-        if(typeof records === 'function') {
-            var { numRowsAffected } = await this.#handlers.update.handle(this.#promise, undefined, records);
+    async update(recordsOrCallback) {
+        return this.#update(recordsOrCallback);
+    }
+
+    /**
+     * Update rows in the table.
+     * @param {import("../models/maybe.js").MaybeArray<TTableModel>|((m: TTableModel) => Partial<TTableModel>|void)} recordsOrCallback 
+     * A record, or an array of records to be updated on primary key 
+     * or a callback that specifies which column should be updated to what value.
+     * __If any record does not have a primary key, then that record is ignored in the update.__
+     * @param {any|undefined} transaction
+     * Transaction that is used instead of the connection object.
+     * @returns {Promise<number>} Number of updated rows.
+     */
+    async #update(recordsOrCallback, transaction=undefined) {
+        if(typeof recordsOrCallback === 'function') {
+            var { numRowsAffected } = await this.#handlers.update.handle(this.#promise, { callback: recordsOrCallback, transaction });
         } else {
-            var { numRowsAffected }  = await this.#handlers.update.handle(this.#promise, records);
+            var { numRowsAffected }  = await this.#handlers.update.handle(this.#promise, { records: recordsOrCallback, transaction });
         }
 
         return numRowsAffected;
+    }
+
+    /**
+     * Explicitly uses the given `transaction` for the next `insert`, `update`, or `delete` function 
+     * to use the given `transaction` argument, received from the `.transaction(...).execute((transaction) => { ... })`;
+     * @param {any} transaction 
+     * Transaction that the next the `insert`, `update`, or `delete` function should use instead of the default connection.
+     */
+    using(transaction) {
+        const newProxy = (self) => new Proxy(self, {
+            get(t,p) {
+                // intercept the main transaction functions that must be done in a transaction, when a transaction is specified.
+                // then,
+                // return another proxy, which will intercept the direct calls to `update()`, `delete()`, and `insert()` functions,
+                // to add the actual `transaction` as an argument.
+                if(String(p) === 'delete') {
+                    return new Proxy(self.#delete, {
+                        apply(target, _, args) {
+                            return self.#delete(args[0], transaction);
+                        }
+                    });
+                }
+                if(String(p) === 'insert') {
+                    return new Proxy(self.#insert, {
+                        apply(target, _, args) {
+                            return self.#insert(args[0], transaction);
+                        }
+                    });
+                }
+                if(String(p) === 'update') {
+                    return new Proxy(self.#update, {
+                        apply(target, _, args) {
+                            return self.#update(args[0], transaction);
+                        }
+                    });
+                }
+                if(typeof self[p] === 'function') {
+                    return new Proxy(self[p], {
+                        apply(target, _, args) {
+                            return newProxy(self[p](...args));
+                        }
+                    })
+                }
+                return this[p];
+            }
+        });
+        return newProxy(this);
     }
 
     /* -------------------------Public Clause Functions------------------------- */
@@ -731,7 +825,9 @@ export class KinshipContext {
  *   throw new Error(`Uh oh!`);
  * }
  * 
- * await transaction(cnn).execute(async rollback => {
+ * await transaction(cnn).execute(async tnx => {
+ *   // `.using()` ensures the context's next transaction function is 
+ *   const $ctx = ctx.using(tnx);
  *   await ctx.where(m => m.id.equals(5)).delete();
  *   doStuff();
  *   return 1;
@@ -741,78 +837,28 @@ export class KinshipContext {
  * ```
  * @param {import("../adapter.js").KinshipAdapterConnection} adapterConnection
  * The adapter connection to your database.
- * @returns {{ execute: <TReturnType>(callback: (rollback: (message: string) => void) => import("../models/maybe.js").MaybePromise<TReturnType>) => Promise<TReturnType> }}
+ * @returns {{ execute: <TReturnType>(callback: (transaction: any|undefined) => import("../models/maybe.js").MaybePromise<TReturnType>) => Promise<TReturnType> }}
  * Object with one property-- `execute`, which will accept a callback 
  */
 export function transaction(adapterConnection) {
     return {
         async execute(callback) {
-            return await adapterConnection.execute({
+            const { begin, commit, rollback, transaction } = await adapterConnection.execute({
                 KinshipAdapterError: (msg) => new Error(),
                 ErrorTypes
-            }).forTransaction(callback);
+            }).forTransaction();
+            await begin();
+            try {
+                const result = await callback(transaction);
+                await commit();
+                return result;
+            } catch(err) {
+                await rollback();
+                throw err;
+            }
         }
     }
 }
-
-// /**
-//  * @template {any} TArg
-//  * @template {TArg[]} TArgs
-//  * @param {TemplateStringsArray} strings
-//  * @param {[...TArgs]} args
-//  * @returns {Promise<InferDapperReturnType<TArgs>[]>}
-//  */
-// export async function $(strings, ...args) {
-//     return /** @type {any} */ ([]);
-// }
-
-/**
- * @template {any[]} TArgs
- * @typedef {TArgs[0] extends KinshipContext<infer _, infer __>
- *  ? InferRowTypeFromContexts<TArgs> 
- *  : InferRowTypeFromSelectedColumns<TArgs>} InferDapperReturnType
- */
-
-/**
- * infers type of "dapper" command by looking at the TArgs (the template literal arguments) and determining the KinshipContexts used.
- * Then, all inferred model types from each context are intersected.
- * @template {any[]} TArgs
- * @typedef {import("../models/string.js").FriendlyType<TArgs['length'] extends 0 
- *  ? {}
- *  : TArgs[0] extends KinshipContext<infer _, infer T>
- *      ? TArgs extends [infer _, ...infer Rest] 
- *          ? (T & InferRowTypeFromContexts<Rest>)
- *          : T
- *      : TArgs extends [infer _, ...infer Rest] 
- *          ? InferRowTypeFromContexts<Rest>
- *          : {}>} InferRowTypeFromContexts
- */
-
-/**
- * Infers type from "dapper" command by looking at the TArgs (the template literal arguments) and determining the SELECT ... columns used.  
- * Then, all inferred columns are combined as one object, where each type is inferred from their respective contexts that are also inferred via {@link InferRowTypeFromContexts}
- * @template {any[]} TArgs
- * @template {InferRowTypeEntriesFromSelectedColumns<TArgs>} [TEntries=InferRowTypeEntriesFromSelectedColumns<TArgs>]
- * @typedef {import("../models/string.js").FriendlyType<{
- *  [K in keyof TEntries as TEntries[K][0]]: TEntries[K][1]
- * }>} InferRowTypeFromSelectedColumns
- */
-
-/**
- * @template {any[]} TArgs
- * @template {InferRowTypeFromContexts<TArgs>} [TRowType=InferRowTypeFromContexts<TArgs>]
- * @template {Exclude<TArgs[0], undefined>} [TFirstArrValue=Exclude<TArgs[0], undefined>]
- * @typedef {import("../models/string.js").FriendlyType<TArgs['length'] extends 0
- *  ? []
- *  : TFirstArrValue extends KinshipContext
- *      ? []
- *      : TFirstArrValue extends keyof TRowType
- *          ? TArgs extends [infer _, ...infer Rest]
- *              ? [[TFirstArrValue, TRowType[TFirstArrValue]], ...InferRowTypeEntriesFromSelectedColumns<Rest, TRowType>]
- *              : [[TFirstArrValue, TRowType[TFirstArrValue]]]
- *          : []
- * >} InferRowTypeEntriesFromSelectedColumns
- */
 
 /** @template {object} T @typedef {import("../models/string.js").FriendlyType<import("../config/relationships.js").OnlyDataTypes<T>>} OnlyDataTypes */
 

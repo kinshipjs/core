@@ -1,5 +1,5 @@
 //@ts-check
-import { KinshipContext, transaction, $ } from "../src/context/context.js";
+import { KinshipContext, transaction } from "../src/context/context.js";
 import { adapter, createMySql2Pool } from "@kinshipjs/mysql2";
 import { config } from 'dotenv';
 
@@ -72,16 +72,17 @@ const xUserRoles = new KinshipContext(connection, "xUserRole");
 const roles = new KinshipContext(connection, "Role");
 const lastId = lastIds.where(m => m.Id.equals(1));
 
-const n = await $`SELECT 
-    ${users.$.Id},
-    ${users.$.FirstName}
-    FROM ${users}
-        LEFT JOIN ${xUserRoles} ON ${users.$.Id} = ${xUserRoles.$.UserId}
-        LEFT JOIN ${roles} ON ${roles.$.Id} = ${xUserRoles.$.RoleId}
-    WHERE ${users.$.LastName} LIKE ${"d%"}`;
-
-const blah = await transaction(connection).execute(async () => {
-    const [user] = await users.where(m => m.FirstName.equals("John"));
+const blah = await transaction(connection).execute(async (transaction) => {
+    const $users = users.using(transaction);
+    const [user] = await $users.insert({
+        FirstName: "",
+        LastName: ""
+    });
+    const n = await $users
+        .where(m => m.Id.equals(user.Id))
+        .delete(transaction);
+    
+    console.log({ user, n });
 })
 
 users.hasMany(m => m.userRoles

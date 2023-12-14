@@ -10,11 +10,12 @@ export class KinshipDeleteHandler extends KinshipExecutionHandler {
      * @protected
      * @param {any} state
      * @param {object[]} records
-     * @param {...any} extraArgs
+     * @param {boolean=} truncate
+     * @param {any=} transaction
      * @returns {Promise<{ numRowsAffected: number, records: object[] }>}
      */
-    async _execute(state, records, extraArgs) {
-        if(extraArgs && extraArgs.truncate) {
+    async _execute(state, records, transaction=undefined, truncate=false) {
+        if(truncate) {
             return this.#handleTruncate();
         }
         const { cmd, args } = this._serialize(state, records);
@@ -48,15 +49,17 @@ export class KinshipDeleteHandler extends KinshipExecutionHandler {
     }
 
     /**
+     * @param {any=} transaction
+     * Transaction that is given by the arguments in the callback argument accepted by `execute()` on `transaction()` functions.
      * @returns {Promise<{ numRowsAffected: number, records: object[] }>}
      */
-    async #handleTruncate() {
+    async #handleTruncate(transaction) {
         if(!this.base.options.disableSafeDeleteMode) {
             throw new KinshipSafeDeleteModeEnabledError();
         }
         const { cmd, args } = this.base.handleAdapterSerialize().forTruncate({ table: this.base.tableName });
         try {
-            const numRowsAffected = await this.base.handleAdapterExecute().forDelete(cmd, args);
+            const numRowsAffected = await this.base.handleAdapterExecute(transaction).forDelete(cmd, args);
             this.base.listener.emitDeleteSuccess({ cmd, args, results: [numRowsAffected] });
             return {
                 numRowsAffected,

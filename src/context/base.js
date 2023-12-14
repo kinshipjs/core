@@ -55,11 +55,14 @@ export class KinshipBase {
 
     /**
      * Calls the adapter's execute function with the appropriate scope. 
+     * @param {any=} transaction
+     * Transaction that is given by the arguments in the callback argument accepted by `execute()` on `transaction()` functions.
      */
-    handleAdapterExecute() {
+    handleAdapterExecute(transaction=undefined) {
         return this.adapter.execute({
             ErrorTypes,
-            KinshipAdapterError: (msg) => new KinshipAdapterError(msg)
+            KinshipAdapterError: (msg) => new KinshipAdapterError(msg),
+            transaction
         });
     }
 

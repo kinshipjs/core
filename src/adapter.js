@@ -131,10 +131,23 @@ import { ErrorTypes, KinshipAdapterError } from "./exceptions.js";
  * @prop {(cmd: string, args: ExecutionArgument[]) => import("./models/maybe.js").MaybePromise<{[fieldName: string]: SchemaColumnDefinition}>} forDescribe
  * Handles execution of a describe command, given the command string and respective arguments for the command string.
  * This should return an object containing {@link DescribedSchema} objects. 
- * @prop {<T>(callback: (rollback: (message: string) => void) => import("./models/maybe.js").MaybePromise<T>) => Promise<T>} forTransaction
+ * @prop {<T>() => import("./models/maybe.js").MaybePromise<TransactionTools>} forTransaction
  * Begins a transaction, where each transactional function (e.g., `insert`, `delete`, `update`) will be called
  * in conjunction of eachother, meaning that if one fails, all will fail.  
  * This should return the same object that can commit/rollback the database.
+ */
+
+/**
+ * Various tools interacting with the adapter's connection transaction.
+ * @typedef {object} TransactionTools
+ * @prop {any} transaction
+ * The connection, or some object necessary to isolate all commands within the transaction.
+ * @prop {() => import("./models/maybe.js").MaybePromise<void>} begin
+ * Function that when called, will begin the transaction.
+ * @prop {() => import("./models/maybe.js").MaybePromise<void>} commit
+ * Function that when called, will commit the transaction.
+ * @prop {() => import("./models/maybe.js").MaybePromise<void>} rollback
+ * Function that when called, will rollback the transaction.
  */
 
 /** 
@@ -144,6 +157,8 @@ import { ErrorTypes, KinshipAdapterError } from "./exceptions.js";
  * Throw an error if it is an unexpected error that occurs within the custom adapter.
  * @prop {typeof ErrorTypes} ErrorTypes
  * Situationally create new WHERE clause conditions.
+ * @prop {any=} transaction
+ * Transaction or some connection from the database engine library that may be used in the `.execute()` functions.
  */
 
 /**

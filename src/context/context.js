@@ -288,6 +288,7 @@ export class KinshipContext {
      * to use the given `transaction` argument, received from the `.transaction(...).execute((transaction) => { ... })`;
      * @param {any} transaction 
      * Transaction that the next the `insert`, `update`, or `delete` function should use instead of the default connection.
+     * @returns {this}
      */
     using(transaction) {
         const newProxy = (self) => new Proxy(self, {
@@ -815,20 +816,27 @@ export class KinshipContext {
 
 /**
  * Perform an "all or nothing" transaction, where all commands placed within the transaction will only succeed if the passed callback resolves gracefully.  
+ * 
+ * Inside the callback, a parameter is available, called `transaction`, which will be some object, typed `any`, that must be used in conjunction
+ * with the contexts being used within the transaction by calling the `.using(transaction)` function on the context before proceeding with anything else.  
+ * 
+ * This is because some adapters require the same transaction connection, 
+ * or otherwise there are conflicts with the original connection setup when creating the context.
  * @example
- * ```js
+ * ```ts
  * const dbConnection = // ... preferred db connection
  * const cnn = adapter(dbConnection); // respective adapter
- * const ctx = new KinshipContext(cnn, "Foo");
+ * const ctx = new KinshipContext<{ id: number }>(cnn, "Foo");
  * 
  * function doStuff() {
  *   throw new Error(`Uh oh!`);
  * }
  * 
  * await transaction(cnn).execute(async tnx => {
- *   // `.using()` ensures the context's next transaction function is 
  *   const $ctx = ctx.using(tnx);
- *   await ctx.where(m => m.id.equals(5)).delete();
+ *   await $ctx.where(m => m.id.equals(5)).delete();
+ *   // or
+ *   await ctx.using(tnx).where(m => m.id.equals(5)).delete();
  *   doStuff();
  *   return 1;
  * });
@@ -838,22 +846,22 @@ export class KinshipContext {
  * @param {import("../adapter.js").KinshipAdapterConnection} adapterConnection
  * The adapter connection to your database.
  * @returns {{ execute: <TReturnType>(callback: (transaction: any|undefined) => import("../models/maybe.js").MaybePromise<TReturnType>) => Promise<TReturnType> }}
- * Object with one property-- `execute`, which will accept a callback 
+ * Object with one property-- `execute`, which will accept a callback where all kinship
  */
 export function transaction(adapterConnection) {
     return {
         async execute(callback) {
-            const { begin, commit, rollback, transaction } = await adapterConnection.execute({
+            const { begin, commit, rollback } = await adapterConnection.execute({
                 KinshipAdapterError: (msg) => new Error(),
                 ErrorTypes
             }).forTransaction();
-            await begin();
+            const transaction = await begin();
             try {
                 const result = await callback(transaction);
-                await commit();
+                await commit(transaction);
                 return result;
             } catch(err) {
-                await rollback();
+                await rollback(transaction);
                 throw err;
             }
         }

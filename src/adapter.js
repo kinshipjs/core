@@ -132,22 +132,39 @@ import { ErrorTypes, KinshipAdapterError } from "./exceptions.js";
  * Handles execution of a describe command, given the command string and respective arguments for the command string.
  * This should return an object containing {@link DescribedSchema} objects. 
  * @prop {<T>() => import("./models/maybe.js").MaybePromise<TransactionTools>} forTransaction
- * Begins a transaction, where each transactional function (e.g., `insert`, `delete`, `update`) will be called
- * in conjunction of eachother, meaning that if one fails, all will fail.  
- * This should return the same object that can commit/rollback the database.
+ * Returns the necessary tools that are used to begin a transaction, commit the transaction, or roll the transaction back.  
+ * This should return something like this:
+ * ```js
+ * return { 
+ *  begin: () => {
+ *      // ...do necessary stuff here to create a `transaction` object.
+ *      
+ *      // said transaction object must be returned back to Kinship, so it can be relayed to the `execute()` functions.
+ *      return transaction; 
+ *  }, 
+ *  commit: () => {
+ *      // ...do necessary stuff here to commit the transaction. 
+ *      // (active transaction can be found in the `scope` parameter in `execute(scope)`)
+ *  }, 
+ *  rollback: () => {
+ *      // ...do necessary stuff here to roll the transaction back (this will be called when an error is thrown)
+ *      // (active transaction can be found in the `scope` parameter in `execute(scope)`)
+ *  }
+ * }
+ * ``` 
  */
 
 /**
  * Various tools interacting with the adapter's connection transaction.
  * @typedef {object} TransactionTools
- * @prop {any} transaction
- * The connection, or some object necessary to isolate all commands within the transaction.
- * @prop {() => import("./models/maybe.js").MaybePromise<void>} begin
- * Function that when called, will begin the transaction.
- * @prop {() => import("./models/maybe.js").MaybePromise<void>} commit
- * Function that when called, will commit the transaction.
- * @prop {() => import("./models/maybe.js").MaybePromise<void>} rollback
- * Function that when called, will rollback the transaction.
+ * @prop {() => import("./models/maybe.js").MaybePromise<any>} begin
+ * Function that when called, will begin the transaction. This should return anything that is necessary for the adapter to work with the transaction.  
+ * For example, in the mssql library, the current connection creates a transaction connection, so the transaction connection must be returned from
+ * the `begin()` function, so that the transaction connection can be passed back to the adapter later.
+ * @prop {(transaction: any) => import("./models/maybe.js").MaybePromise<void>} commit
+ * Function that when called, will commit the `transaction`.
+ * @prop {(transaction: any) => import("./models/maybe.js").MaybePromise<void>} rollback
+ * Function that when called, will rollback the `transaction`.
  */
 
 /** 
@@ -158,7 +175,8 @@ import { ErrorTypes, KinshipAdapterError } from "./exceptions.js";
  * @prop {typeof ErrorTypes} ErrorTypes
  * Situationally create new WHERE clause conditions.
  * @prop {any=} transaction
- * Transaction or some connection from the database engine library that may be used in the `.execute()` functions.
+ * Transaction or some connection from the database engine library that may be used in the `.execute()` functions. This would be the same object
+ * that is returned from your `execute().forTransaction().begin()` function.
  */
 
 /**

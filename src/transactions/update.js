@@ -12,12 +12,13 @@ export class KinshipUpdateHandler extends KinshipExecutionHandler {
      * @param {any} state
      * @param {TTableModel[]} records
      * @param {((m: TTableModel) => Partial<TTableModel>|void)=} callback
+     * @param {any=} transaction
      * @returns {Promise<{ numRowsAffected: number, records: TTableModel[] }>}
      */
-    async _execute(state, records, callback=undefined) {
+    async _execute(state, records, callback=undefined, transaction=undefined) {
         const { cmd, args } = this._serialize(state, records, callback);
         try {
-            const numRowsAffected = await this.base.handleAdapterExecute().forUpdate(cmd, args);
+            const numRowsAffected = await this.base.handleAdapterExecute(transaction).forUpdate(cmd, args);
             this.base.listener.emitUpdateSuccess({ cmd, args, results: [numRowsAffected] });
             return {
                 numRowsAffected,

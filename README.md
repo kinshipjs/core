@@ -224,35 +224,71 @@ await users.truncate();
 
 ### All or nothing transactions
 
-Call multiple transactional functions where if one fails, then all will fail.
+Call multiple transactional functions where if one fails, then all will fail.  
+
+If you want a set of commands to only commit to your database when each command in that set is successful, then a transaction is the feature you want to use.  
+
+In order for you to use transactions properly, there are a few notes to keep in mind:  
+
+Most Node.js database engines isolate their transactions to their own connection, so your contexts must change scope to these connections.  
+
+For example, `mssql` has a `Transaction` class that is used instead of the connection,
+
+```ts
+import mssql from 'mssql';
+const pool = new mssql.ConnectionPool(config);
+await pool.connect();
+const transaction = pool.transaction();
+
+// although, we started a transaction, this command commits immediately, because it is not on the transaction object we created.
+pool.query`INSERT INTO Foo (Id) VALUES (1);`;
+
+// but this won't commit right away
+transaction.query`INSERT INTO Foo (Id) VALUES (2);`;
+```
+
+In order to work around this, you must use the `KinshipContext#using` function with a passed parameter to `transaction(...).execute(async (tnx) => { ... })`
+
+Additionally, this transaction will only work on the database connection (A) that is specified in the argument for `transaction()`, if you use a separate database
+connection (B), then any commands on contexts connected to the B will not work like they are in a transaction, and will instead throw an error.
+
+For example:
 
 ```ts
 import { transaction } from '@kinshipjs/core';
 
-/**
- * Deletes all current roles that a user `firstName` `lastName` has and gives them the `Admin` role (if one exists)  
- * If no Admin role exists, then nothing is done.
- * @param firstName First name of the user to give admin role.
- * @param lastName Last name of the user to give admin role.
- */
-async function giveUserAdminRole(firstName, lastName) {
-    return await transaction({ users, xUserRoles, roles }).execute(async ({ users, xUserRoles, roles }, rollback) => {
-        const [johnDoe] = await users
+const config = { }; // ... configuration for database connection
+const cnn = adapter(createMssqlPool(config));
+
+const users = new KinshipContext<{ Id?: number, FirstName: string, LastName: string }>(cnn, "dbo.User");
+const xUserRoles = new KinshipContext<{ UserId?: number, RoleId?: number }>(cnn, "dbo.xUserRole");
+const roles = new KinshipContext<{ Id?: number, Title: string, Description?: string }>(cnn, "dbo.Role");
+
+async function giveUserAdminRole(firstName: string, lastName: string) {
+    return await transaction(cnn)
+        .execute(async (tnx) => 
+    {
+        // REQUIRED for the context to work on this specific transaction
+        const $users = users.using(tnx); 
+        const $xUserRoles = xUserRoles.using(tnx);
+        const $roles = roles.using(tnx);
+
+        const [johnDoe] = await $users
             .where(m => m.FirstName.equals(firstName)
                 .and(m => m.LastName.equals(lastName)));
         
-        const johnDoesCurrentRoles = await xUserRoles.where(m => m.UserId.equals(johnDoe.Id));
+        const johnDoesCurrentRoles = await $xUserRoles.where(m => m.UserId.equals(johnDoe.Id));
     
-        await xUserRoles.delete(johnDoesCurrentRoles);
+        await $xUserRoles.delete(johnDoesCurrentRoles);
     
-        const [adminRole] = await roles.where(m => m.Title.equals("Admin"));
+        const [adminRole] = await $roles.where(m => m.Title.equals("Admin"));
 
         if(!adminRole) {
             // note: rollback does not need to be thrown here. If any error is thrown, then the transaction is rolled back.
             // if no admin role exists, then user's current roles won't be deleted.
             throw rollback();
         }
-        const [xUserRole] = await xUserRoles.insert({
+        const [xUserRole] = await $xUserRoles.insert({
             UserId: johnDoe.Id,
             RoleId: adminRole.Id
         });
@@ -266,4 +302,43 @@ console.log(johnDoe);
 /**
  * prints: { Id: 1, FirstName: "John", LastName: "Doe", xUserRoles: [ UserId: 1, RoleId: 1, Role: { Id: 1, Title: "Admin", Description: "administrative privileges" } ] }
  */ 
+```
+
+If, for example, you have two different database connections, then you would do something like this:
+
+```ts
+import { createMssqlPool } from '@kinshipjs/mssql';
+import { transaction } from '@kinshipjs/core';
+
+// login database (pretend its connected to localhost:1433)
+const loginsCfg = { }; // ... configuration for database connection
+const loginsCnn = adapter(createMssqlPool(loginsCfg));
+
+const users = new KinshipContext<{ Id?: number, FirstName: string, LastName: string }>(loginsCnn, "dbo.User");
+const xUserRoles = new KinshipContext<{ UserId?: number, RoleId?: number }>(loginsCnn, "dbo.xUserRole");
+const roles = new KinshipContext<{ Id?: number, Title: string, Description?: string }>(loginsCnn, "dbo.Role");
+
+// main database (pretend its connected to localhost:1434)
+const mainCfg = { };
+const mainCnn = adapter(createMssqlPool(mainCfg));
+
+const mainUsers = new KinshipContext<{ Id?: number, LoginUserId?: number }>(mainCnn, "dbo.User");
+
+const msg = await transaction(loginsCnn).execute(async tnx => {
+    const $users = users.using(tnx);
+    const $xUserRoles = xUserRoles.using(tnx);
+    const $roles = roles.using(tnx);
+    return await transaction(mainCnn).execute(async mainTnx => {
+        // if this transaction fails, the error will bubble up and also invalidate any transactions that this is in.
+        const $mainUsers = mainUsers.using(mainTnx);
+
+        // .. do stuff here to insert into the login database
+        const [user] = $users.insert({ FirstName: "John", LastName: "Doe" });
+
+        const [mainUser] = await mainUsers.insert({ LoginUserId: user.Id });
+
+        return "Success!";
+    });
+});
+console.log(msg); // prints "Success!"
 ```

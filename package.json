@@ -1,7 +1,7 @@
 {
     "name": "@kinshipjs/core",
     "type": "module",
-    "version": "0.0.45-development",
+    "version": "0.0.48-development",
     "repository": {
         "type": "git",
         "url": "https://github.com/kinshipjs/core"
@@ -12,7 +12,8 @@
     "module": "./dist/index.js",
     "types": "./dist/types/index.d.ts",
     "scripts": {
-        "build": "npm run build:source && npm run build:types",
+        "clean": "del /S /Q .\\dist",
+        "build": "npm run clean && npm run build:source && npm run build:types",
         "build:source": "tsup",
         "build:types": "tsc",
         "test": "node ./test/test.js",

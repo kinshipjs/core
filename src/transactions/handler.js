@@ -54,7 +54,7 @@ export class KinshipExecutionHandler {
         }
         try {
             await this.#applyBefore(records);
-            const data = await this._execute(state, records ? records : callback, transaction, truncate);
+            const data = await this._execute(state, records, callback, transaction, truncate);
             data.records = this.#serializeRows(state.groupBy !== undefined, state.from.length > 1, data.records) ?? [];
             await this.#applyAfter(data.records);
             return data;
@@ -200,6 +200,7 @@ export class KinshipExecutionHandler {
      * @template {object|undefined} TAliasModel
      * @param {import("../context/context.js").State} state
      * @param {import("../models/maybe.js").MaybeArray<TAliasModel>|Function|undefined} records
+     * @param {Function=} callback
      * @param {any=} transaction
      * @param {boolean=} truncate
      * @returns {Promise<{ numRowsAffected: number, records: TAliasModel[]}>}

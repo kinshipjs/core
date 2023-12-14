@@ -11,10 +11,11 @@ export class KinshipInsertHandler extends KinshipExecutionHandler {
      * @template {object|undefined} TTableModel
      * @param {any} state
      * @param {TTableModel[]} records
+     * @param {Function=} callback
      * @param {any=} transaction
      * @returns {Promise<{ numRowsAffected: number, records: TTableModel[], whereClause?: WhereBuilder<TTableModel> }>}
      */
-    async _execute(state, records, transaction) {
+    async _execute(state, records, callback=undefined, transaction=undefined) {
         const { cmd, args } = this._serialize(state, records);
         try {
             const insertIds = await this.base.handleAdapterExecute(transaction).forInsert(cmd, args);

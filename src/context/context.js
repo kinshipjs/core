@@ -32,6 +32,14 @@ export class KinshipContext {
      * @type {Handlers} */ #handlers;
     /** @type {Promise<State>} */ #promise = Promise.resolve(/** @type {State} */ ({}));
 
+    get _promise() {
+        return this.#promise;
+    }
+
+    get _table() {
+        return this.#base.tableName;
+    }
+
     /* -------------------------Constructor------------------------- */
     
     // for some reason, when this is overloaded, errors end up existing with type inferrence.
@@ -371,7 +379,7 @@ export class KinshipContext {
 
     /**
      * Include configured related tables.  
-     * This method will stack, meaning it will __NOT__ override previous `.choose()` calls.   
+     * This method will stack, meaning it will __NOT__ override previous `.include()` calls.   
      * @template {import("../config/relationships.js").IncludedColumnsModel<TTableModel>} TIncludedColumn
      * The new model type that the context represents. (inferred from usage of `callback`)
      * @param {(model: {[K in keyof import("../config/relationships.js").OnlyTableTypes<TTableModel>]: 

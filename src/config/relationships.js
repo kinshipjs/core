@@ -17,6 +17,7 @@ export class RelationshipBuilder {
     /**
      * Configure a relationship using a callback.
      * @template {object} TTableModel
+     * @template TContext
      * @param {import('../context/context.js').KinshipContext['_afterResync']} afterResync
      * @param {HasOneCallback<TTableModel>|HasManyCallback<TTableModel>} callback
      * @param {RelationshipType} relationshipType
@@ -211,6 +212,55 @@ export class RelationshipBuilder {
                 if (p in relationships) throw Error(`A relationship already exists for the table, "${p}"`);
                 
                 return {
+                    from: (ctx, pKeyCallback, fKeyCallback) => {
+                        /** @type {string=} */
+                        let pKey = undefined;
+                        /** @type {string=} */
+                        let fKey = undefined;
+                        const _pKey = pKeyCallback(new Proxy({}, {
+                            get: (t,prop,r) => {
+                                if(typeof prop !== 'string') {
+                                    throw new KinshipInvalidPropertyTypeError(prop, 'string');
+                                }
+                                pKey = prop;
+                                return prop;
+                            }
+                        }));
+                        const _fKey = fKeyCallback(new Proxy({}, {
+                            get: (t,prop,r) => {
+                                if(typeof prop !== 'string') {
+                                    throw new KinshipInvalidPropertyTypeError(prop, 'string');
+                                }
+                                fKey = prop;
+                                return prop;
+                            }
+                        }));
+
+                        // if there was no primary key or foreign key set inside the callback, and the return value is a string
+                        // then correct them here.
+                        if(typeof _pKey === 'string' && !pKey) {
+                            pKey = _pKey;
+                        }
+                        if(typeof _fKey === 'string' && !fKey) {
+                            fKey = _fKey;
+                        }
+
+                        // if there is no pKey or no fKey, throw an error.
+                        if(!pKey || !fKey) {
+                            throw new KinshipSyntaxError(`No primary or foreign key detected. (received: { pKey: ${pKey}, fKey: ${fKey} })`);
+                        }
+                        return this.#withKeys(afterResync,
+                            table,
+                            prependTable,
+                            prependColumn,
+                            relationships,
+                            relationshipType,
+                            p,
+                            ctx._table,
+                            pKey,
+                            fKey
+                        );
+                    },
                     fromTable: (realTableName) => this.#fromTable(afterResync,
                         table,
                         prependTable,
@@ -332,7 +382,18 @@ export const RelationshipType = {
  * Further configured relationships that will be on this table.
  */
 
-/** From  
+/** From
+ * @template TPrimaryModel
+ * @typedef {{
+ *   from: <TForeignContext>(
+ *      ctx: TForeignContext, 
+ *      pKeyCallback: (m: {[K in keyof OnlyDataTypes<TPrimaryModel>]-?: K & string}) => Required<keyof OnlyDataTypes<TPrimaryModel> & string>,
+ *      fKeyCallback: (m: {[K in keyof OnlyDataTypes<TForeignContext extends import('../context/context.js').KinshipContext<infer T, infer U> ? T : never>]-?: K & string}) => Required<keyof OnlyDataTypes<TForeignContext extends import('../context/context.js').KinshipContext<infer T, infer U> ? T : never> & string>
+ * ) => AndThatHasCallbacks<TForeignContext extends import('../context/context.js').KinshipContext<infer T, infer U> ? T : never>
+ * }} From
+ */
+
+/** FromTable  
  * 
  * Object containing the `.fromTable()` function for real table name as it appears in the database.
  * @template {object} TFrom
@@ -341,7 +402,7 @@ export const RelationshipType = {
  * The table that is being configured as a relationship with.
  * @typedef {{ 
  *   fromTable: (realTableName: string) => WithKeys<TFrom, TTo> 
- * }} From
+ * }} FromTable
  */
 
 /** WithKeys  
@@ -364,7 +425,8 @@ export const RelationshipType = {
  * Relating table that is configuring the relationship.
  * @template {object} TTo
  * The table that is being configured as a relationship with.
- * @typedef {From<TFrom, TTo>
+ * @typedef {From<TFrom>
+ *   & FromTable<TFrom, TTo>
  *   & WithKeys<TFrom, TTo>
  * } FromWithKeys
  */

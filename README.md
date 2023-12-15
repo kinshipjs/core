@@ -85,6 +85,10 @@ users.hasMany(m => m.userRoles.fromTable("xUserRole").withKeys("id", "userId")
     .andThatHasOne(m => m.role.fromTable("Role").withKeys("roleId", "id")));
 roles.hasMany(m => m.userRoles.fromTable("xUserRole").withKeys("id", "roleId")
     .andThatHasOne(m => m.role.fromTable("User").withKeys("userId", "id")));
+
+// or
+users.hasMany(m => m.userRoles.from(xUserRoles, m => m.id, m => m.userId)
+    .andThatHasOne(m => m.role.from(roles, m => m.roleId, m => m.id)));
 ```
 
 ### Configure triggers (optional and allows for advanced work)
@@ -226,34 +230,6 @@ await users.truncate();
 
 Call multiple transactional functions where if one fails, then all will fail.  
 
-If you want a set of commands to only commit to your database when each command in that set is successful, then a transaction is the feature you want to use.  
-
-In order for you to use transactions properly, there are a few notes to keep in mind:  
-
-Most Node.js database engines isolate their transactions to their own connection, so your contexts must change scope to these connections.  
-
-For example, `mssql` has a `Transaction` class that is used instead of the connection,
-
-```ts
-import mssql from 'mssql';
-const pool = new mssql.ConnectionPool(config);
-await pool.connect();
-const transaction = pool.transaction();
-
-// although, we started a transaction, this command commits immediately, because it is not on the transaction object we created.
-pool.query`INSERT INTO Foo (Id) VALUES (1);`;
-
-// but this won't commit right away
-transaction.query`INSERT INTO Foo (Id) VALUES (2);`;
-```
-
-In order to work around this, you must use the `KinshipContext#using` function with a passed parameter to `transaction(...).execute(async (tnx) => { ... })`
-
-Additionally, this transaction will only work on the database connection (A) that is specified in the argument for `transaction()`, if you use a separate database
-connection (B), then any commands on contexts connected to the B will not work like they are in a transaction, and will instead throw an error.
-
-For example:
-
 ```ts
 import { transaction } from '@kinshipjs/core';
 
@@ -269,6 +245,7 @@ async function giveUserAdminRole(firstName: string, lastName: string) {
         .execute(async (tnx) => 
     {
         // REQUIRED for the context to work on this specific transaction
+        // (alternatively, you can just add `using()` to the context as you're calling the clauses/transactions you want)
         const $users = users.using(tnx); 
         const $xUserRoles = xUserRoles.using(tnx);
         const $roles = roles.using(tnx);
@@ -342,3 +319,9 @@ const msg = await transaction(loginsCnn).execute(async tnx => {
 });
 console.log(msg); // prints "Success!"
 ```
+
+# More Kinship Tools
+
+- [@kinshipjs/dapper](#more-kinship-tools): Use your `KinshipContext` objects for a dapper-like ORM! (in development and on a roadmap)
+- [@kinshipjs/graphql-express](#more-kinship-tools): Use your `KinshipContext` objects to quickly build a full GraphQL endpoint on an express web server.
+- [@kinshipjs/lucia](#more-kinship-tools): Use your `KinshipContext` objects to interface with the [Lucia Auth Library](https://www.lucia-auth.com) 

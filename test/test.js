@@ -35,13 +35,6 @@ config();
  * @prop {string=} Description 
  */
 
-/**
- * @typedef {object} LastRowNumber
- * @prop {number=} Id
- * @prop {number} User
- * @prop {number} Role
- */
-
 const pool = createMySql2Pool({
     host: process.env.HOST,
     database: process.env.DB,
@@ -59,124 +52,19 @@ const chinookPool = createMySql2Pool({
     password: process.env.PASS
 });
 
-const chinookConnection = adapter(chinookPool);
 const connection = adapter(pool);
 
-/** @type {KinshipContext<LastRowNumber>} */
-const lastIds = new KinshipContext(connection, "LastIdAssigned")
 /** @type {KinshipContext<User>} */
 const users = new KinshipContext(connection, "User");
 /** @type {KinshipContext<xUserRole>} */
 const xUserRoles = new KinshipContext(connection, "xUserRole");
 /** @type {KinshipContext<Role>} */
 const roles = new KinshipContext(connection, "Role");
-const lastId = lastIds.where(m => m.Id.equals(1));
 
-const blah = await transaction(connection).execute(async (transaction) => {
-    const $users = users.using(transaction);
-    const [user] = await $users.insert({
-        FirstName: "",
-        LastName: ""
-    });
-    const n = await $users
-        .where(m => m.Id.equals(user.Id))
-        .delete(transaction);
-    
-    console.log({ user, n });
-})
+users.hasMany(m => m.userRoles.from(xUserRoles, m => m.Id, m => m.UserId)
+    .andThatHasOne(m => m.role.from(roles, m => m.RoleId, m => m.Id)));
 
-users.hasMany(m => m.userRoles
-        .fromTable("xUserRole")
-        .withKeys("Id", "UserId")
-    .andThatHasOne(m => m.role
-        .fromTable("Role")
-        .withKeys("RoleId", "Id")
-    )
-);
-
-users.onFail(({cmdRaw}) => {
-    console.log(cmdRaw);
-})
-
-// assign last Id to every record before it is inserted.
-users.beforeInsert((m, { $$itemNumber, lastUserId }) => {
-    // appending '__' forces the property to change no matter what.
-    m.Id = `U-${(lastUserId + $$itemNumber).toString().padStart(7, '0')}`;
-}, async () => {
-    // Retrieve the latest Id from the LastRowNumber table.
-    const results = await lastId.select(m => m.User);
-    const [lastUserId] = results;
-    if(lastUserId) {
-        return {
-            lastUserId: lastUserId.User
-        };
-    } else {
-        await lastIds.insert({
-            User: 0,
-            Role: 0,
-        });
-        return {
-            lastUserId: 0
-        };
-    }
-});
-
-async function testCount() {
-    var count = await users.count();
-}
-
-async function testQuery() {
-    var us = await users;
-    us = await users.where(m => m.Id.equals("U-0000001"));
-    us = await users.sortBy(m => m.FirstName);
-    let onlyFirstNames = await users.select(m => m.FirstName);
-    let onlyFullNames = await users.select(m => [m.FirstName, m.LastName]);
-    var grouped = await users.groupBy(m => m.LastName);
-    us = await users.take(1);
-    us = await users.skip(1).take(1);
-    us = await users.take(1).skip(1);
-    us = await users.where(m => m.Id.equals("U-0000001")).sortBy(m => m.LastName);
-    us = await users.sortBy(m => m.LastName).where(m => m.Id.equals("U-0000001"));
-    const usersByLastNameStartingWithA = users.where(m => m.LastName.startsWith("A"));
-    us = await usersByLastNameStartingWithA;
-}
-
-async function testIncludes() {
-    await users.include(m => m.userRoles);
-    await users;
-    throw Error();
-}
-
-async function testInsert() {
-    const [johnDoe] = await users.insert({
-        FirstName: "John",
-        LastName: "Doe"
-    });
-    console.log(JSON.stringify(johnDoe, undefined, 2));
-    return johnDoe;
-}
-
-async function testUpdate(johnDoe) {
-    const n = await users.where(m => m.Id.equals(johnDoe.Id)).update(m => {
-        m.FirstName = "Jane";
-    });
-    console.log({n});
-}
-
-async function testDelete(janeDoe) {
-    const n = await users.where(m => m.Id.equals(janeDoe.Id)).delete();
-    console.log({n});
-}
-
-users.onSuccess(({ cmdRaw }) => {
-    console.log(cmdRaw + "\n");
-});
-
-await testIncludes();
-await testCount();
-await testQuery();
-const johnDoe = await testInsert();
-await testUpdate(johnDoe);
-await testDelete(johnDoe);
+const $users = await users.include(m => m.userRoles.thenInclude(m => m.role));
+console.log($users);
 
 process.exit(1);

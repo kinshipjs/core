@@ -52,7 +52,11 @@ export class RelationshipBuilder {
      * @returns {import("../context/context.js").State}
      */
     getStateForInclude(oldState, callback) {
-        const clonedState = JSON.parse(JSON.stringify(oldState));
+        const clonedState = { 
+            ...JSON.parse(JSON.stringify(oldState)), 
+            where: oldState.where
+                // @ts-ignore marked private for internal use only
+                ?._clone() };
         callback(this.#newIncludeProxy(clonedState));
         return clonedState;
     }

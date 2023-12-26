@@ -150,6 +150,7 @@ export class KinshipContext {
      * @returns {Promise<number>} Number of rows retrieved.
      */
     async count() {
+        this.#connect();
         this._afterResync((oldState) => ({
             ...oldState,
             select: [{
@@ -184,6 +185,7 @@ export class KinshipContext {
      * @returns {Promise<number>} Number of rows deleted.
      */
     async delete(records=undefined) {
+        this.#connect();
         return this.#delete(records);
     }
 
@@ -209,6 +211,7 @@ export class KinshipContext {
      * __Default values include virtual columns, database defaults, and user defined defaults.__
      */
     async insert(records) {
+        this.#connect();
         return this.#insert(records);
     }
 
@@ -223,6 +226,7 @@ export class KinshipContext {
      * __Default values include virtual columns, database defaults, and user defined defaults.__
      */
     async #insert(records, transaction=undefined) {
+        this.#connect();
         const { numRowsAffected, whereClause, ...data } = await this.#handlers.insert.handle(this.#promise, { records, transaction });
         // If `whereClause` is NOT undefined, then the handler determined that virtual columns exist, so we must requery
         if(whereClause) { 
@@ -241,6 +245,7 @@ export class KinshipContext {
      * @returns {Promise<TAliasModel[]>}
      */
     async then(resolve) {
+        this.#connect();
         const { records } = await this.#handlers.query.handle(this.#promise, {});
         resolve(/** @type {any} */(records));
         return /** @type {TAliasModel[]} */ (records);
@@ -251,6 +256,7 @@ export class KinshipContext {
      * @returns {Promise<number>} Number of rows that were deleted.
      */
     async truncate() {
+        this.#connect();
         return this.#truncate();
     }
 
@@ -805,15 +811,22 @@ export class KinshipContext {
      * @returns {KinshipContext<T, U>}
      */
     #newContext() {
-        // If `#initialize` is not undefined, then the context has never initialized its connection to the database, so we do that here.
-        if(this.#initialize) {
-            this.#initialize();
-            this.#initialize = undefined;
-        }
+        this.#connect();
         /** @type {KinshipContext<T, U>} */
         //@ts-ignore One parameter constructor is only available to this getter.
         const ctx = new KinshipContext(this);
         return ctx;
+    }
+
+    /**
+     * If the context has not been initialized yet (a connection has not been established)
+     * then this function will initialize the context.
+     */
+    #connect() {
+        if(this.#initialize) {
+            this.#initialize();
+            this.#initialize = undefined;
+        }
     }
 
     /**

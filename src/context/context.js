@@ -24,13 +24,37 @@ export class KinshipContext {
     /* -------------------------Private Properties------------------------- */
     // Properties to maintain a flow and state of the context.
 
-    /** The base Kinship platform that interfaces with the adapter and handlers. 
-     * @type {KinshipBase} */ #base;
-    /** Builders for clauses and state. 
-     * @type {Builders<TTableModel, TAliasModel>} */ #builders;
-    /** Handlers for transactions with the database. 
-     * @type {Handlers} */ #handlers;
-    /** @type {Promise<State>} */ #promise = Promise.resolve(/** @type {State} */ ({}));
+    /** 
+     * The base Kinship platform that interfaces with the adapter and handlers. 
+     * @type {KinshipBase} 
+     */ 
+    #base;
+    /** 
+     * Builders for clauses and state. 
+     * @type {Builders<TTableModel, TAliasModel>} 
+     */ 
+    #builders;
+    /** 
+     * Handlers for transactions with the database. 
+     * @type {Handlers} 
+     */ 
+    #handlers;
+    /** 
+     * Holds the current state of the context in its asynchronous form. 
+     * @type {Promise<State>} 
+     */ 
+    #promise = Promise.resolve(/** @type {State} */ ({}));
+    /** When the context is first created, we don't want to connect to the database until the User directly interacts with the context.
+     * So, we store all of the setup statements inside of this `#initialize` function variable.  
+     * 
+     * If this variable is undefined, then the context should already be initialized.  
+     * 
+     * This variable will be initialized to a void function if the context is created manually by the consumer (constructor).  
+     * 
+     * This variable will be called when any clause function is called (i.e., `.where`, `.include`, `.select`, etc.)
+     * @type {(() => void)=} 
+     */ 
+    #initialize = undefined;
 
     get _promise() {
         return this.#promise;
@@ -105,12 +129,16 @@ export class KinshipContext {
                 relationships: new RelationshipBuilder(this.#base),
                 choose: new ChooseBuilder(this.#base)
             };
-            this._afterResync(async (oldState) => {
-                const schema = await this.#base.describe(tableName);
-                this.#base.schema = schema;
-                return oldState;
-            });
-            this.#resetState();
+            
+            // context was manually created, which means initialization should wait until the first command is ran.
+            this.#initialize = () => {
+                this._afterResync(async (oldState) => {
+                    const schema = await this.#base.describe(tableName);
+                    this.#base.schema = schema;
+                    return oldState;
+                });
+                this.#resetState();
+            }
         }
     }
 
@@ -519,7 +547,13 @@ export class KinshipContext {
      * Reference to the same `KinshipContext`.
      */
     hasOne(callback) {
-        this.#builders.relationships.configureRelationship(this._afterResync.bind(this), callback, RelationshipType.OneToOne);
+        if(this.#initialize) {
+            const fn = this.#initialize;
+            this.#initialize = () => {
+                fn();
+                this.#builders.relationships.configureRelationship(this._afterResync.bind(this), callback, RelationshipType.OneToOne);
+            }
+        }
         return this;
     }
 
@@ -532,7 +566,13 @@ export class KinshipContext {
      * Reference to the same `KinshipContext`.
      */
     hasMany(callback) {
-        this.#builders.relationships.configureRelationship(this._afterResync.bind(this), callback, RelationshipType.OneToMany);
+        if(this.#initialize) {
+            const fn = this.#initialize;
+            this.#initialize = () => {
+                fn();
+                this.#builders.relationships.configureRelationship(this._afterResync.bind(this), callback, RelationshipType.OneToMany);
+            }
+        }
         return this;
     }
 
@@ -765,6 +805,11 @@ export class KinshipContext {
      * @returns {KinshipContext<T, U>}
      */
     #newContext() {
+        // If `#initialize` is not undefined, then the context has never initialized its connection to the database, so we do that here.
+        if(this.#initialize) {
+            this.#initialize();
+            this.#initialize = undefined;
+        }
         /** @type {KinshipContext<T, U>} */
         //@ts-ignore One parameter constructor is only available to this getter.
         const ctx = new KinshipContext(this);

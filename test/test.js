@@ -60,11 +60,3 @@ const users = new KinshipContext(connection, "User");
 const xUserRoles = new KinshipContext(connection, "xUserRole");
 /** @type {KinshipContext<Role>} */
 const roles = new KinshipContext(connection, "Role");
-
-users.hasMany(m => m.userRoles.from(xUserRoles, m => m.Id, m => m.UserId)
-    .andThatHasOne(m => m.role.from(roles, m => m.RoleId, m => m.Id)));
-
-const $users = await users.include(m => m.userRoles.thenInclude(m => m.role));
-console.log($users);
-
-process.exit(1);

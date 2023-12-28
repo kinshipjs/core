@@ -14,7 +14,7 @@ jobs:
         node-version: [16.x, 18.x]
     steps:
       - name: Exit if not on master branch
-        if: endsWith(github.ref, 'stable') == false
+        if: endsWith(github.event.base_ref, 'stable') == false
         run: exit -1
       - name: Checkout Repository
         uses: actions/checkout@v3

@@ -24,7 +24,7 @@ jobs:
           node-version: ${{ matrix.node-version }}
           cache: 'npm'
       - run: npm ci --omit dev
-      - run: npm run build
+      - run: npm run build:workflow
       - run: npm run test
       - run: npm version {{ github.ref_name }}
       - run: npm publish

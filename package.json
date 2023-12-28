@@ -14,6 +14,7 @@
     "scripts": {
         "clean": "del /S /Q .\\dist",
         "build": "npm run clean && npm run build:source && npm run build:types",
+        "build:workflow": "npm run build:source && npm run build:types",
         "build:source": "tsup",
         "build:types": "tsc",
         "test": "node ./test/test.js",

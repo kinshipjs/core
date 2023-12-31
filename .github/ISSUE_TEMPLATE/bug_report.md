@@ -37,5 +37,7 @@ Issue tracker is **ONLY** used for reporting bugs. New features should be discus
 ## Detailed Description
 <!--- Provide a detailed description of the change or addition you are proposing -->
 
-## Possible Implementation
-<!--- Not obligatory, but suggest an idea for implementing addition or change -->
+## Project Information
+<!-- What adapter are you using? (e.g., `mysql2`, `mssql`, `sqlite`, etc. -->
+<!-- Are you using an extension? (e.g., `lucia`, `graphql`, etc. -->
+<!-- Bun or Node.js version -->

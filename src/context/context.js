@@ -658,7 +658,6 @@ export class KinshipContext {
      * @returns {InstanceType<KinshipDeleteHandler>['beforeUnsubscribe']} Object that has two functions-- `once` and `unsubscribe`.
      */
     beforeInsert(callback, hook=undefined) {
-        const unsubscribe = this.#handlers.insert.before(callback, hook);
         return this.#handlers.insert.before(callback, hook);
     }
 

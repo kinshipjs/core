@@ -55,7 +55,7 @@
             "types": "./dist/types/adapter.d.ts"
         },
         "./errors": {
-            "import": "./dist/exceptions.js",
+            "import": "./dist/errors.js",
             "types": "./dist/types/exceptions.d.ts"
         }
     },

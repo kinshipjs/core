@@ -56,6 +56,14 @@ export class KinshipExecutionHandler {
             await this.#applyBefore(records);
             const data = await this._execute(state, records, callback, transaction, truncate);
             data.records = this.#serializeRows(state.groupBy !== undefined, state.from.length > 1, data.records) ?? [];
+            data.records.forEach(record => {
+                for(const k in record) {
+                    if(/^\$avg|max|min|sum|total(.*)$/.test(k)) {
+                        //@ts-ignore
+                        record[k] = parseFloat(record[k]);
+                    }
+                }
+            });
             await this.#applyAfter(data.records);
             return data;
         } catch(err) {

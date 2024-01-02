@@ -56,14 +56,6 @@ export class KinshipContext {
      */ 
     #initialize = undefined;
 
-    get _promise() {
-        return this.#promise;
-    }
-
-    get _table() {
-        return this.#base.tableName;
-    }
-
     /* -------------------------Constructor------------------------- */
     
     // for some reason, when this is overloaded, errors end up existing with type inferrence.
@@ -863,6 +855,38 @@ export class KinshipContext {
         if(this.#base.adapter.asyncDispose) {
             await this.#base.adapter.asyncDispose();
         }
+    }
+
+    // Private tool getters for usage with extension libraries (e.g., @kinshipjs/graphql)
+
+    /** 
+     * Get the name of the table
+     * @private 
+     */
+    get __table() {
+        return this.#base.tableName;
+    }
+
+    /** 
+     * Get the schema that is defined by the table.
+     * @private 
+     */
+    get __schema() {
+        this.#connect();
+        return this.#promise.then(() => {
+            return this.#base.schema;
+        });
+    }
+
+    /** 
+     * Get the relationships that were defined by the user.
+     * @private 
+     */
+    get __relationships() {
+        this.#connect();
+        return this.#promise.then(() => {
+            return this.#base.relationships;
+        });
     }
 
     /* -------------------------EXPERIMENTAL------------------------- */

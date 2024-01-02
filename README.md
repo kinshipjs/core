@@ -320,6 +320,14 @@ const msg = await transaction(loginsCnn).execute(async tnx => {
 console.log(msg); // prints "Success!"
 ```
 
+# Kinship Adapters
+
+- [@kinshipjs/json](https://npmjs.com/package/@kinshipjs/core): Connect to a JSON-like schema/database and manage that object using Kinship. (Good for development/testing or local storage!)
+- [@kinshipjs/mysql2](https://www.npmjs.com/package/@kinshipjs/mysql2): Connect to a MySQL database using the Node.js `mysql2` ORM.
+- [@kinshipjs/mssql](https://www.npmjs.com/package/@kinshipjs/mssql): Connect to a SQL Server database using the Node.js `mssql` ORM.
+- [@kinshipjs/sqlite3](https://www.npmjs.com/package/@kinshipjs/sqlite): Connect to a SQLite file database using the Node.js `sqlite3` ORM. (in development)
+- [@kinshipjs/postgres](https://www.npmjs.com/package/@kinshipjs/postgres): Connect to a PostgreSQL database using the Node.js `pg` ORM. (in development)
+
 # More Kinship Tools
 
 - [@kinshipjs/dapper](#more-kinship-tools): Use your `KinshipContext` objects for a dapper-like ORM! (in development and on a roadmap)

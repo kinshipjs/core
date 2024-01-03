@@ -8,19 +8,30 @@ You can learn more about Kinship on the [Kinship website](https://kinshipjs.dev/
 
 ## Get Started
 
-Install dependencies
-
 ```
 npm i -D @kinshipjs/core
 # adapter:
 npm i -D @kinshipjs/mysql2 # Interface with a MySQL database
 # or
 npm i -D @kinshipjs/mssql # Interface with a Microsoft SQL Server database
-npm i -D @kinshipjs/postgres # Interface with a PostGRES database
+npm i -D @kinshipjs/postgres # Interface with a PostgreSQL database
 npm i -D @kinshipjs/sqlite # Interface with a SQLite database/file
-npm i -D @kinshipjs/mongodb # Interface with your mongodb database
 npm i -D @kinshipjs/json # Interface with a javascript object
 ```
+
+## Overview
+
+- [Initialize types](#initialize-types)
+- [Initialize contexts](#initialize-contexts)
+- [Configure relationships (optional)](#configure-relationships--optional-)
+- [Configure triggers (optional and allows for advanced work)](#configure-triggers--optional-and-allows-for-advanced-work-)
+- [Configure event handlers (optional)](#configure-event-handlers--optional-)
+- [Query records](#query-records)
+- [Insert records](#insert-records)
+- [Update records](#update-records)
+- [Delete records](#delete-records)
+- [Truncate records](#truncate-records)
+- [All or nothing transactions](#all-or-nothing-transactions)
 
 ### Initialize types
 
@@ -100,13 +111,13 @@ Triggers can be helpful if your application is planned to handle any sort of def
 ```ts
 import { v4 } from 'uuid'
 // Always assign a uuid to a User's id column before they are inserted.
-users.beforeInsert((m) => {
+let { once, unsubscribe } = users.beforeInsert((m) => {
     m.id = v4();
 });
 
 // Use a hook to set up any variables that only need to be set up once.
 // parameters that start with "$$" are always accessible to you.
-users.beforeInsert((m, { $$itemNumber, numRecordsDoubled, numUsersWithoutMiddleName }) => {
+let { once, unsubscribe } = users.beforeInsert((m, { $$itemNumber, numRecordsDoubled, numUsersWithoutMiddleName }) => {
     // This function will fire for EVERY record being inserted.
     m.id = $$numRecordsDoubled * numUsersWithoutMiddleName; // definitely not recommended, just using it as an example.
 }, async ({ $$numRecords }) => {
@@ -119,6 +130,9 @@ users.beforeInsert((m, { $$itemNumber, numRecordsDoubled, numUsersWithoutMiddleN
         numUsersWithoutMiddleName: x
     };
 });
+
+once(); // only run the handler once
+unsubscribe(); // unsubscribe from the handler completely.
 ```
 
 ### Configure event handlers (optional)
@@ -126,13 +140,16 @@ users.beforeInsert((m, { $$itemNumber, numRecordsDoubled, numUsersWithoutMiddleN
 Configure event handlers to execute after a command successfully or unsuccessfully executes.
 
 ```ts
-users.onSuccess(({ dateISO, cmdRaw }) => {
+let { once, unsubscribe } = users.onSuccess(({ dateISO, cmdRaw }) => {
     console.log(`${dateISO}: ${cmdRaw}`);
 });
-users.onFail(({ dateISO, cmdRaw, err }) => {
+{ once, unsubscribe } = users.onFail(({ dateISO, cmdRaw, err }) => {
     console.log(`${dateISO}: ${cmdRaw}`);
     console.error(err);
 });
+
+once(); // only run the handler once
+unsubscribe(); // unsubscribe from the handler completely.
 ```
 
 ### Query records
@@ -143,13 +160,30 @@ Query records using various clauses.
 // any of these clauses can be used in any given order.
 const allUsers = await users;
 const allUsersAndRoles = await users.include(m => m.userRoles.thenInclude(m => m.role));
-const onlyUsersWithFirstNameJohn = await users.where(m => m.firstName.equals("John"));
+const onlyUsersNamedJohn = await users.where(m => m.firstName.equals("John"));
 const usersSortedByLastNameZtoA = await users.sortBy(m => m.lastName.desc());
+const usersSortedByLastNameZtoA_andFirstNameAtoZ = await users.sortBy(m => [m.lastName.desc(), m.firstName]);
 const usersGroupedByFirstName = await users.groupBy((m, aggregates) => [m.firstName, aggregates.total()]);
-const firstUser = await users.take(1);
+const firstUser = await users.take(1); // some adapters require `.skip()` or `.skip()` AND `.orderBy()` to be used in conjunction with `.take()`
 const secondUser = await users.skip(1).take(1);
 const onlyIds = await users.select(m => m.Id);
 const onlyFirstNameAndLastName = await users.select(m => [m.FirstName, m.LastName]);
+
+// crazy query
+const _users = await users
+    .include(m => m.userRoles
+        .thenInclude(m => m.role))
+    .where(m => m.firstName.equals("John"))
+    .sortBy(m => [m.lastName.desc(), m.firstName.asc()])
+    .take(2)
+    .skip(1)
+    .select(m => [
+        m.id,
+        m.firstName,
+        m.lastName,
+        m.userRoles.role.title,
+        m.userRoles.role.description
+    ]);
 ```
 
 ### Insert records
@@ -159,17 +193,8 @@ Insert one or more records.
 ```ts
 const user = {
     firstName: "John",
-    lastName: "Doe",
-    roles: [
-        {
-            // insert a new role as well
-            role: {
-                title: "New-Role",
-                description: "This is a new role"
-            } 
-        }
-    ]
-}
+    lastName: "Doe"
+};
 
 // one record
 const insertedUser = await users.insert(user);
@@ -183,10 +208,11 @@ const insertedUsers = await users.insert([
 
 ### Update records
 
-Update one or more records implicitly (using objects that have the primary key already defined) or explicitly (using a where clause)
+Update one or more records implicitly (using objects that have the primary key(s) already defined) or explicitly (using a where clause)
 
 ```ts
 const [user] = await users.take(1);
+
 // implicitly by the row's primary key.
 user.firstName = "Jordan";
 const numRowsAffected = await users.update(user);
@@ -196,7 +222,7 @@ await users.where(m => m.id.equals(1)).update(m => {
     // if a virtual column or identity key is set here, then it is ignored.
     m.firstName = "Jordan";
 });
-// or by returning the object.
+// or by returning the newly updated object.
 await users.where(m => m.id.equals(1)).update(m => {
     return {
         ...m,
@@ -322,7 +348,7 @@ console.log(msg); // prints "Success!"
 
 # Kinship Adapters
 
-- [@kinshipjs/json](https://npmjs.com/package/@kinshipjs/core): Connect to a JSON-like schema/database and manage that object using Kinship. (Good for development/testing or local storage!)
+- [@kinshipjs/json](https://npmjs.com/package/@kinshipjs/json): Connect to a JSON-like schema/database and manage that object using Kinship. (Good for development/testing or local storage!)
 - [@kinshipjs/mysql2](https://www.npmjs.com/package/@kinshipjs/mysql2): Connect to a MySQL database using the Node.js `mysql2` ORM.
 - [@kinshipjs/mssql](https://www.npmjs.com/package/@kinshipjs/mssql): Connect to a SQL Server database using the Node.js `mssql` ORM.
 - [@kinshipjs/sqlite3](https://www.npmjs.com/package/@kinshipjs/sqlite): Connect to a SQLite file database using the Node.js `sqlite3` ORM. (in development)
@@ -331,5 +357,5 @@ console.log(msg); // prints "Success!"
 # More Kinship Tools
 
 - [@kinshipjs/dapper](#more-kinship-tools): Use your `KinshipContext` objects for a dapper-like ORM! (in development and on a roadmap)
-- [@kinshipjs/graphql-express](#more-kinship-tools): Use your `KinshipContext` objects to quickly build a full GraphQL endpoint on an express web server.
-- [@kinshipjs/lucia](#more-kinship-tools): Use your `KinshipContext` objects to interface with the [Lucia Auth Library](https://www.lucia-auth.com) 
+- [@kinshipjs/graphql](https://www.npmjs.com/package/@kinshipjs/graphql): Use your `KinshipContext` objects to quickly build a full GraphQL schema for usage with Apollo, Express, or any of your favorite routers!
+- [@kinshipjs/lucia](https://www.npmjs.com/package/@kinshipjs/lucia): Use your `KinshipContext` objects to interface with the [Lucia Auth Library](https://www.lucia-auth.com)

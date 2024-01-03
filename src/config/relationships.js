@@ -260,7 +260,7 @@ export class RelationshipBuilder {
                             relationships,
                             relationshipType,
                             p,
-                            ctx._table,
+                            ctx.__table,
                             pKey,
                             fKey
                         );

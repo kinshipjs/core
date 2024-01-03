@@ -157,6 +157,10 @@ export const Optimized = {
         const uniques = [];
         for(let i = 0; i < objs.length; ++i) {
             const obj = objs[i];
+            if(keys.length <= 0) {
+                uniques.push(obj);
+                continue;
+            }
             const key = this.map(keys, k => obj[k]).toString();
             if(!set.has(key)) {
                 uniques.push(obj);

@@ -138,12 +138,12 @@ export class KinshipContext {
     // Users can perform some transaction with the database using the state of the context.
 
     /**
-     * Retrieve the number of rows from the built query.
+     * Retrieve the number of rows from the built query. (if `include` is used, then these tables will be ignored)
      * @returns {Promise<number>} Number of rows retrieved.
      */
     async count() {
-        this.#connect();
-        this._afterResync((oldState) => ({
+        const ctx = this.#newContext();
+        ctx._afterResync((oldState) => ({
             ...oldState,
             select: [{
                 table: "",
@@ -151,9 +151,11 @@ export class KinshipContext {
                 column: this.#base.adapter.aggregates.total,
                 aggregate: ""
             }],
+            // when querying the COUNT from the table, we only ever want the root table.
+            from: [oldState.from[0]]
         }));
-        const { records } = await this.#handlers.query.handle(this.#promise, undefined);
-        this.#resetState();
+        this.#connect();
+        const { records } = await ctx.#handlers.query.handle(ctx.#promise, undefined);
         return /** @type {any} */ (records[0]).$$count;
     }
 
@@ -218,7 +220,6 @@ export class KinshipContext {
      * __Default values include virtual columns, database defaults, and user defined defaults.__
      */
     async #insert(records, transaction=undefined) {
-        this.#connect();
         const { numRowsAffected, whereClause, ...data } = await this.#handlers.insert.handle(this.#promise, { records, transaction });
         // If `whereClause` is NOT undefined, then the handler determined that virtual columns exist, so we must requery
         if(whereClause) { 
@@ -294,6 +295,7 @@ export class KinshipContext {
      * @returns {Promise<number>} Number of updated rows.
      */
     async update(recordsOrCallback) {
+        this.#connect();
         return this.#update(recordsOrCallback);
     }
 

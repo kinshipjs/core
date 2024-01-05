@@ -3,11 +3,12 @@
 import { KinshipBase } from "../context/base.js";
 import { KinshipInvalidPropertyTypeError, KinshipSyntaxError } from "../exceptions.js";
 
+
 export class RelationshipBuilder {
     /** @type {KinshipBase} */ #base;
 
     /**
-     * 
+     * Creates a new RelationshipBuilder that assists with building relationships and using existing relationships to build including queries.
      * @param {KinshipBase} kinshipBase 
      */
     constructor(kinshipBase) {
@@ -17,14 +18,20 @@ export class RelationshipBuilder {
     /**
      * Configure a relationship using a callback.
      * @template {object} TTableModel
-     * @template TContext
      * @param {import('../context/context.js').KinshipContext['_afterResync']} afterResync
+     * Function that controls asynchronous tasks in the context.
      * @param {HasOneCallback<TTableModel>|HasManyCallback<TTableModel>} callback
+     * Callback that was passed into `.hasOne()` or `.hasMany()` by the consumer of the library
      * @param {RelationshipType} relationshipType
+     * Type of relationship. (OneToOne or OneToMany)
      * @param {string} table
-     * @param {any} relationships
+     * Name of the table connected represented by the context.
+     * @param {Relationships<any>} relationships
+     * All relationships for the table that is represented by the content.
      * @param {string} prependTable
+     * String that is used to help name the configuring relationship table.
      * @param {string} prependColumn
+     * String that is used to help name each column from the configuring relationship table.
      */
     configureRelationship(afterResync,
         callback, 
@@ -152,6 +159,28 @@ export class RelationshipBuilder {
             relationships[codeTableName].schema = schema;
             return oldState;
         });
+        return this.#andThat(afterResync, prependTable, prependColumn, relationships, codeTableName, realTableName);
+    };
+
+    /**
+     * With forwarded data from the proxy, finishes the configuration for the table
+     * by calling a describe on the database to receive the schema, as well as saving all data to the `KinshipBase`.
+     * @template {object} TTableModel
+     * @param {import('../context/context.js').KinshipContext['_afterResync']} afterResync
+     * @param {string} prependTable
+     * @param {string} prependColumn
+     * @param {any} relationships
+     * @param {string} codeTableName 
+     * @param {string} realTableName 
+     * @returns {AndThatHasCallbacks<TTableModel>}
+     */
+    #andThat(afterResync,
+        prependTable, 
+        prependColumn, 
+        relationships, 
+        codeTableName, 
+        realTableName, 
+    ) {
         const andThat = {
             andThatHasOne: ( 
                 callback
@@ -191,7 +220,7 @@ export class RelationshipBuilder {
             }
         }
         return andThat;
-    };
+    }
 
     /**
      * @param {import('../context/context.js').KinshipContext['_afterResync']} afterResync
@@ -260,6 +289,7 @@ export class RelationshipBuilder {
                             relationships,
                             relationshipType,
                             p,
+                            //@ts-ignore Exists but is marked private to hide from regular consumers of this library
                             ctx.__table,
                             pKey,
                             fKey

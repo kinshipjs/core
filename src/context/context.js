@@ -15,9 +15,9 @@ import { ChooseBuilder } from "../clauses/choose.js";
 
 /**
  * Establishes a connection directly to a table within your database.  
- * @template {object} TTableModel
+ * @template TTableModel
  * Type of the model that represents the table and its columns, in their exact form.
- * @template {object} [TAliasModel=OnlyDataTypes<TTableModel>]
+ * @template [TAliasModel=OnlyDataTypes<TTableModel>]
  * Type of the model, `TTableModel`, which will be augmented as new clauses are called. (dynamically inferred throughout lifespan of object)
  */
 export class KinshipContext {
@@ -354,6 +354,7 @@ export class KinshipContext {
                         }
                     });
                 }
+                // covers clause functions while maintaining the `using` state
                 if(typeof self[p] === 'function') {
                     return new Proxy(self[p], {
                         apply(target, _, args) {
@@ -361,6 +362,7 @@ export class KinshipContext {
                         }
                     })
                 }
+                // any other property.
                 return this[p];
             }
         });

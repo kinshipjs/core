@@ -3,7 +3,6 @@
 import { KinshipBase } from "../context/base.js";
 import { KinshipInvalidPropertyTypeError, KinshipSyntaxError } from "../exceptions.js";
 
-
 export class RelationshipBuilder {
     /** @type {KinshipBase} */ #base;
 
@@ -42,7 +41,7 @@ export class RelationshipBuilder {
         prependColumn='',
     ) {
         /** @type {any} */
-        const isPromise = callback(this.#newProxy(afterResync, table, relationships, prependTable, prependColumn, relationshipType));
+        const isPromise = callback(this.#newHasProxy(afterResync, table, relationships, prependTable, prependColumn, relationshipType));
         if(isPromise && "then" in isPromise && "catch" in isPromise) {
             throw new KinshipSyntaxError(`Callback must not be asynchronous.`);
         }
@@ -72,6 +71,84 @@ export class RelationshipBuilder {
     /**
      * With forwarded data from the proxy, configures the real table name for the table
      * that this relationship is configured with.
+     * @template {object} TPrimaryModel
+     * @template {import('../context/context.js').KinshipContext<TPrimaryModel>} TForeignContext
+     * @param {import('../context/context.js').KinshipContext['_afterResync']} afterResync
+     * @param {import('../context/context.js').KinshipContext<any, any>} context
+     * @param {string} property
+     * @param {string} thisTable
+     * @param {string} prependTable
+     * @param {string} prependColumn
+     * @param {any} relationships
+     * @param {RelationshipType} relationshipType
+     * @param {(m: {[K in keyof OnlyDataTypes<TPrimaryModel>]-?: K & string}) => Required<keyof OnlyDataTypes<TPrimaryModel> & string>} pKeyCallback
+     * @param {(m: {[K in keyof OnlyDataTypes<TForeignContext extends import('../context/context.js').KinshipContext<infer T, infer U> ? T : never>]-?: K & string}) => Required<keyof OnlyDataTypes<TForeignContext extends import('../context/context.js').KinshipContext<infer T, infer U> ? T : never> & string>} fKeyCallback 
+     * @returns 
+     */
+    #from(afterResync,
+        context,
+        property,
+        thisTable,
+        prependTable, 
+        prependColumn, 
+        relationships, 
+        relationshipType, 
+        pKeyCallback, 
+        fKeyCallback
+    ) {
+        /** @type {string=} */
+        let pKey = undefined;
+        /** @type {string=} */
+        let fKey = undefined;
+        const _pKey = pKeyCallback(new Proxy(/** @type {any} */ ({}), {
+            get: (t,prop,r) => {
+                if(typeof prop !== 'string') {
+                    throw new KinshipInvalidPropertyTypeError(prop, 'string');
+                }
+                pKey = prop;
+                return prop;
+            }
+        }));
+        const _fKey = fKeyCallback(new Proxy(/** @type {any} */ ({}), {
+            get: (t,prop,r) => {
+                if(typeof prop !== 'string') {
+                    throw new KinshipInvalidPropertyTypeError(prop, 'string');
+                }
+                fKey = prop;
+                return prop;
+            }
+        }));
+
+        // if there was no primary key or foreign key set inside the callback, and the return value is a string then correct them here.
+        if(typeof _pKey === 'string' && !pKey) {
+            pKey = _pKey;
+        }
+        if(typeof _fKey === 'string' && !fKey) {
+            fKey = _fKey;
+        }
+
+        // if there is no pKey or no fKey, throw an error.
+        if(!pKey || !fKey) {
+            throw new KinshipSyntaxError(`No primary or foreign key detected. (received: { pKey: ${pKey}, fKey: ${fKey} })`);
+        }
+        return this.#withKeys(afterResync,
+            thisTable,
+            prependTable,
+            prependColumn,
+            relationships,
+            relationshipType,
+            property,
+            //@ts-ignore Exists but is marked private to hide from regular consumers of this library
+            context.__table,
+            pKey,
+            fKey,
+            context
+        );
+    }
+
+    /**
+     * With forwarded data from the proxy, configures the real table name for the table
+     * that this relationship is configured with.
      * @param {import('../context/context.js').KinshipContext['_afterResync']} afterResync
      * @param {string} table
      * @param {string} prependTable
@@ -89,7 +166,7 @@ export class RelationshipBuilder {
         relationships, 
         relationshipType, 
         codeTableName, 
-        realTableName, 
+        realTableName
     ) {
         return {
             withKeys: (primaryKey, foreignKey) => this.#withKeys(afterResync,
@@ -120,6 +197,7 @@ export class RelationshipBuilder {
      * @param {string} realTableName 
      * @param {string} primaryKey 
      * @param {string} foreignKey 
+     * @param {import('../context/context.js').KinshipContext<any, any>|null} context
      * @returns {AndThatHasCallbacks<TTableModel>}
      */
     #withKeys(afterResync,
@@ -131,7 +209,8 @@ export class RelationshipBuilder {
         codeTableName, 
         realTableName, 
         primaryKey, 
-        foreignKey
+        foreignKey,
+        context=null
     ) {
         relationships[codeTableName] = {
             relationshipType,
@@ -157,6 +236,11 @@ export class RelationshipBuilder {
                 schema[key].commandAlias = `${prependColumn}${codeTableName}<|${schema[key].field}`;
             }
             relationships[codeTableName].schema = schema;
+            if(context) {
+                relationships[codeTableName].relationships = await context
+                    //@ts-ignore Exists but is marked private to hide from regular consumers of this library
+                    .__relationships;
+            }
             return oldState;
         });
         return this.#andThat(afterResync, prependTable, prependColumn, relationships, codeTableName, realTableName);
@@ -231,7 +315,7 @@ export class RelationshipBuilder {
      * @param {string} prependColumn
      * @returns {any}
      */
-    #newProxy(
+    #newHasProxy(
         afterResync,
         table, 
         relationships, 
@@ -245,56 +329,17 @@ export class RelationshipBuilder {
                 if (p in relationships) throw Error(`A relationship already exists for the table, "${p}"`);
                 
                 return {
-                    from: (ctx, pKeyCallback, fKeyCallback) => {
-                        /** @type {string=} */
-                        let pKey = undefined;
-                        /** @type {string=} */
-                        let fKey = undefined;
-                        const _pKey = pKeyCallback(new Proxy({}, {
-                            get: (t,prop,r) => {
-                                if(typeof prop !== 'string') {
-                                    throw new KinshipInvalidPropertyTypeError(prop, 'string');
-                                }
-                                pKey = prop;
-                                return prop;
-                            }
-                        }));
-                        const _fKey = fKeyCallback(new Proxy({}, {
-                            get: (t,prop,r) => {
-                                if(typeof prop !== 'string') {
-                                    throw new KinshipInvalidPropertyTypeError(prop, 'string');
-                                }
-                                fKey = prop;
-                                return prop;
-                            }
-                        }));
-
-                        // if there was no primary key or foreign key set inside the callback, and the return value is a string
-                        // then correct them here.
-                        if(typeof _pKey === 'string' && !pKey) {
-                            pKey = _pKey;
-                        }
-                        if(typeof _fKey === 'string' && !fKey) {
-                            fKey = _fKey;
-                        }
-
-                        // if there is no pKey or no fKey, throw an error.
-                        if(!pKey || !fKey) {
-                            throw new KinshipSyntaxError(`No primary or foreign key detected. (received: { pKey: ${pKey}, fKey: ${fKey} })`);
-                        }
-                        return this.#withKeys(afterResync,
-                            table,
-                            prependTable,
-                            prependColumn,
-                            relationships,
-                            relationshipType,
-                            p,
-                            //@ts-ignore Exists but is marked private to hide from regular consumers of this library
-                            ctx.__table,
-                            pKey,
-                            fKey
-                        );
-                    },
+                    from: (ctx, pKeyCallback, fKeyCallback) => this.#from(afterResync,
+                        ctx,
+                        p,
+                        table,
+                        prependTable,
+                        prependColumn,
+                        relationships,
+                        relationshipType,
+                        pKeyCallback,
+                        fKeyCallback    
+                    ),
                     fromTable: (realTableName) => this.#fromTable(afterResync,
                         table,
                         prependTable,
@@ -503,7 +548,7 @@ export const RelationshipType = {
 /** HasManyCallback  
  * 
  * The callback template that is used by the user to configure one to many relationships.
- * @template {object} TTableModel
+ * @template {object} [TTableModel=any]
  * Table model type that is being configured as a relationship.
  * @callback HasManyCallback
  * @param {HasManyCallbackModel<TTableModel>} model

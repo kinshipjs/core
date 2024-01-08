@@ -151,8 +151,6 @@ export class KinshipContext {
                 column: this.#base.adapter.aggregates.total,
                 aggregate: ""
             }],
-            // when querying the COUNT from the table, we only ever want the root table.
-            from: [oldState.from[0]]
         }));
         this.#connect();
         const { records } = await ctx.#handlers.query.handle(ctx.#promise, undefined);

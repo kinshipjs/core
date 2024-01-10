@@ -39,7 +39,7 @@ import { ErrorTypes, KinshipAdapterError } from "./exceptions.js";
 /**
  * Object model type for data used in explicit update transactions.
  * @typedef {object} SerializationUpdateHandlerExplicitData
- * @prop {ExecutionArgument} values Used in an `explicit transaction`.  
+ * @prop {ExecutionArgument[]} values Used in an `explicit transaction`.  
  * Object representing what columns will be updated from the command.  
  * If this is undefined, then `objects` should be used.
  */

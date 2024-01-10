@@ -12,7 +12,6 @@ import { OrderByBuilder } from "../clauses/order-by.js";
 import { RelationshipBuilder, RelationshipType } from "../config/relationships.js";
 import { ChooseBuilder } from "../clauses/choose.js";
 
-
 /**
  * Establishes a connection directly to a table within your database.  
  * @template TTableModel
@@ -998,6 +997,8 @@ export function transaction(adapterConnection) {
  * Object that holds the final state of the context right before the command is sent to the adapter for processing.
  * @typedef {State & { conditions?: import("../clauses/where.js").WhereClausePropertyArray }} AdapterReadyState
  */
+
+/** @typedef {import("../clauses/where.js").WhereClauseProperty} WhereClauseCondition */
 
 // polyfills for Dispose until it is officially released.
 

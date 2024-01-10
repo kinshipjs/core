@@ -1,7 +1,7 @@
 {
     "name": "@kinshipjs/core",
     "type": "module",
-    "version": "0.1.11",
+    "version": "0.2.0-rc1",
     "repository": {
         "type": "git",
         "url": "https://github.com/kinshipjs/core"
@@ -39,7 +39,6 @@
     "author": "Travis R. Zuleger",
     "license": "MIT",
     "devDependencies": {
-        "@kinshipjs/mysql2": "file:../adapter-mysql",
         "@types/node": "^20.10.3",
         "dotenv": "^16.3.1",
         "tsup": "^7.1.0",

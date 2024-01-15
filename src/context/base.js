@@ -199,6 +199,7 @@ export class KinshipBase {
             alias: v.commandAlias,
             column: v.field,
             table: v.table,
+            commandAlias: v.commandAlias
         }));
     }
 }
@@ -210,7 +211,15 @@ export class KinshipBase {
  * @prop {string} column
  * The name of the column as it appears in the database.
  * @prop {string} alias
- * The name of the column as it is used inside of commands.
+ * The name of the column as it appears for the user. (e.g., the key in the record returned from the query command)
+ * @prop {string} commandAlias
+ * The name of the column as it is used inside of commands.  
+ * this should always follow a pattern of `[...{JoinedTables}]<|{alias}`  
+ * e.g.,   
+ * Querying from table, "Playlist": `Name` column would appear as `Name`  
+ * Querying from table, "Playlist", joined with "PlaylistTrack": `PlaylistId` column would appear as `Playlist<|PlaylistTrack<|PlaylistId`  
+ * Querying from table, "Playlist", after `.select(m => ({ naMe: m.Name }))`: `PlaylistTrack.Name` column would appear as `naMe`  
+ * Querying from table, "Playlist", joined with "PlaylistTrack" and after `.select(m => ({ tracks: { pid: m.PlaylistId } }))`: `PlaylistTrack.PlaylistId` column would appear as `PlaylistTrack<|pid`
  */
 
 /**

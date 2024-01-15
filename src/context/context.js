@@ -148,7 +148,8 @@ export class KinshipContext {
                 table: "",
                 alias: "$$count",
                 column: this.#base.adapter.aggregates.total,
-                aggregate: ""
+                aggregate: "",
+                commandAlias: "$$count"
             }],
         }));
         this.#connect();
@@ -372,10 +373,10 @@ export class KinshipContext {
     /**
      * Select which columns to retrieve on the next `.select()` transaction.  
      * This method will stack, meaning it will __NOT__ override previous `.choose()` calls.   
-     * @template {import("../clauses/choose.js").SelectedColumnsModel<TAliasModel>|TAliasModel} [TSelectedColumns=TAliasModel]
+     * @template {import("../clauses/choose.js").SelectedColumnsModel<TAliasModel>|({[k: string]: keyof TSelectedColumns})|TAliasModel} [TSelectedColumns=TAliasModel]
      * The new model type that the context represents. (inferred from usage of `callback`)
-     * @param {((model: import("../clauses/choose.js").SpfSelectCallbackModel<TAliasModel>) => 
-     *  import("../models/maybe.js").MaybeArray<keyof TSelectedColumns>)=} callback
+     * @param {(model: import("../clauses/choose.js").SpfSelectCallbackModel<TAliasModel>) => 
+     *  import("../models/maybe.js").MaybeArray<keyof TSelectedColumns>|TSelectedColumns} callback
      * Callback model that allows the user to select which columns to grab.  
      * @returns {KinshipContext<TTableModel, (TSelectedColumns extends Required<TAliasModel>
      *  ? TAliasModel
@@ -989,7 +990,7 @@ export function transaction(adapterConnection) {
  * @prop {number=} limit
  * @prop {number=} offset
  * @prop {import("../clauses/order-by.js").SortByClauseProperty[]=} orderBy
- * @prop {import("./base.js").Column[]} select
+ * @prop {(import("../clauses/choose.js").SelectClauseProperty & { aggregate?: string })[]} select
  * @prop {WhereBuilder=} where
  */
 

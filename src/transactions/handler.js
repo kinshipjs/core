@@ -55,7 +55,7 @@ export class KinshipExecutionHandler {
         try {
             await this.#applyBefore(records);
             const data = await this._execute(state, records, callback, transaction, truncate);
-            data.records = this.#serializeRows(state.groupBy !== undefined, state.from.length > 1, data.records) ?? [];
+            data.records = this.#serializeRows(state, data.records) ?? [];
             data.records.forEach(record => {
                 for(const k in record) {
                     if(/^\$avg|max|min|sum|total(.*)$/.test(k)) {
@@ -231,10 +231,7 @@ export class KinshipExecutionHandler {
 
     /**
      * Recursively serializes an array of rows to an array of user-friendly objects.
-     * @param {boolean} isGroupBy
-     * True if the command was a group by command
-     * @param {boolean} isJoined
-     * True if the command has a `LEFT JOIN` clause on it.
+     * @param {import("../context/context.js").AdapterReadyState} state
      * @param {object[]} rows 
      * @param {Record<string, import("../adapter.js").SchemaColumnDefinition>} schema
      * @param {import("../config/relationships.js").Relationships<object>} relationships
@@ -242,8 +239,7 @@ export class KinshipExecutionHandler {
      * @param {number} depth 
      * Used for when the command had a group by clause.
      */
-    #serializeRows(isGroupBy, 
-        isJoined,
+    #serializeRows(state,
         rows, 
         table=this.base.tableName, 
         schema=this.base.schema, 
@@ -251,7 +247,9 @@ export class KinshipExecutionHandler {
         lastRelationships=relationships,
         depth = 0
     ) {
-        if(!isJoined) return rows;
+        const isGroupBy = state.groupBy !== undefined;
+        // if query was from one table
+        if(state.from.length <= 0) return rows;
         if(rows.length <= 0) return rows;
         if("$$count" in rows[0]) return rows;
         const pKeys = this.base.getPrimaryKeys(table, lastRelationships);
@@ -261,7 +259,7 @@ export class KinshipExecutionHandler {
         let serializedRows = [];
         for(let i = 0; i < uniqueRowsByPrimaryKey.length; ++i) {
             const row = uniqueRowsByPrimaryKey[i];
-            const newRow = Optimized.getObjectFromSchemaAndRecord(schema, row);
+            const newRow = Optimized.reconstructObject(state, schema, row);
             if(isGroupBy && depth === 0) {
                 Optimized.assignKeysThatStartWith$To(row, newRow);
             }
@@ -275,8 +273,7 @@ export class KinshipExecutionHandler {
                         relationship.foreign.alias
                     );
                 // recurse with a new scope of records of only related records.
-                const relatedRowsSerialized = this.#serializeRows(isGroupBy,
-                    isJoined,
+                const relatedRowsSerialized = this.#serializeRows(state,
                     relatedRows,
                     relationship.table,
                     relationship.schema, 

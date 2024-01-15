@@ -170,17 +170,18 @@ export const Optimized = {
         return uniques;
     },
     /**
-     * Assigns all columns from `schema` to a new object, with the values of `record` for corresponding column properties.
+     * Reconstructs the object using keys that are specified in `state.select` (from the user's `.select()` function) or
+     * if `schema.select` is undefined, then reconstructs the object using the schema.
+     * @param {import("./context.js").AdapterReadyState} state
      * @param {Record<string, import("../adapter.js").SchemaColumnDefinition>} schema 
      * @param {object} record 
      * @returns {object}
      */
-    getObjectFromSchemaAndRecord(schema, record) {
+    reconstructObject(state, schema, record) {
         let newObject = {};
-        for(const key in schema) {
-            const colDef = schema[key];
-            if(record[colDef.commandAlias] !== undefined) {
-                newObject[colDef.alias] = record[colDef.commandAlias];
+        for(const col of state.select) {
+            if(record[col.commandAlias] !== undefined) {
+                newObject[col.alias] = record[col.commandAlias];
             }
         }
         return newObject;

@@ -159,16 +159,7 @@ Insert one or more records.
 ```ts
 const user = {
     firstName: "John",
-    lastName: "Doe",
-    roles: [
-        {
-            // insert a new role as well
-            role: {
-                title: "New-Role",
-                description: "This is a new role"
-            } 
-        }
-    ]
+    lastName: "Doe"
 }
 
 // one record

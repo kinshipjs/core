@@ -342,12 +342,14 @@ export class RelationshipBuilder {
                     refererTableKey: {
                         column: pKey.column,
                         alias: pKey.alias,
-                        table
+                        table,
+                        commandAlias: pKey.commandAlias
                     },
                     referenceTableKey: {
                         column: fKey.column,
                         alias: fKey.alias,
-                        table: relatedTableAlias
+                        table: relatedTableAlias,
+                        commandAlias: fKey.commandAlias
                     }
                 });
                 state.select = state.select.concat(

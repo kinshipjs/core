@@ -43,13 +43,11 @@ export class KinshipContext {
      * @type {Promise<State>} 
      */ 
     #promise = Promise.resolve(/** @type {State} */ ({}));
-    /** When the context is first created, we don't want to connect to the database until the User directly interacts with the context.
+    /** 
+     * When the context is first created, we don't want to connect to the database until the User directly interacts with the context.
      * So, we store all of the setup statements inside of this `#initialize` function variable.  
-     * 
      * If this variable is undefined, then the context should already be initialized.  
-     * 
      * This variable will be initialized to a void function if the context is created manually by the consumer (constructor).  
-     * 
      * This variable will be called when any clause function is called (i.e., `.where`, `.include`, `.select`, etc.)
      * @type {(() => void)=} 
      */ 
@@ -57,43 +55,16 @@ export class KinshipContext {
 
     /* -------------------------Constructor------------------------- */
     
-    // for some reason, when this is overloaded, errors end up existing with type inferrence.
-    // /**
-    //  * @overload
-    //  * Create a brand new KinshipContext.
-    //  * @param {import("../old/index.js").KinshipAdapter<any>} adapter
-    //  * Kinship adapter used to connect to your database. 
-    //  * @param {string} tableName 
-    //  * Name of the table that is being connected to.
-    //  */
-    // /**
-    //  * @overload
-    //  * Create a brand new KinshipContext with additional options.
-    //  * @param {import("../old/index.js").KinshipAdapter<any>} adapter
-    //  * Kinship adapter used to connect to your database. 
-    //  * @param {string} tableName 
-    //  * Name of the table that is being connected to.
-    //  * @param {import("./base.js").KinshipOptions} options
-    //  * Optional additional configurations. 
-    //  */
-    // /**
-    //  * @overload
-    //  * Create a new `KinshipContext` with a base state of another `KinshipContext`.  
-    //  * __NOTE: In most cases, this overload would not be used, as every clause that is built will automatically return a new context
-    //  * updated with the appropriate base state.__
-    //  * @param {KinshipContext} context
-    //  * Existing `KinshipContext` object to base this new context off of.
-    //  */
     /**
      * Instantiate a new `KinshipContext` object.
      * @param {import("../adapter.js").KinshipAdapterConnection} adapter
      * Kinship adapter used to connect to your database. 
-     * @param {string=} tableName 
+     * @param {string} tableName 
      * Name of the table that is being connected to.
      * @param {import("./base.js").KinshipOptions=} options
      * Optional additional configurations. 
      */
-    constructor(adapter, tableName=undefined, options=undefined) {
+    constructor(adapter, tableName, options=undefined) {
         if(adapter instanceof KinshipContext) {
             // when an existing KinshipContext is passed in, then this new context will be based off that context.
             this.#base = adapter.#base;
@@ -837,28 +808,7 @@ export class KinshipContext {
         });
     }
 
-    /* -------------------------Disposable Functions------------------------- */
-    // for TS 5.2, the `using` and `await using` keywords are implemented. 
-    // If an adapter has to be disposed of (I.O.W., it was defined by the adapter developer) then they are handled here. 
-    
-    [
-        // @ts-ignore Ignoring until this becomes an official polyfill.
-        Symbol.dispose
-    ]() {
-        if(this.#base.adapter.dispose) {
-            this.#base.adapter.dispose();
-        }
-    }
-
-    async [
-        // @ts-ignore Ignoring until this becomes an official polyfill.
-        Symbol.asyncDispose
-    ]() {
-        if(this.#base.adapter.asyncDispose) {
-            await this.#base.adapter.asyncDispose();
-        }
-    }
-
+    /* -------------------------Private Tools------------------------- */
     // Private tool getters for usage with extension libraries (e.g., @kinshipjs/graphql)
 
     /** 
@@ -889,19 +839,6 @@ export class KinshipContext {
         return this.#promise.then(() => {
             return this.#base.relationships;
         });
-    }
-
-    /* -------------------------EXPERIMENTAL------------------------- */
-
-    /**
-     * Will return a new object: KinshipPreparedCommand
-     * which the user can then call `.execute()` at any time to execute the serialized command at any given time.
-     * 
-     * This is intended to skip the step of serializing the command entirely at the sacrifice of not adding anything new to the command.
-     * @private
-     */
-    async prepare() {
-
     }
 }
 
@@ -1000,10 +937,3 @@ export function transaction(adapterConnection) {
  */
 
 /** @typedef {import("../clauses/where.js").WhereClauseProperty} WhereClauseCondition */
-
-// polyfills for Dispose until it is officially released.
-
-//@ts-ignore
-Symbol.dispose ??= Symbol("dispose");
-//@ts-ignore
-Symbol.asyncDispose ??= Symbol("asyncDispose");

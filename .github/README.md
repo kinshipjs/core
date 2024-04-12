@@ -119,7 +119,7 @@ let { once, unsubscribe } = users.beforeInsert((m) => {
 // parameters that start with "$$" are always accessible to you.
 let { once, unsubscribe } = users.beforeInsert((m, { $$itemNumber, numRecordsDoubled, numUsersWithoutMiddleName }) => {
     // This function will fire for EVERY record being inserted.
-    m.id = $$numRecordsDoubled * numUsersWithoutMiddleName; // definitely not recommended, just using it as an example.
+    m.id = numRecordsDoubled * numUsersWithoutMiddleName; // definitely not recommended, just using it as an example.
 }, async ({ $$numRecords }) => {
     // This function will fire only ONCE per `.insert()` call.
     const x = await users.where(m => m.middleName.equals(null).or(m => m.middleName.equals(""))).count();

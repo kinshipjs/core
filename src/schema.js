@@ -20,13 +20,148 @@
 
 /**
  * @template {object} TTableSchema
+ * @typedef {object} PrototypeCallbacks
+ * @prop {() => Promise<void>} delete
+ * @prop {() => Promise<void>} insert
+ * @prop {() => Promise<void>} update
+ * @prop {() => RefinedSchema<TTableSchema>} jsonify
+ */
+
+/**
+ * @template {object} TTableSchema
+ * @typedef {{[K in keyof RefinedSchema<TTableSchema>]: RefinedSchema<TTableSchema>[K]}} PrototypeAttributes
+ */
+
+/**
+ * @template {object} TTableSchema
+ * @typedef {FriendlyType<PrototypeAttributes<TTableSchema> & PrototypeCallbacks<TTableSchema>>} KinshipTablePrototype
+ */
+
+/**
+ * @template {object} TTableSchema
  * @param {string} realTableName
  * @param {TTableSchema} schema
- * @returns {RefinedSchema<TTableSchema>}
+ * @returns {{new (model?: FriendlyType<Partial<RefinedSchema<TTableSchema>>>): KinshipTablePrototype<TTableSchema>, insert: (records: RefinedSchema<TTableSchema>|RefinedSchema<TTableSchema>[]|ModelPrototype|ModelPrototype[]) => void} }
  */
 function table(realTableName, schema) {
+    console.log(schema);
+    class ModelPrototype {
+        constructor(model) {
+            console.log(schema);
+            for (const key in schema) {
+                if(model && key in model) {
+                    this[ /** @type {any} */(key)] = model[key];
+                } else {
+                    this[ /** @type {any} */(key)] = schema[key].__default;
+                }
+            }
+        }
+
+        insert() {
+
+        }
+
+        /**
+         * @param {ModelPrototype|ModelPrototype[]} records
+         */
+        static insert(records) {
+        }
+    }
+    return /** @type {any} */ (ModelPrototype)
+}
+
+const Test = table("test", {
+    id: int.primaryKey,
+    TEST_TEST_TEST: varchar(50).default("this is just a test")
+});
+const test = new Test();
+Test.insert(test);
+
+/**
+ * @template {object} TTableSchema
+ * @param {string} realTableName
+ * @param {TTableSchema} schema
+ * @returns {Readonly<RefinedSchema<TTableSchema>>}
+ */
+function view(realViewName, schema) {
+    // should return a KinshipContext but without access to any type of `update`, `delete`, or `insert` functions.
     return schema;
 }
+
+class KinshipView {
+    hasMany() {
+
+    }
+
+    hasOne() {
+
+    }
+
+    include() {
+
+    }
+
+    then() {
+
+    }
+
+    where() {
+
+    }
+
+    sortBy = this.orderBy;
+    orderBy() {
+
+    }
+
+    groupBy() {
+
+    }
+
+    limit = this.take;
+    take() {
+
+    }
+
+    offset = this.skip;
+    skip() {
+
+    }
+}
+
+class KinshipTable extends KinshipView {
+    insert() {
+
+    }
+
+    delete() {
+
+    }
+
+    update() {
+
+    }
+
+    onDelete = this.#on(ActionType.Delete);
+    onInsert = this.#on(ActionType.Insert);
+    onQuery = this.#on(ActionType.Query);
+    onUpdate = this.#on(ActionType.Update);
+    
+    /**
+     * @param {ActionType} type 
+     */
+    #on(type) {
+
+    }
+}
+
+/** @enum {number} */
+const ActionType = {
+    Delete: 0,
+    Insert: 1,
+    Query: 2,
+    Update: 3
+};
 
 /** @typedef {any} AdapterConnection */
 
@@ -35,9 +170,9 @@ function table(realTableName, schema) {
  * @template {object} TConfiguredSchema
  * @param {AdapterConnection} adapterConnection 
  * @param {TInitialSchema} initialSchema 
- * @param {(schema: TInitialSchema) => TConfiguredSchema} schemaConfiguration 
  */
-function kinship(adapterConnection, initialSchema, schemaConfiguration) {
+function kinship(adapterConnection, initialSchema) {
+    return initialSchema;
 }
 
 /** @typedef {"int"|"float"|"varchar"|"datetime"|"nvarchar"|"blob"|"mediumblob"|"largeblob"|"boolean"|"bit"|"bigint"} DataType */
@@ -218,37 +353,21 @@ const largeblob = __decorators("largeblob", 2 ** 32 - 1);
 
 /** @template {object} TSchema @typedef {FriendlyType<RefinedSchemaRequired<TSchema> & RefinedSchemaOptional<TSchema>>} RefinedSchema */
 
-kinship(adapterCnn, {
-    users: table("dbo.User", {
-        id: int.primaryKey.identity(1,1),
-        username: varchar(32).notNull,
-        email: varchar(64).notNull,
-        hashedPassword: varchar(128),
-        emailVerified: boolean.default(false)
-    }),
-    userRoles: table("dbo.xUserRole", {
-        userId: int.primaryKey.foreignKey,
-        roleId: int.primaryKey.foreignKey
-    }),
-    roles: table("dbo.Role", {
-        id: int.primaryKey,
-        title: varchar(16).notNull,
-        description: varchar(128)
-    })
-}, schema => schema
-    .users
-    .hasMany(m => m.roles
-        .on(m => m.id.equals(m => m.userId))
-        .from(m => m.userRoles)
-    )
-    .userRoles
-    .hasOne(m => m.user
-        .on(m => m.userId.equals(m => m.id))
-        .from(m => m.users)
-    )
-    .roles
-    .hasOne(m => m.role
-        .on(m => m.roleId.equals(m => m.id))
-        .from(m => m.roles)
-    )
-);
+// const ctx = kinship(adapterCnn, {
+//     users: table("dbo.User", {
+//         id: int.primaryKey.identity(1,1),
+//         username: varchar(32).notNull,
+//         email: varchar(64).notNull,
+//         hashedPassword: varchar(128),
+//         emailVerified: boolean.default(false)
+//     }),
+//     userRoles: table("dbo.xUserRole", {
+//         userId: int.primaryKey.foreignKey,
+//         roleId: int.primaryKey.foreignKey
+//     }),
+//     roles: table("dbo.Role", {
+//         id: int.primaryKey,
+//         title: varchar(16).notNull,
+//         description: varchar(128)
+//     })
+// });

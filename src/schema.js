@@ -20,10 +20,11 @@
 
 /**
  * @template {object} TTableSchema
+ * @param {string} realTableName
  * @param {TTableSchema} schema
  * @returns {RefinedSchema<TTableSchema>}
  */
-function table(schema) {
+function table(realTableName, schema) {
     return schema;
 }
 
@@ -151,16 +152,17 @@ const largeblob = __decorators("largeblob", 2 ** 32 - 1);
 /**
  * @template {DataType} TType
  * @template {string} [TAttributes=never]
+ * @template {"notNull" extends TAttributes ? InferDataType<TType> : InferDataType<TType>|null} [TTrueDataType="notNull" extends TAttributes ? InferDataType<TType> : InferDataType<TType>|null]
  * @typedef {object} Attributes
  * @prop {(seed: number, incrementAmount: number) => KinshipColumnBuilder<TType, TAttributes|"identity">} identity
  * @prop {KinshipColumnBuilder<TType, TAttributes|"primaryKey">} primaryKey
  * @prop {KinshipColumnBuilder<TType, TAttributes|"foreignKey">} foreignKey
  * @prop {KinshipColumnBuilder<TType, TAttributes|"notNull">} notNull
- * @prop {(defaultValue: InferDataType<TType>) => KinshipColumnBuilder<TType, TAttributes|"default">} default
+ * @prop {(defaultValue: TTrueDataType) => KinshipColumnBuilder<TType, TAttributes|"default">} default
  */
 
 /** 
- * @template {DataType} TDataType 
+ * @template {DataType} TDataType
  * @typedef {TDataType extends "varchar"|"nvarchar"
  * ? string 
  * : TDataType extends "int"|"float" 
@@ -217,40 +219,36 @@ const largeblob = __decorators("largeblob", 2 ** 32 - 1);
 /** @template {object} TSchema @typedef {FriendlyType<RefinedSchemaRequired<TSchema> & RefinedSchemaOptional<TSchema>>} RefinedSchema */
 
 kinship(adapterCnn, {
-    users: table({
+    users: table("dbo.User", {
         id: int.primaryKey.identity(1,1),
         username: varchar(32).notNull,
-        hashedPassword: varchar(128).notNull.default("abc"),
-        a: bit.default(true)
+        email: varchar(64).notNull,
+        hashedPassword: varchar(128),
+        emailVerified: boolean.default(false)
     }),
-    userRoles: table({
+    userRoles: table("dbo.xUserRole", {
         userId: int.primaryKey.foreignKey,
         roleId: int.primaryKey.foreignKey
     }),
-    roles: table({
+    roles: table("dbo.Role", {
         id: int.primaryKey,
         title: varchar(16).notNull,
         description: varchar(128)
     })
-}, schema => {
-    
-    schema = schema.users
-        .from("dbo.User")
-        .hasMany(m => m.roles
-            .on(m => m.id.equals(m => m.userId))
-            .from(m => m.userRoles)
-        );
-    scheam = schema.userRoles
-        .from("dbo.xUserRole")
-        .hasOne(m => m.user
-            .on(m => m.userId.equals(m => m.id))
-            .from(m => m.users)
-        );
-    schema = schema.roles
-        .from("dbo.Role")
-        .hasOne(m => m.role
-            .on(m => m.roleId.equals(m => m.id))
-            .from(m => m.roles)
-        );
-    return schema;
-});
+}, schema => schema
+    .users
+    .hasMany(m => m.roles
+        .on(m => m.id.equals(m => m.userId))
+        .from(m => m.userRoles)
+    )
+    .userRoles
+    .hasOne(m => m.user
+        .on(m => m.userId.equals(m => m.id))
+        .from(m => m.users)
+    )
+    .roles
+    .hasOne(m => m.role
+        .on(m => m.roleId.equals(m => m.id))
+        .from(m => m.roles)
+    )
+);

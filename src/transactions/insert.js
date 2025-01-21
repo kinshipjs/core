@@ -66,6 +66,9 @@ export class KinshipInsertHandler extends KinshipExecutionHandler {
     }
 
     #setDatabaseDefaultValues(records) {
+        if(!this.base.schema || Object.keys(this.base.schema).length <= 0) {
+            return records;
+        }
         return records.map(r => {
             /** @type {any} */
             let o = {};

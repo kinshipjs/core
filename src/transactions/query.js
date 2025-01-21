@@ -1,4 +1,6 @@
 //@ts-check
+/** @import { AdapterReadyState } from "../context/context.js" */
+/** @import { FromClauseProperty } from "../config/relationships.js" */
 
 import { KinshipColumnDoesNotExistError, KinshipInvalidPropertyTypeError } from "../exceptions.js";
 import { KinshipExecutionHandler } from "./handler.js";
@@ -7,7 +9,7 @@ export class KinshipQueryHandler extends KinshipExecutionHandler {
     /**
      * @protected
      * @template {object|undefined} TAliasModel
-     * @param {import("../context/context.js").AdapterReadyState} state
+     * @param {AdapterReadyState} state
      * @param {TAliasModel[]} records
      * @param {...any} args
      * @returns {Promise<{ numRowsAffected: number, records: TAliasModel[] }>}
@@ -37,9 +39,9 @@ export class KinshipQueryHandler extends KinshipExecutionHandler {
 
     /**
      * 
-     * @param {import("../context/context.js").AdapterReadyState} state 
+     * @param {AdapterReadyState} state 
      * @param {*} callback 
-     * @returns {import("../context/context.js").AdapterReadyState}
+     * @returns {AdapterReadyState}
      */
     #useCallbackToSelectColumns(state, callback) {
         if(state.groupBy) {
@@ -61,14 +63,14 @@ export class KinshipQueryHandler extends KinshipExecutionHandler {
 
     /**
      * 
-     * @param {import("../context/context.js").AdapterReadyState} state 
+     * @param {AdapterReadyState} state 
      * @returns 
      */
     #assertPrimaryKeysExist(state) {
         const stateOfSelectsMapped = state.select.map(s => s.alias);
         if (state.from.length > 1 && !state.groupBy) {
             for (let i = 1; i < state.from.length; ++i) {
-                const table = /** @type {import("../config/relationships.js").FromClauseProperty} */(state.from[i]);
+                const table = /** @type {FromClauseProperty} */(state.from[i]);
                 if (!stateOfSelectsMapped.includes(table.referenceTableKey.alias)) {
                     state.select.push(table.referenceTableKey);
                 }
@@ -82,7 +84,7 @@ export class KinshipQueryHandler extends KinshipExecutionHandler {
 
     /**
      * 
-     * @param {import("../context/context.js").AdapterReadyState} state 
+     * @param {AdapterReadyState} state 
      * @returns 
      */
     #getDetail(state) {

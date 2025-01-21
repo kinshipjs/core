@@ -1,11 +1,33 @@
 //@ts-check
 
+/** @import { WhereClausePropertyArray } from "./clauses/where.js" */
+/** @import { SelectClauseProperty } from "./clauses/choose.js" */
+/** @import { FromClauseProperty } from "./config/relationships.js" */
+/** @import { DataType } from "./models/types.js" */
+/** @import { MaybePromise } from "./models/maybe.js" */
+
 import { ErrorTypes, KinshipAdapterError } from "./exceptions.js";
+
+/**
+ * @typedef {object} IKinshipAdapter
+ * @prop {<TModel>(data: SerializationQueryHandlerData) => MaybePromise<{ results: TModel[], cmd: string, cmdArgs: ExecutionArgument[] }>} handleQuery
+ * @prop {<TModel>(data: SerializationUpdateHandlerData) => MaybePromise<{ results: TModel[], cmd: string, cmdArgs: ExecutionArgument[] }>} handleUpdate
+ * @prop {<TModel>(data: SerializationInsertHandlerData) => MaybePromise<{ results: TModel[], cmd: string, cmdArgs: ExecutionArgument[] }>} handleInsert
+ * @prop {<TModel>(data: SerializationDeleteHandlerData) => MaybePromise<{ results: TModel[], cmd: string, cmdArgs: ExecutionArgument[] }>} handleDelete
+ * @prop {() => MaybePromise<IKinshipTransaction>} createTransaction
+ */
+
+/**
+ * @typedef {object} IKinshipTransaction
+ * @prop {() => MaybePromise<void>} begin
+ * @prop {() => MaybePromise<void>} commit
+ * @prop {() => MaybePromise<void>} rollback
+ */
 
 /**
  * Data passed for the scope of the custom adapter to help serialize a query command.
  * @typedef {object} SerializationQueryHandlerData
- * @prop {import("./clauses/where.js").WhereClausePropertyArray=} where
+ * @prop {WhereClausePropertyArray=} where
  * Recursively nested array of objects where each object represents a condition.  
  * If the element is an array, then that means the condition is nested with the last element from that array.  
  * If undefined, then no `WHERE` clause was given.
@@ -15,15 +37,15 @@ import { ErrorTypes, KinshipAdapterError } from "./exceptions.js";
  * @prop {number=} offset
  * Number representing the number of records to skip before grabbing.  
  * If undefined, then no `OFFSET` clause was given.
- * @prop {import("./clauses/order-by.js").SortByClauseProperty[]=} order_by
+ * @prop {SortByClauseProperty[]=} order_by
  * Array of objects where each object represents a column to order by.  
  * If undefined, then no `ORDER BY` clause was given.
- * @prop {import("./clauses/group-by.js").GroupByClauseProperty[]=} group_by
+ * @prop {GroupByClauseProperty[]=} group_by
  * Array of objects where each object represents a column to group by.  
  * If undefined, then no `GROUP BY` clause was given.
- * @prop {import("./clauses/choose.js").SelectClauseProperty[]} select
+ * @prop {SelectClauseProperty[]} select
  * Array of objects where each object represents a column to select.
- * @prop {[import("./config/relationships.js").MainTableFromClauseProperty, ...import("./config/relationships.js").FromClauseProperty[]]} from
+ * @prop {[FromClauseProperty[]]} from
  * Array of objects where each object represents a table to join on.  
  * The first object will represent the main table the context is connected to. 
  */
@@ -62,7 +84,7 @@ import { ErrorTypes, KinshipAdapterError } from "./exceptions.js";
  * Table the update is occurring on.
  * @prop {string[]} columns
  * Columns to be updated.  
- * @prop {import("./clauses/where.js").WhereClausePropertyArray} where
+ * @prop {WhereClausePropertyArray} where
  * Recursively nested array of objects where each object represents a condition.  
  * If the element is an array, then that means the condition is nested with the last element from that array.
  * @prop {SerializationUpdateHandlerExplicitData=} explicit
@@ -74,7 +96,7 @@ import { ErrorTypes, KinshipAdapterError } from "./exceptions.js";
  * @typedef {object} SerializationDeleteHandlerData
  * @prop {string} table
  * Table the delete is occurring on.
- * @prop {import("./clauses/where.js").WhereClausePropertyArray=} where
+ * @prop {WhereClausePropertyArray=} where
  * Recursively nested array of objects where each object represents a condition.  
  * If the element is an array, then that means the condition is nested with the last element from that array.
  */
@@ -89,7 +111,7 @@ import { ErrorTypes, KinshipAdapterError } from "./exceptions.js";
 
 /**
  * An argument that is to be passed alongside a command to fill in sanitized values.
- * @typedef {import("./models/types.js").DataType} ExecutionArgument
+ * @typedef {DataType} ExecutionArgument
  */
 
 /**
@@ -112,26 +134,26 @@ import { ErrorTypes, KinshipAdapterError } from "./exceptions.js";
 /**
  * Various handlers to handle execution of a command and the command's corresponding arguments for a given database language.
  * @typedef {object} ExecutionHandlers
- * @prop {(cmd: string, args: ExecutionArgument[]) => import("./models/maybe.js").MaybePromise<any[]>} forQuery
+ * @prop {(cmd: string, args: ExecutionArgument[]) => MaybePromise<any[]>} forQuery
  * Handles execution of a query command, given the command string and respective arguments for the command string.  
  * This should return an array of objects where each object represents the row returned from the query.
- * @prop {(cmd: string, args: ExecutionArgument[]) => import("./models/maybe.js").MaybePromise<number[]>} forInsert
+ * @prop {(cmd: string, args: ExecutionArgument[]) => MaybePromise<number[]>} forInsert
  * Handles execution of an insert command, given the command string and respective arguments for the command string.  
  * This should return an array of numbers, where each number represents a table's primary key's auto incremented number (if applicable)  
  * This array should be parallel with the array of records that were serialized in the `serialize(...).forInsert()` function.
- * @prop {(cmd: string, args: ExecutionArgument[]) => import("./models/maybe.js").MaybePromise<number>} forUpdate
+ * @prop {(cmd: string, args: ExecutionArgument[]) => MaybePromise<number>} forUpdate
  * Handles execution of an update command, given the command string and respective arguments for the command string.  
  * This should return a number representing the total number of rows affected from the command.
- * @prop {(cmd: string, args: ExecutionArgument[]) => import("./models/maybe.js").MaybePromise<number>} forDelete
+ * @prop {(cmd: string, args: ExecutionArgument[]) => MaybePromise<number>} forDelete
  * Handles execution of a delete command, given the command string and respective arguments for the command string.  
  * This should return a number representing the total number of rows affected from the command.
- * @prop {(cmd: string, args: ExecutionArgument[]) => import("./models/maybe.js").MaybePromise<number>} forTruncate
+ * @prop {(cmd: string, args: ExecutionArgument[]) => MaybePromise<number>} forTruncate
  * Handles execution of a truncate command, given the command string and respective arguments for the command string.  
  * This should return a number representing the total number of rows affected from the command.
- * @prop {(cmd: string, args: ExecutionArgument[]) => import("./models/maybe.js").MaybePromise<{[fieldName: string]: SchemaColumnDefinition}>} forDescribe
+ * @prop {(cmd: string, args: ExecutionArgument[]) => MaybePromise<{[fieldName: string]: SchemaColumnDefinition}>} forDescribe
  * Handles execution of a describe command, given the command string and respective arguments for the command string.
  * This should return an object containing {@link DescribedSchema} objects. 
- * @prop {<T>() => import("./models/maybe.js").MaybePromise<TransactionTools>} forTransaction
+ * @prop {<T>() => MaybePromise<TransactionTools>} forTransaction
  * Returns the necessary tools that are used to begin a transaction, commit the transaction, or roll the transaction back.  
  * This should return something like this:
  * ```js
@@ -157,13 +179,13 @@ import { ErrorTypes, KinshipAdapterError } from "./exceptions.js";
 /**
  * Various tools interacting with the adapter's connection transaction.
  * @typedef {object} TransactionTools
- * @prop {() => import("./models/maybe.js").MaybePromise<any>} begin
+ * @prop {() => MaybePromise<any>} begin
  * Function that when called, will begin the transaction. This should return anything that is necessary for the adapter to work with the transaction.  
  * For example, in the mssql library, the current connection creates a transaction connection, so the transaction connection must be returned from
  * the `begin()` function, so that the transaction connection can be passed back to the adapter later.
- * @prop {(transaction: any) => import("./models/maybe.js").MaybePromise<void>} commit
+ * @prop {(transaction: any) => MaybePromise<void>} commit
  * Function that when called, will commit the `transaction`.
- * @prop {(transaction: any) => import("./models/maybe.js").MaybePromise<void>} rollback
+ * @prop {(transaction: any) => MaybePromise<void>} rollback
  * Function that when called, will rollback the `transaction`.
  */
 
@@ -214,10 +236,8 @@ import { ErrorTypes, KinshipAdapterError } from "./exceptions.js";
  * Function that provides the {@link AdapterScope} `scope` and returns an object of various functions for {@link ExecutionHandlers}.
  * @prop {() => SerializationHandlers} serialize
  * Function that provides the {@link AdapterScope} `scope` and returns an object of various functions for {@link SerializationHandlers}.
- * @prop {(() => void)=} dispose
- * Function to dispose of any connections.
- * @prop {(() => Promise<void>)=} asyncDispose
- * Function to asynchronously dispose of any connections.
+ * @prop {() => Promise<boolean>} testConnection
+ * Function that tests the connection to the database.
  */
 
 /**
@@ -254,8 +274,8 @@ import { ErrorTypes, KinshipAdapterError } from "./exceptions.js";
  * Column is unique (primary keys can set this to true as well)
  * @prop {"string"|"int"|"float"|"boolean"|"date"} datatype
  * Column general type.
- * @prop {() => import("./models/types.js").DataType|undefined} defaultValue
+ * @prop {() => DataType|undefined} defaultValue
  * Function that returns the value specified in the database schema for database generated values on inserts.
  */
 
-/** @typedef {import("./clauses/where.js").WhereClausePropertyArray} WhereClausePropertyArray */
+/** @typedef {WhereClausePropertyArray} WhereClausePropertyArray */

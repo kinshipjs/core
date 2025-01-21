@@ -1,4 +1,9 @@
 //@ts-check
+/** @import { Aggregates, GroupedColumnsModel, SpfGroupByCallbackModel } from "../clauses/group-by.js" */
+/** @import { State } from "../context/context.js" */
+/** @import { Deflate, Join } from "../models/string.js" */
+/** @import { MaybeArray } from "../models/maybe.js" */
+/** @import { Column } from "../context/base.js" */
 
 import { KinshipBase } from "../context/base.js";
 import { assertAsArray } from "../context/util.js";
@@ -27,12 +32,12 @@ export class GroupByBuilder {
     /**
      * Specify the columns to group the results on.
      * @template {object} TTableModel
-     * @template {import("../clauses/group-by.js").GroupedColumnsModel<TTableModel>} TGroupedColumns
+     * @template {GroupedColumnsModel<TTableModel>} TGroupedColumns
      * Used internally for typescript to create a new `TAliasModel` on the returned context, which will change the scope of what the user will see in further function calls.
-     * @param {import("../context/context.js").State} oldState
-     * @param {(model: import("../clauses/group-by.js").SpfGroupByCallbackModel<TTableModel>, aggregates: import("../clauses/group-by.js").Aggregates) => import("../models/maybe.js").MaybeArray<keyof TGroupedColumns>} callback
+     * @param {State} oldState
+     * @param {(model: SpfGroupByCallbackModel<TTableModel>, aggregates: Aggregates) => MaybeArray<keyof TGroupedColumns>} callback
      * Property reference callback that is used to determine which column or columns should be selected and grouped on in future queries.
-     * @returns {import("../context/context.js").State} 
+     * @returns {State} 
      * State for group by. 
      */
     getState(oldState, callback) {
@@ -45,7 +50,9 @@ export class GroupByBuilder {
             sum: this.#getAggregateData(AggregateType.SUM),
             total: this.#getAggregateData(AggregateType.TOTAL),
         };
-        const data = assertAsArray(callback(this.#newProxy(), aggregates));
+        /** @type {any} */
+        const proxy = this.#newProxy();
+        const data = assertAsArray(callback(proxy, aggregates));
 
         /** @type {GroupByClauseProperty[]} */
         const props = /** @type {any} */ (data);
@@ -207,7 +214,7 @@ function sum(col) {
 
 /**
  * Object to carry data tied to various information about a column being grouped by.
- * @typedef {import("../context/base.js").Column & { aggregate?: "AVG"|"COUNT"|"MIN"|"MAX"|"SUM"|"TOTAL" }} GroupByClauseProperty
+ * @typedef {Column & { aggregate?: "AVG"|"COUNT"|"MIN"|"MAX"|"SUM"|"TOTAL" }} GroupByClauseProperty
  */
 
 /**
@@ -215,11 +222,11 @@ function sum(col) {
  * @template {object} TTableModel
  * @typedef {{[K in keyof Partial<TTableModel>]: GroupByClauseProperty}
  *  & Partial<{ $total: GroupByClauseProperty }>
- *  & Partial<{[K in keyof TTableModel as `$count_${import("../models/string.js").Join<TTableModel, K & string>}`]: GroupByClauseProperty}>
- *  & Partial<{[K in keyof TTableModel as `$avg_${import("../models/string.js").Join<TTableModel, K & string>}`]: GroupByClauseProperty}>
- *  & Partial<{[K in keyof TTableModel as `$max_${import("../models/string.js").Join<TTableModel, K & string>}`]: GroupByClauseProperty}>
- *  & Partial<{[K in keyof TTableModel as `$min_${import("../models/string.js").Join<TTableModel, K & string>}`]: GroupByClauseProperty}>
- *  & Partial<{[K in keyof TTableModel as `$sum_${import("../models/string.js").Join<TTableModel, K & string>}`]: GroupByClauseProperty}>} GroupedColumnsModel
+ *  & Partial<{[K in keyof TTableModel as `$count_${Join<TTableModel, K & string>}`]: GroupByClauseProperty}>
+ *  & Partial<{[K in keyof TTableModel as `$avg_${Join<TTableModel, K & string>}`]: GroupByClauseProperty}>
+ *  & Partial<{[K in keyof TTableModel as `$max_${Join<TTableModel, K & string>}`]: GroupByClauseProperty}>
+ *  & Partial<{[K in keyof TTableModel as `$min_${Join<TTableModel, K & string>}`]: GroupByClauseProperty}>
+ *  & Partial<{[K in keyof TTableModel as `$sum_${Join<TTableModel, K & string>}`]: GroupByClauseProperty}>} GroupedColumnsModel
  */
 
 /**
@@ -239,5 +246,5 @@ function sum(col) {
  * __NOTE: This is a superficial type to help augment the AliasModel of the context so Users can expect different results in TypeScript.__  
  * __Real return value: {@link GroupByClauseProperty}__
  * @template {object} TTableModel
- * @typedef {import("../models/string.js").Deflate<TTableModel>} SpfGroupByCallbackModel
+ * @typedef {Deflate<TTableModel>} SpfGroupByCallbackModel
  */

@@ -1,7 +1,9 @@
 //@ts-check
+/** @import { MaybeArray } from "../models/maybe.js" */
+/** @import { StartsWith } from "../models/string.js" */
 
 /**
- * @template {import("./maybe.js").MaybeArray<object|undefined>} T
+ * @template {MaybeArray<object|undefined>} T
  * @typedef {T extends (infer R)[] ? R : T} SqlTableType
  */
 
@@ -30,7 +32,7 @@
  *  : { [K2 in K]: number } } Isolate
  */
 
-/** @template {string} S @typedef {import("./string.js").StartsWith<S, "$avg_"|"$sum_"|"$max_"|"$min_"|"$count_"|"$total_">} IsAggregate */
+/** @template {string} S @typedef {StartsWith<S, "$avg_"|"$sum_"|"$max_"|"$min_"|"$count_"|"$total_">} IsAggregate */
 
 /** @typedef {IsAggregate<"$avg_X">} Foo */
 

@@ -1,4 +1,8 @@
 //@ts-check
+/** @import { AdapterReadyState, State } from "../context/context.js" */
+/** @import { MaybeArray, MaybePromise } from "../models/maybe.js" */
+/** @import { SchemaColumnDefinition } from "../adapter.js" */
+/** @import { Relationships } from "../config/relationships.js" */
 
 import { KinshipBase } from "../context/base.js";
 import { Optimized, assertAsArray, getFilterConditionsFromWhere } from "../context/util.js";
@@ -28,8 +32,8 @@ export class KinshipExecutionHandler {
     /**
      * Handles the execution of a command and its respective triggers if any exist.
      * @template {object} T
-     * @param {Promise<import("../context/context.js").State>} promise
-     * @param {{ records?: import("../models/maybe.js").MaybeArray<T>|undefined, callback?: Function, transaction?: any, truncate?: boolean }=} data
+     * @param {Promise<State>} promise
+     * @param {{ records?: MaybeArray<T>|undefined, callback?: Function, transaction?: any, truncate?: boolean }=} data
      * @returns {Promise<{ numRowsAffected: number, records: T[], whereClause?: WhereBuilder<T>}>}
      */
     async handle(promise, data) {
@@ -206,8 +210,8 @@ export class KinshipExecutionHandler {
      * Must be implemented by child class.
      * @protected
      * @template {object|undefined} TAliasModel
-     * @param {import("../context/context.js").State} state
-     * @param {import("../models/maybe.js").MaybeArray<TAliasModel>|Function|undefined} records
+     * @param {State} state
+     * @param {MaybeArray<TAliasModel>|Function|undefined} records
      * @param {Function=} callback
      * @param {any=} transaction
      * @param {boolean=} truncate
@@ -231,11 +235,11 @@ export class KinshipExecutionHandler {
 
     /**
      * Recursively serializes an array of rows to an array of user-friendly objects.
-     * @param {import("../context/context.js").AdapterReadyState} state
+     * @param {AdapterReadyState} state
      * @param {object[]} rows 
-     * @param {Record<string, import("../adapter.js").SchemaColumnDefinition>} schema
-     * @param {import("../config/relationships.js").Relationships<object>} relationships
-     * @param {import("../config/relationships.js").Relationships<object>} lastRelationships
+     * @param {Record<string, SchemaColumnDefinition>} schema
+     * @param {Relationships<object>} relationships
+     * @param {Relationships<object>} lastRelationships
      * @param {number} depth 
      * Used for when the command had a group by clause.
      */
@@ -304,9 +308,9 @@ export class KinshipExecutionHandler {
 
     /**
      * Prepare the state so it is ready for usage with the respective adapter.
-     * @param {import("../context/context.js").State} state
+     * @param {State} state
      * State of the context built by Kinship
-     * @returns {import("../context/context.js").AdapterReadyState}
+     * @returns {AdapterReadyState}
      * State of the context, slightly altered so it is ready for usage with the adapter.
      */
     #prepareState(state) {
@@ -340,7 +344,7 @@ class KinshipImplementationError extends Error {
  * @param {{[key: string]: any} & { $$itemNumber: number }} hookArgs
  * Data that is retrieved from the hook.  
  * `$$itemNumber` is a static number that represents the position of the item in the array.
- * @returns {import("../models/maybe.js").MaybePromise<void>}
+ * @returns {MaybePromise<void>}
  * Promise of void or void.
  */
 
@@ -350,7 +354,7 @@ class KinshipImplementationError extends Error {
  * @callback TriggerHookCallback
  * @param {number} numRecords
  * Number of records that are being worked on.
- * @returns {import("../models/maybe.js").MaybePromise<object>}
+ * @returns {MaybePromise<object>}
  * Object or Promise that returns an object that will be spread into the `hookArgs` property of {@link TriggerCallback}.
  */
 

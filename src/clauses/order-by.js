@@ -1,4 +1,9 @@
 //@ts-check
+/** @import { State } from "../context/context.js" */
+/** @import { MaybeArray } from "../models/maybe.js" */
+/** @import { Column } from "../context/base.js" */
+/** @import { DataType } from "../models/types.js" */
+
 import { KinshipBase } from "../context/base.js";
 import { assertAsArray } from "../context/util.js";
 import { KinshipColumnDoesNotExistError, KinshipInvalidPropertyTypeError } from "../exceptions.js";
@@ -18,13 +23,15 @@ export class OrderByBuilder {
      * @template {object} TTableModel
      * Specify the columns to sort on.  
      * __NOTE: columns used for sorting are done in the order that is specified.__
-     * @param {import("../context/context.js").State} oldState
-     * @param {(model: SortByCallbackModel<TTableModel>) => import("../models/maybe.js").MaybeArray<SortByClauseProperty|SortByCallbackModelProp>} callback 
+     * @param {State} oldState
+     * @param {(model: SortByCallbackModel<TTableModel>) => MaybeArray<SortByClauseProperty|SortByCallbackModelProp>} callback 
      * Property reference callback that is used to determine which column or columns will be used to sort the queried rows
-     * @returns {import("../context/context.js").State} A new context with the state of the context this occurred in addition with a new state of an ORDER BY clause.
+     * @returns {State} A new context with the state of the context this occurred in addition with a new state of an ORDER BY clause.
      */
     getState(oldState, callback) {
-        const props = assertAsArray(/** @type {SortByClauseProperty[]} */ (callback(this.#newProxy())));
+        /** @type {any} */
+        const proxy = this.#newProxy();
+        const props = assertAsArray(/** @type {SortByClauseProperty[]} */ (callback(proxy)));
         return {
             ...oldState,
             orderBy: props
@@ -73,7 +80,7 @@ export class OrderByBuilder {
 }
 
 /**
- * @typedef {import('../context/base.js').Column & { direction: "ASC"|"DESC" }} SortByClauseProperty
+ * @typedef {Column & { direction: "ASC"|"DESC" }} SortByClauseProperty
  */
 
 /**
@@ -94,7 +101,7 @@ export class OrderByBuilder {
  * Type to recurse through to augment.
  * @template TFinalType
  * Type to augment SQL primitive types (non `SqlTable` types) to.
- * @typedef {{[K in keyof TTransformingModel]-?: TTransformingModel[K] extends import("../models/types.js").DataType|undefined 
+ * @typedef {{[K in keyof TTransformingModel]-?: TTransformingModel[K] extends DataType|undefined 
  *   ? TFinalType 
  *   : TTransformingModel[K] extends (infer U extends object)[]|undefined 
  *     ? AugmentModel<U, TFinalType> 

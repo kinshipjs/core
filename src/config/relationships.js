@@ -1,8 +1,13 @@
 //@ts-check
+/** @import { KinshipTable, State } from "../context/context.js" */
+/** @import { FriendlyType } from "../models/string.js" */
+/** @import { Column } from "../context/base.js" */
+/** @import { SchemaColumnDefinition } from "../adapter.js" */
+/** @import { DataType } from "../models/types.js" */
+/** @import { SelectClauseProperty } from "../clauses/choose.js" */
 
 import { KinshipBase } from "../context/base.js";
 import { KinshipInvalidPropertyTypeError, KinshipSyntaxError } from "../exceptions.js";
-
 
 export class RelationshipBuilder {
     /** @type {KinshipBase} */ #base;
@@ -18,7 +23,7 @@ export class RelationshipBuilder {
     /**
      * Configure a relationship using a callback.
      * @template {object} TTableModel
-     * @param {import('../context/context.js').KinshipContext['_afterResync']} afterResync
+     * @param {KinshipTable['_afterResync']} afterResync
      * Function that controls asynchronous tasks in the context.
      * @param {HasOneCallback<TTableModel>|HasManyCallback<TTableModel>} callback
      * Callback that was passed into `.hasOne()` or `.hasMany()` by the consumer of the library
@@ -52,12 +57,12 @@ export class RelationshipBuilder {
     /**
      * Gets the state for an `.include()` call, given some callback.
      * @template {object} TTableModel
-     * @param {import("../context/context.js").State} oldState
-     * @param {(model: {[K in keyof import("./relationships.js").OnlyTableTypes<TTableModel>]: 
-     *   import("./relationships.js").ThenIncludeCallback<
-     *     import("./relationships.js").OnlyTableTypes<TTableModel>[K], K>
+     * @param {State} oldState
+     * @param {(model: {[K in keyof OnlyTableTypes<TTableModel>]: 
+     *   ThenIncludeCallback<
+     *     OnlyTableTypes<TTableModel>[K], K>
      *   }) => void} callback
-     * @returns {import("../context/context.js").State}
+     * @returns {State}
      */
     getStateForInclude(oldState, callback) {
         const clonedState = { 
@@ -72,7 +77,7 @@ export class RelationshipBuilder {
     /**
      * With forwarded data from the proxy, configures the real table name for the table
      * that this relationship is configured with.
-     * @param {import('../context/context.js').KinshipContext['_afterResync']} afterResync
+     * @param {KinshipTable['_afterResync']} afterResync
      * @param {string} table
      * @param {string} prependTable
      * @param {string} prependColumn
@@ -110,7 +115,7 @@ export class RelationshipBuilder {
      * With forwarded data from the proxy, finishes the configuration for the table
      * by calling a describe on the database to receive the schema, as well as saving all data to the `KinshipBase`.
      * @template {object} TTableModel
-     * @param {import('../context/context.js').KinshipContext['_afterResync']} afterResync
+     * @param {KinshipTable['_afterResync']} afterResync
      * @param {string} table
      * @param {string} prependTable
      * @param {string} prependColumn
@@ -166,7 +171,7 @@ export class RelationshipBuilder {
      * With forwarded data from the proxy, finishes the configuration for the table
      * by calling a describe on the database to receive the schema, as well as saving all data to the `KinshipBase`.
      * @template {object} TTableModel
-     * @param {import('../context/context.js').KinshipContext['_afterResync']} afterResync
+     * @param {KinshipTable['_afterResync']} afterResync
      * @param {string} prependTable
      * @param {string} prependColumn
      * @param {any} relationships
@@ -223,7 +228,7 @@ export class RelationshipBuilder {
     }
 
     /**
-     * @param {import('../context/context.js').KinshipContext['_afterResync']} afterResync
+     * @param {KinshipTable['_afterResync']} afterResync
      * @param {RelationshipType} relationshipType
      * @param {string} table
      * @param {any} relationships
@@ -321,7 +326,7 @@ export class RelationshipBuilder {
     }
 
     /**
-     * @param {import("../context/context.js").State} state 
+     * @param {State} state 
      * @param {string} table 
      * @param {Relationships<any>} relationships 
      * @returns 
@@ -391,7 +396,7 @@ export const RelationshipType = {
 /**
  * @template {object} T
  * @typedef {{
- *   [K in keyof OnlyTableTypes<T>]: import("../models/string.js").FriendlyType<Relationship<OnlyTableTypes<T>[K], IfTableArray<T[K], (typeof RelationshipType)['OneToOne'], (typeof RelationshipType)['OneToMany']>>>
+ *   [K in keyof OnlyTableTypes<T>]: FriendlyType<Relationship<OnlyTableTypes<T>[K], IfTableArray<OnlyTableTypes<T>[K], (typeof RelationshipType)['OneToOne'], (typeof RelationshipType)['OneToMany']>>>
  * }} Relationships
  */
 
@@ -408,11 +413,11 @@ export const RelationshipType = {
  * Actual table name as it appears in the database.
  * @prop {string} alias
  * Alias given to this table for command serialization.
- * @prop {import('../context/base.js').Column} primary
+ * @prop {Column} primary
  * Information on the key pointing to the original table that holds this relationship.
- * @prop {import('../context/base.js').Column} foreign 
+ * @prop {Column} foreign 
  * Information on the key pointing to the related table. (this key comes from the same table that is specified by `table`)
- * @prop {{[K in keyof T]: import("../adapter.js").SchemaColumnDefinition}} schema
+ * @prop {{[K in keyof T]: SchemaColumnDefinition}} schema
  * Various information about the table's columns.
  * @prop {Relationships<T>=} relationships
  * Further configured relationships that will be on this table.
@@ -424,8 +429,8 @@ export const RelationshipType = {
  *   from: <TForeignContext>(
  *      ctx: TForeignContext, 
  *      pKeyCallback: (m: {[K in keyof OnlyDataTypes<TPrimaryModel>]-?: K & string}) => Required<keyof OnlyDataTypes<TPrimaryModel> & string>,
- *      fKeyCallback: (m: {[K in keyof OnlyDataTypes<TForeignContext extends import('../context/context.js').KinshipContext<infer T, infer U> ? T : never>]-?: K & string}) => Required<keyof OnlyDataTypes<TForeignContext extends import('../context/context.js').KinshipContext<infer T, infer U> ? T : never> & string>
- * ) => AndThatHasCallbacks<TForeignContext extends import('../context/context.js').KinshipContext<infer T, infer U> ? T : never>
+ *      fKeyCallback: (m: {[K in keyof OnlyDataTypes<TForeignContext extends KinshipTable<infer T, infer U> ? T : never>]-?: K & string}) => Required<keyof OnlyDataTypes<TForeignContext extends KinshipTable<infer T, infer U> ? T : never> & string>
+ * ) => AndThatHasCallbacks<TForeignContext extends KinshipTable<infer T, infer U> ? T : never>
  * }} From
  */
 
@@ -518,11 +523,11 @@ export const RelationshipType = {
  * Filters out an object model type to only have keys that are valued with `object`s.
  * @template {object} T 
  * The abstract model to check properties for recursive `object`s.
- * @typedef {{[K in keyof Required<T> as T[K] extends import("../models/types.js").DataType|object[]|undefined
+ * @typedef {{[K in keyof Required<T> as T[K] extends DataType|object[]|undefined
  *      ? never 
  *      : K
  *   ]-?: 
- *      T[K] extends import("../models/types.js").DataType|object[]|undefined 
+ *      T[K] extends DataType|object[]|undefined 
  *          ? never 
  *          : NonNullable<T[K]>
  * }} OnlyTables
@@ -533,7 +538,7 @@ export const RelationshipType = {
  * Removes all keys where the value in `T` for that key is of type `object` or `object[]`
  * @template {object} T 
  * The abstract model to check properties for recursive `object`s.
- * @typedef {{[K in keyof T as T[K] extends import("../models/types.js").DataType|undefined 
+ * @typedef {{[K in keyof T as T[K] extends DataType|undefined 
  *      ? K 
  *      : never
  *   ]: T[K]
@@ -600,9 +605,9 @@ export const RelationshipType = {
  * Alias of the table, configured by Kinship.
  * @prop {string=} programmaticName
  * Name as the user has configured it.
- * @prop {import("../clauses/choose.js").SelectClauseProperty} refererTableKey
+ * @prop {SelectClauseProperty} refererTableKey
  * Information about the source table key.
- * @prop {import("../clauses/choose.js").SelectClauseProperty} referenceTableKey
+ * @prop {SelectClauseProperty} referenceTableKey
  * Information about the reference table key.
  */
 

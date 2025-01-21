@@ -1,4 +1,8 @@
 //@ts-check
+/** @import { MaybeArray } from "../models/maybe.js" */
+/** @import { WhereClausePropertyArray } from "../clauses/where.js" */
+/** @import { SchemaColumnDefinition } from "../adapter.js" */
+/** @import { AdapterReadyState } from "../context/context.js" */
 
 import { WhereBuilder } from "../clauses/where.js";
 
@@ -6,7 +10,7 @@ import { WhereBuilder } from "../clauses/where.js";
  * Given an object that could be an array or itself, augment it so it has to be an array.  
  * __NOTE: Will not work on an array of arrays.__
  * @template T
- * @param {import("../models/maybe.js").MaybeArray<T>} o 
+ * @param {MaybeArray<T>} o 
  * @returns {T[]}
  */
 export function assertAsArray(o) {
@@ -73,12 +77,12 @@ export function doFiltersExist(where) {
 /**
  * 
  * @param {WhereBuilder<any, any>=} where
- * @returns {import("../clauses/where.js").WhereClausePropertyArray}
+ * @returns {WhereClausePropertyArray}
  */
 export function getFilterConditionsFromWhere(where) {
     return where
         //@ts-ignore _getConditions is marked private but it is available for internal use.
-        ?._getConditions() ?? /** @type {import("../clauses/where.js").WhereClausePropertyArray} */ ([]);
+        ?._getConditions() ?? /** @type {WhereClausePropertyArray} */ ([]);
 }
 
 /**
@@ -172,8 +176,8 @@ export const Optimized = {
     /**
      * Reconstructs the object using keys that are specified in `state.select` (from the user's `.select()` function) or
      * if `schema.select` is undefined, then reconstructs the object using the schema.
-     * @param {import("./context.js").AdapterReadyState} state
-     * @param {Record<string, import("../adapter.js").SchemaColumnDefinition>} schema 
+     * @param {AdapterReadyState} state
+     * @param {Record<string, SchemaColumnDefinition>} schema 
      * @param {object} record 
      * @returns {object}
      */

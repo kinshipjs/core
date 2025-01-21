@@ -1,4 +1,8 @@
 // @ts-check
+/** @import { DataType } from "../models/types.js" */
+/** @import { Relationships } from "../config/relationships.js" */
+/** @import { SchemaColumnDefinition } from "../adapter.js" */
+/** @import { MaybeArray } from "../models/maybe.js" */
 
 import { KinshipBase } from '../context/base.js';
 import { 
@@ -22,10 +26,95 @@ export function Where(kinshipBase, column, table=kinshipBase.tableName, chain="W
 }
 
 /**
+ * @template {Array} TArgs
+ * @template TTableModel
+ * @template {keyof TTableModel} TColumn
+ * @template [TBaseModel=TTableModel]
+ * @typedef {(...args: TArgs) => Chain<TBaseModel>} IWhereConditionHandler
+ */
+
+/**
+ * @typedef {object} IWhereConditionIterator
+ * @prop {() => { nest: boolean, value: WhereClauseProperty }} next
+ * @prop {() => void} reset
+ */
+
+/**
+ * @template TTableModel
+ * @template {keyof TTableModel} TColumn
+ * @typedef {undefined extends TTableModel[TColumn] ? TTableModel[TColumn]|null : TTableModel[TColumn]} InferArgument
+ */
+
+/**
+ * @template {object} TTableModel
+ * @template {keyof TTableModel} TColumn
+ * @template {object} [TBaseModel=TTableModel]
+ * @typedef {object} IWhereBuilderExternal
+ * @prop {IWhereBuilderExternal<TTableModel, TColumn>} not
+ * Negate the next condition (or nest of conditions)
+ * @prop {IWhereConditionHandler<[value: InferArgument<TTableModel, TColumn>], TTableModel, TColumn, TBaseModel>} equals
+ * `[Column] = {value}`  
+ * Add a condition that checks if column values are equal to the `value` specified.
+ * @prop {IWhereBuilderExternal<TTableModel, TColumn, TBaseModel>['equals']} eq
+ * _Alias for `.equals()`_  
+ * @prop {IWhereConditionHandler<[value: InferArgument<TTableModel, TColumn>], TTableModel, TColumn, TBaseModel>} lessThan
+ * `[Column] < {value}`  
+ * Add a condition that checks if column values are less than the `value` specified.
+ * @prop {IWhereBuilderExternal<TTableModel, TColumn, TBaseModel>['lessThan']} lt
+ * _Alias for `.lessThan()`_  
+ * @prop {IWhereConditionHandler<[value: InferArgument<TTableModel, TColumn>], TTableModel, TColumn, TBaseModel>} lessThanOrEqualTo
+ * `[Column] <= {value}`  
+ * Add a condition that checks if column values are less than OR equal to the `value` specified.
+ * @prop {IWhereConditionHandler<[value: InferArgument<TTableModel, TColumn>], TTableModel, TColumn, TBaseModel>} lteq
+ * _Alias for `.lessThanOrEqualTo()`_  
+ * @prop {IWhereConditionHandler<[value: InferArgument<TTableModel, TColumn>], TTableModel, TColumn, TBaseModel>} greaterThan
+ * `[Column] > {value}`  
+ * Add a condition that checks if column values are greater than the `value` specified.
+ * @prop {IWhereConditionHandler<[value: InferArgument<TTableModel, TColumn>], TTableModel, TColumn, TBaseModel>} gt
+ * _Alias for `.greaterThan()`_  
+ * @prop {IWhereConditionHandler<[value: InferArgument<TTableModel, TColumn>], TTableModel, TColumn, TBaseModel>} greaterThanOrEqualTo
+ * `[Column] >= {value}`  
+ * Add a condition that checks if column values are greater than OR equal to the `value` specified.
+ * @prop {IWhereConditionHandler<[value: InferArgument<TTableModel, TColumn>], TTableModel, TColumn, TBaseModel>} gteq
+ * _Alias for `.greaterThanOrEqualTo()`_  
+ * @prop {IWhereConditionHandler<[lowerBound: InferArgument<TTableModel, TColumn>, upperBound: InferArgument<TTableModel, TColumn>], TTableModel, TColumn, TBaseModel>} between
+ * `[Column] BETWEEN {lowerBound} AND {upperBound}`  
+ * Add a condition that checks if column values are between the `lowerBound` and `upperBound`.  
+ * _Note: Inclusiveness/Exclusiveness may be dependent on the adapter you are using._
+ * @prop {IWhereConditionHandler<[lowerBound: InferArgument<TTableModel, TColumn>, upperBound: InferArgument<TTableModel, TColumn>], TTableModel, TColumn, TBaseModel>} in
+ * `[Column] IN (...{values})`  
+ * Add a condition that checks if column values are in a range of specified `values`.
+ * @prop {IWhereConditionHandler<[pattern: InferArgument<TTableModel, TColumn>], TTableModel, TColumn, TBaseModel>} like
+ * `[Column] LIKE "{pattern}"`  
+ * Add a condition that checks if column values are like a given `pattern`.  
+ * _Note: Wildcard characters may be dependent on the adapter you are using._
+ * @prop {IWhereConditionHandler<[value: InferArgument<TTableModel, TColumn>], TTableModel, TColumn, TBaseModel>} contains
+ * _Alias for `.like("%" + value + "%")`_  
+ * @prop {IWhereConditionHandler<[pattern: InferArgument<TTableModel, TColumn>], TTableModel, TColumn, TBaseModel>} startsWith
+ * _Alias for `.like(value + "%")`_  
+ * @prop {IWhereConditionHandler<[pattern: InferArgument<TTableModel, TColumn>], TTableModel, TColumn, TBaseModel>} endsWith
+ * _Alias for `.like("%" + value)`_  
+ */
+
+/**
+ * @typedef {object} IWhereBuilderInternal
+ * @prop {() => IWhereConditionIterator} iterator
+ * Returns an Iterator object that can be used to iterate over all the conditions that were added to this where builder.
+ */
+
+/**
+ * @template TTableModel
+ * @template {keyof TTableModel} TColumn
+ * @template [TBaseModel=TTableModel]
+ * @typedef {IWhereBuilderExternal<TTableModel, TColumn, TBaseModel> & IWhereBuilderInternal} IWhereBuilder
+ */
+
+/**
  * Assists in building a WHERE clause.
- * @template {object} TTableModel import("../models/sql.js").Table model that the WHERE clause is being built for.
+ * @template {object} TTableModel Table model that the WHERE clause is being built for.
  * @template {keyof TTableModel} TColumn Initial column type for when the WhereBuilder is created.
- * @template {object} [TOriginalModel=TTableModel] Used to keep track of the original model when nesting conditions.
+ * @template {object} [TBaseModel=TTableModel] Used to keep track of the original model when nesting conditions.
+ * @implements {IWhereBuilder<TTableModel, TColumn, TBaseModel>}
  */
 export class WhereBuilder {
     /** @private @type {WhereClausePropertyArray} */ _conditions; // not marked with # because it needs access to other objects from within.
@@ -35,7 +124,7 @@ export class WhereBuilder {
 
     /**
      * @param {KinshipBase} kinshipBase
-     * @param {keyof TOriginalModel} column 
+     * @param {keyof TBaseModel} column 
      * @param {string} table
      * @param {WhereChain} chain
      */
@@ -50,20 +139,14 @@ export class WhereBuilder {
 
     // Public functions
 
-    /**
-     * Negate the next condition called.
-     * @returns {this}
-     */
+    /** @type {IWhereBuilder<TTableModel, TColumn, TBaseModel>['not']} */
     get not() {
         this.#current.chain += " NOT";
         this.#negated = true;
-        return this;
+        return /** @type {any} */ (this);
     }
 
-    /**
-     * Adds a condition to the WHERE clause where if the specified column is equal to the value specified.
-     * @type {Condition<TTableModel, TColumn, TOriginalModel>} 
-     */
+    /** @type {IWhereBuilder<TTableModel, TColumn, TBaseModel>['equals']} */
     equals(value) {
         this.#current.value = this.#getValue(value);
         this.#current.operator = WhereOperator.EQUALS;
@@ -73,7 +156,7 @@ export class WhereBuilder {
 
     /**
      * Adds a condition to the WHERE clause where if the specified column is not equal to the value specified.
-     * @type {Condition<TTableModel, TColumn, TOriginalModel>} 
+     * @type {Condition<TTableModel, TColumn, TBaseModel>} 
      */
     notEquals(value) {
         this.#current.value = this.#getValue(value);
@@ -84,7 +167,7 @@ export class WhereBuilder {
 
     /**
      * Adds a condition to the WHERE clause where if the specified column is less than the value specified.
-     * @type {Condition<TTableModel, TColumn, TOriginalModel>} 
+     * @type {Condition<TTableModel, TColumn, TBaseModel>} 
      */
     lessThan(value) {
         this.#current.value = this.#getValue(value);
@@ -95,7 +178,7 @@ export class WhereBuilder {
 
     /**
      * Adds a condition to the WHERE clause where if the specified column is less than or equal to the value specified.
-     * @type {Condition<TTableModel, TColumn, TOriginalModel>} 
+     * @type {Condition<TTableModel, TColumn, TBaseModel>} 
      */
     lessThanOrEqualTo(value) {
         this.#current.value = this.#getValue(value);
@@ -106,7 +189,7 @@ export class WhereBuilder {
 
     /**
      * Adds a condition to the WHERE clause where if the specified column is greater than the value specified.
-     * @type {Condition<TTableModel, TColumn, TOriginalModel>} 
+     * @type {Condition<TTableModel, TColumn, TBaseModel>} 
      */
     greaterThan(value) {
         this.#current.value = this.#getValue(value);
@@ -115,10 +198,7 @@ export class WhereBuilder {
         return this.#chain();
     }
 
-    /** 
-     * Adds a condition to the WHERE clause where if the specified column is greater than or equal to the value specified.
-     * @type {Condition<TTableModel, TColumn, TOriginalModel>} 
-     */
+    /** @type {IWhereBuilder<TTableModel, TColumn, TBaseModel>['greaterThanOrEqualTo']} */
     greaterThanOrEqualTo(value) {
         this.#current.value = this.#getValue(value);
         this.#current.operator = WhereOperator.GREATER_THAN_OR_EQUAL_TO;
@@ -126,14 +206,7 @@ export class WhereBuilder {
         return this.#chain();
     }
 
-    /**
-     * Adds a condition to the WHERE clause where if the specified column is between two numbers.
-     * @param {TTableModel[TColumn] extends number|undefined ? number : never} value1 
-     * Lower range of the number to look between. (inclusive)
-     * @param {TTableModel[TColumn] extends number|undefined ? number : never} value2
-     * Upper range of the number to look between. (inclusive)
-     * @returns {Chain<TOriginalModel>} A group of methods for optional chaining of conditions.
-     */
+    /** @type {IWhereBuilder<TTableModel, TColumn, TBaseModel>['between']} */
     between(value1, value2) {
         if (typeof value1 !== "number") throw new KinshipInvalidPropertyTypeError(value1, "number");
         if (typeof value2 !== "number") throw new KinshipInvalidPropertyTypeError(value2, "number");
@@ -146,14 +219,9 @@ export class WhereBuilder {
         return this.#chain();
     }
 
-    /**
-     * Adds a condition to the WHERE clause where if the specified column contains any of the values specified.
-     * @param {TTableModel[TColumn][]} values
-     * Array of values to check if the column equals any of.
-     * @returns {Chain<TOriginalModel>} A group of methods for optional chaining of conditions.
-     */
+    /** @type {IWhereBuilder<TTableModel, TColumn, TBaseModel>['in']} */
     in(values) {
-        this.#current.value = /** @type {import("../models/types.js").DataType[]} */ (
+        this.#current.value = /** @type {DataType[]} */ (
             values.map(value => /** @type {any} */ (value) instanceof Date 
                 ? this.#kinshipBase.adapter.syntax.dateString(value) 
                 : value
@@ -169,7 +237,7 @@ export class WhereBuilder {
      * This operation is case insensitive.
      * @param {TTableModel[TColumn] extends string|undefined ? string : never} value
      * String value to check where the column is like.
-     * @returns {Chain<TOriginalModel>} A group of methods for optional chaining of conditions.
+     * @returns {Chain<TBaseModel>} A group of methods for optional chaining of conditions.
      */
     like(value) {
         this.#current.value = value;
@@ -183,7 +251,7 @@ export class WhereBuilder {
      * This operation is case insensitive.
      * @param {TTableModel[TColumn] extends string|undefined ? string : never} value
      * String value to check where the column contains.
-     * @returns {Chain<TOriginalModel>} A group of methods for optional chaining of conditions.
+     * @returns {Chain<TBaseModel>} A group of methods for optional chaining of conditions.
      */
     contains(value) {
         this.#current.value = `%${value}%`;
@@ -197,7 +265,7 @@ export class WhereBuilder {
      * This operation is case insensitive.
      * @param {TTableModel[TColumn] extends string|undefined ? string : never} value
      * String value to check where the column contains.
-     * @returns {Chain<TOriginalModel>} A group of methods for optional chaining of conditions.
+     * @returns {Chain<TBaseModel>} A group of methods for optional chaining of conditions.
      */
     startsWith(value) {
         this.#current.value = `${value}%`;
@@ -211,7 +279,7 @@ export class WhereBuilder {
      * This operation is case insensitive.
      * @param {TTableModel[TColumn] extends string|undefined ? string : never} value
      * String value to check where the column contains.
-     * @returns {Chain<TOriginalModel>} A group of methods for optional chaining of conditions.
+     * @returns {Chain<TBaseModel>} A group of methods for optional chaining of conditions.
      */
     endsWith(value) {
         this.#current.value = `%${value}`;
@@ -234,7 +302,7 @@ export class WhereBuilder {
     /**
      * To be used within `KinshipContext` only.
      * @private
-     * @param {keyof TOriginalModel} column
+     * @param {keyof TBaseModel} column
      * @param {string} table
      * @param {WhereChain} chain
      * @returns {this}
@@ -263,7 +331,7 @@ export class WhereBuilder {
 
     /**
      * Chains a ConditionConfig
-     * @returns {Chain<TOriginalModel>}
+     * @returns {Chain<TBaseModel>}
      */
     #chain() {
         return new Proxy({
@@ -297,7 +365,7 @@ export class WhereBuilder {
      * @param {TTableModel[TColumn] | null} value
      */
     #getValue(value) {
-        return /** @type {import('../models/types.js').DataType} */ (
+        return /** @type {DataType} */ (
             value instanceof Date
                 ? this.#kinshipBase.adapter.syntax.dateString(value)
                 : value
@@ -335,8 +403,8 @@ export class WhereBuilder {
      * @param {WhereChain} chain 
      * Type of chaining that is used (AND, OR, AND NOT, OR NOT, WHERE, WHERE NOT)
      * @param {string} table 
-     * @param {import('../config/relationships.js').Relationships<any>} relationships 
-     * @param {Record<string, import('../adapter.js').SchemaColumnDefinition>} schema 
+     * @param {Relationships<any>} relationships 
+     * @param {Record<string, SchemaColumnDefinition>} schema 
      * @param {string} realTableName 
      */
     #newProxy(chain,
@@ -362,36 +430,60 @@ export class WhereBuilder {
         });
     }
 
+    iterator() {
+        /** @type {WhereClausePropertyArray} */
+        let conditions = [...this._getConditions()];
+        return {
+            next: () => {
+                const value = conditions.pop();
+                if(!value) {
+                    return undefined;
+                }
+                if(Array.isArray(value)) {
+                    conditions = value;
+                    return {
+                        nest: true,
+                        value: value[0]
+                    };
+                }
+                return {
+                    nest: false,
+                    value: value
+                }
+            }
+        }
+    }
+
     // Synonyms
 
     /**
      * Synonym of `.equals()`.
-     * @type {Condition<TTableModel, TColumn, TOriginalModel>}
+     * @type {Condition<TTableModel, TColumn, TBaseModel>}
      */
     eq = this.equals;
     /**
      * Synonym of `.notEquals()`.
-     * @type {Condition<TTableModel, TColumn, TOriginalModel>}
+     * @type {Condition<TTableModel, TColumn, TBaseModel>}
      */
     neq = this.notEquals;
     /**
      * Synonym of `.lessThan()`.
-     * @type {Condition<TTableModel, TColumn, TOriginalModel>}
+     * @type {Condition<TTableModel, TColumn, TBaseModel>}
      */
     lt = this.lessThan;
     /**
      * Synonym of `.lessThanOrEqualTo()`.
-     * @type {Condition<TTableModel, TColumn, TOriginalModel>}
+     * @type {Condition<TTableModel, TColumn, TBaseModel>}
      */
     lteq = this.lessThanOrEqualTo;
     /**
      * Synonym of `.greaterThan()`.
-     * @type {Condition<TTableModel, TColumn, TOriginalModel>}
+     * @type {Condition<TTableModel, TColumn, TBaseModel>}
      */
     gt = this.greaterThan;
     /**
      * Synonym of `.greaterThanOrEqualTo()`.
-     * @type {Condition<TTableModel, TColumn, TOriginalModel>}
+     * @type {Condition<TTableModel, TColumn, TBaseModel>}
      */
     gteq = this.greaterThanOrEqualTo;
 }
@@ -406,8 +498,8 @@ export const WhereChain = {
     OR_NOT: "OR NOT"
 };
 
-/** @enum {string} */
-export const WhereOperator = {
+/** @enum {typeof WhereOperator[keyof typeof WhereOperator]} */
+export const WhereOperator = Object.freeze({
     EQUALS: "=",
     NOT_EQUALS: "<>",
     LESS_THAN: "<",
@@ -419,7 +511,7 @@ export const WhereOperator = {
     IS: "IS",
     IS_NOT: "IS NOT",
     BETWEEN: "BETWEEN"
-};
+});
 
 /**
  * @typedef {[WhereClauseProperty, ...(WhereClauseProperty|WhereClausePropertyArray)[]]} WhereClausePropertyArray 
@@ -430,7 +522,7 @@ export const WhereOperator = {
  * @prop {string} table
  * @prop {string} property
  * @prop {WhereChain} chain
- * @prop {import('../models/maybe.js').MaybeArray<import("../models/types.js").DataType|null>} value
+ * @prop {MaybeArray<DataType|null>} value
  * @prop {WhereOperator} operator
  */
 
@@ -457,7 +549,7 @@ export const WhereOperator = {
  * @template {object} TTableModel
  * @template {object} [TOriginalModel=TTableModel]
  * @typedef {{[K in keyof TTableModel]-?:
- *   NonNullable<TTableModel[K]> extends import('../models/types.js').DataType
+ *   NonNullable<TTableModel[K]> extends DataType
  *     ? WhereBuilder<TTableModel, K, TOriginalModel>
  *   : NonNullable<TTableModel[K]> extends (infer U extends object)[]
  *     ? ChainObject<Required<U>, TOriginalModel> 

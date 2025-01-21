@@ -1,4 +1,32 @@
-//@ts-check
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="utf-8">
+    <title>JSDoc: Source: context.js</title>
+
+    <script src="scripts/prettify/prettify.js"> </script>
+    <script src="scripts/prettify/lang-css.js"> </script>
+    <!--[if lt IE 9]>
+      <script src="//html5shiv.googlecode.com/svn/trunk/html5.js"></script>
+    <![endif]-->
+    <link type="text/css" rel="stylesheet" href="styles/prettify-tomorrow.css">
+    <link type="text/css" rel="stylesheet" href="styles/jsdoc-default.css">
+</head>
+
+<body>
+
+<div id="main">
+
+    <h1 class="page-title">Source: context.js</h1>
+
+    
+
+
+
+    
+    <section>
+        <article>
+            <pre class="prettyprint source linenums"><code>//@ts-check
 
 /** @import { IKinshipTransaction, KinshipAdapterConnection } from "../adapter.js" */
 /** @import { KinshipOptions } from "./base.js" */
@@ -33,7 +61,7 @@ import { ChooseBuilder } from "../clauses/choose.js";
  * @typedef {`${"before"|"after"}:${"query"|"insert"|"delete"|"update"}`} TriggerEventKeys
  * @typedef {{[K in StatusEventKeys]: [cmd: string, args: any[], unsanitized: string]}} KinshipContextStatusEvents
  * @typedef {{[K in TriggerEventKeys]: []}} KinshipContextTriggerEvents
- * @typedef {KinshipContextStatusEvents & KinshipContextTriggerEvents} KinshipContextEvents
+ * @typedef {KinshipContextStatusEvents &amp; KinshipContextTriggerEvents} KinshipContextEvents
  */
 
 export class KinshipContext {
@@ -85,7 +113,7 @@ export class KinshipContext {
     /**
      * @template {typeof KinshipContext} TProto
      * @this {TProto}  
-     * @param {(builder: EntityBuilder<TProto>) => void} callback 
+     * @param {(builder: EntityBuilder&lt;TProto>) => void} callback 
      */
     static onModelCreating(callback) {
 
@@ -98,9 +126,9 @@ export class KinshipContext {
      * @template {KinshipContext} TContext
      * @template [TReturnType=void]
      * @this {TContext}
-     * @param {() => MaybePromise<TReturnType>} callback
+     * @param {() => MaybePromise&lt;TReturnType>} callback
      * Callback that provides scope of what the transaction should handle.
-     * @returns {Promise<TReturnType|undefined>}
+     * @returns {Promise&lt;TReturnType|undefined>}
      * The result that is returned from the passed `callback` function.
      */
     async transaction(callback) {
@@ -123,7 +151,7 @@ export class KinshipContext {
  * @template T
  * @param {new () => T} prototype 
  * @param {string} name 
- * @returns {KinshipTable<InferredDbModel<T>>}
+ * @returns {KinshipTable&lt;InferredDbModel&lt;T>>}
  */
 export function table(prototype, name) {
     return /** @type {any} */ ((adapterConnection) => new KinshipTable(adapterConnection, name));
@@ -133,7 +161,7 @@ export function table(prototype, name) {
  * @template TBaseModel
  * @template TCurrentStateModel
  * @typedef {object} IKinshipTable
- * @prop {() => Promise<number>} count
+ * @prop {() => Promise&lt;number>} count
  * Get the number of rows that will be returned from a query from the state of this table.  
  * 
  * __Example__
@@ -156,7 +184,7 @@ export function table(prototype, name) {
  * SELECT COUNT(*) FROM [Table]
  *   WHERE [Table].[column1] LIKE '%example%';
  * ```
- * @prop {<TGroupedColumns extends GroupedColumnsModel<TCurrentStateModel>>(callback: (model: SpfGroupByCallbackModel<TCurrentStateModel>, aggregates: Aggregates) => MaybeArray<keyof TGroupedColumns>) => IKinshipTable<TBaseModel, Reconstructed<TCurrentStateModel, TGroupedColumns>>} groupBy
+ * @prop {&lt;TGroupedColumns extends GroupedColumnsModel&lt;TCurrentStateModel>>(callback: (model: SpfGroupByCallbackModel&lt;TCurrentStateModel>, aggregates: Aggregates) => MaybeArray&lt;keyof TGroupedColumns>) => IKinshipTable&lt;TBaseModel, Reconstructed&lt;TCurrentStateModel, TGroupedColumns>>} groupBy
  * Select what columns or what kind of aggregated data you would like to group the results on.  
  * 
  * __Example__
@@ -174,7 +202,7 @@ export function table(prototype, name) {
  *   FROM [Table]
  *   GROUP BY [Table].[column1]
  * ```
- * @prop {(callback: (model: SortByCallbackModel<TCurrentStateModel>) => MaybeArray<SortByClauseProperty|SortByCallbackModelProp>) => IKinshipTable<TBaseModel, TCurrentStateModel>} orderBy
+ * @prop {(callback: (model: SortByCallbackModel&lt;TCurrentStateModel>) => MaybeArray&lt;SortByClauseProperty|SortByCallbackModelProp>) => IKinshipTable&lt;TBaseModel, TCurrentStateModel>} orderBy
  * __Example__
  * ```js
  * context.table
@@ -196,8 +224,8 @@ export function table(prototype, name) {
  *       AND [Table].[column3] LIKE '%3'
  *     )
  * ```
- * @prop {<TSelectedColumns extends SelectedColumnsModel<TCurrentStateModel>|({[k: string]: keyof TSelectedColumns})|TCurrentStateModel = TCurrentStateModel>(callback: (model: SpfSelectCallbackModel<TCurrentStateModel>) => MaybeArray<keyof TSelectedColumns>|TSelectedColumns) => KinshipTable<TBaseModel, (TSelectedColumns extends Required<TCurrentStateModel> ? TCurrentStateModel : Reconstructed<TCurrentStateModel, TSelectedColumns>)>} select
- * @prop {(callback: (model: ChainObject<TCurrentStateModel, TBaseModel>) => void) => IKinshipTable<TBaseModel, TCurrentStateModel>} where
+ * @prop {&lt;TSelectedColumns extends SelectedColumnsModel&lt;TCurrentStateModel>|({[k: string]: keyof TSelectedColumns})|TCurrentStateModel = TCurrentStateModel>(callback: (model: SpfSelectCallbackModel&lt;TCurrentStateModel>) => MaybeArray&lt;keyof TSelectedColumns>|TSelectedColumns) => KinshipTable&lt;TBaseModel, (TSelectedColumns extends Required&lt;TCurrentStateModel> ? TCurrentStateModel : Reconstructed&lt;TCurrentStateModel, TSelectedColumns>)>} select
+ * @prop {(callback: (model: ChainObject&lt;TCurrentStateModel, TBaseModel>) => void) => IKinshipTable&lt;TBaseModel, TCurrentStateModel>} where
  * Add a series of conditions to your next transaction.  
  * 
  * __Example__
@@ -221,7 +249,7 @@ export function table(prototype, name) {
  *       AND [Table].[column3] LIKE '%3'
  *     )
  * ```
- * @prop {(resolve: (results: TCurrentStateModel[]) => TCurrentStateModel[]) => Promise<TCurrentStateModel[]>} then
+ * @prop {(resolve: (results: TCurrentStateModel[]) => TCurrentStateModel[]) => Promise&lt;TCurrentStateModel[]>} then
  * Query the context of your table with all of its built clauses.
  * 
  * __Example__
@@ -246,9 +274,9 @@ export function table(prototype, name) {
  * Establishes a connection directly to a table within your database.  
  * @template TTableModel
  * Type of the model that represents the table and its columns, in their exact form.
- * @template [TAliasModel=OnlyDataTypes<TTableModel>]
+ * @template [TAliasModel=OnlyDataTypes&lt;TTableModel>]
  * Type of the model, `TTableModel`, which will be augmented as new clauses are called. (dynamically inferred throughout lifespan of object)
- * @implements {IKinshipTable<TTableModel, TAliasModel>}
+ * @implements {IKinshipTable&lt;TTableModel, TAliasModel>}
  */
 export class KinshipTable {
 //#region private variables
@@ -260,7 +288,7 @@ export class KinshipTable {
     #base;
     /** 
      * Builders for clauses and state. 
-     * @type {Builders<TTableModel, TAliasModel>} 
+     * @type {Builders&lt;TTableModel, TAliasModel>} 
      */ 
     #builders;
     /** 
@@ -270,7 +298,7 @@ export class KinshipTable {
     #handlers;
     /** 
      * Holds the current state of the context in its asynchronous form. 
-     * @type {Promise<State>} 
+     * @type {Promise&lt;State>} 
      */ 
     #promise = Promise.resolve(/** @type {State} */ ({}));
     /** 
@@ -344,7 +372,7 @@ export class KinshipTable {
 
     /**
      * Retrieve the number of rows from the built query. (if `include` is used, then these tables will be ignored)
-     * @returns {Promise<number>} Number of rows retrieved.
+     * @returns {Promise&lt;number>} Number of rows retrieved.
      */
     async count() {
         const ctx = this.#newContext();
@@ -366,21 +394,21 @@ export class KinshipTable {
     /**
      * Delete rows in the table using a previously built `.where()` clause function.
      * @overload
-     * @returns {Promise<number>} Number of rows delete.
+     * @returns {Promise&lt;number>} Number of rows delete.
      */
     /**
      * Delete records based on their primary key.  
      * If no primary key exists on the record, then they will be ignored.
      * @overload
-     * @param {MaybeArray<TTableModel>} records
+     * @param {MaybeArray&lt;TTableModel>} records
      * Records to delete using their primary key(s).
-     * @returns {Promise<number>} Number of rows delete.
+     * @returns {Promise&lt;number>} Number of rows delete.
      */
     /**
      * Deletes records in the table connected to this context.
-     * @param {MaybeArray<TTableModel>=} records 
+     * @param {MaybeArray&lt;TTableModel>=} records 
      * Records to delete using their primary key(s) or undefined if using `.where()`.
-     * @returns {Promise<number>} Number of rows deleted.
+     * @returns {Promise&lt;number>} Number of rows deleted.
      */
     async delete(records=undefined) {
         this.#connect();
@@ -389,9 +417,9 @@ export class KinshipTable {
 
     /**
      * Insert records into the table.
-     * @param {MaybeArray<TTableModel>} records
+     * @param {MaybeArray&lt;TTableModel>} records
      * Record or records to insert into the database.
-     * @returns {Promise<TTableModel[]>} 
+     * @returns {Promise&lt;TTableModel[]>} 
      * The same records that were inserted, with updated properties of any default values.  
      * __Default values include virtual columns, database defaults, and user defined defaults.__
      */
@@ -403,39 +431,39 @@ export class KinshipTable {
     /**
      * Update records based on their primary key.  
      * @overload
-     * @param {MaybeArray<TTableModel>} records
+     * @param {MaybeArray&lt;TTableModel>} records
      * Records to update.  
      * __If any record does not have a primary key, then that record is ignored in the update.__
-     * @returns {Promise<number>} Number of updated rows.
+     * @returns {Promise&lt;number>} Number of updated rows.
      */
     /**
      * Update values in the table based on a previously built `.where()` method call.
      * @overload
      * @param {(model: TTableModel) => void} callback
      * Callback where `model` intercepts all property references to determine which columns should be updated and what value to be updated to.
-     * @returns {Promise<number>} Number of updated rows.
+     * @returns {Promise&lt;number>} Number of updated rows.
      */
     /**
      * Update values in the table based on a previously built `.where()` method call.
      * @overload
-     * @param {(m: TTableModel) => Partial<TTableModel>} callback
+     * @param {(m: TTableModel) => Partial&lt;TTableModel>} callback
      * Callback where the properties on the return value determine what columns should be updated and what to.
-     * @returns {Promise<number>} Number of updated rows.
+     * @returns {Promise&lt;number>} Number of updated rows.
      */
     /**
      * Update rows in the table.
-     * @param {MaybeArray<TTableModel>|((m: TTableModel) => Partial<TTableModel>|void)} recordsOrCallback 
+     * @param {MaybeArray&lt;TTableModel>|((m: TTableModel) => Partial&lt;TTableModel>|void)} recordsOrCallback 
      * A record, or an array of records to be updated on primary key 
      * or a callback that specifies which column should be updated to what value.
      * __If any record does not have a primary key, then that record is ignored in the update.__
-     * @returns {Promise<number>} Number of updated rows.
+     * @returns {Promise&lt;number>} Number of updated rows.
      */
     async update(recordsOrCallback) {
         this.#connect();
         return this.#update(recordsOrCallback);
     }
     
-    /** @type {IKinshipTable<TTableModel, TAliasModel>['then']} */
+    /** @type {IKinshipTable&lt;TTableModel, TAliasModel>['then']} */
     async then(resolve) {
         this.#connect();
         const { records } = await this.#handlers.query.handle(this.#promise, {});
@@ -445,7 +473,7 @@ export class KinshipTable {
 
     /**
      * Truncate the table this context represents.
-     * @returns {Promise<number>} Number of rows that were deleted.
+     * @returns {Promise&lt;number>} Number of rows that were deleted.
      */
     async truncate() {
         this.#connect();
@@ -458,11 +486,11 @@ export class KinshipTable {
 
     /**
      * Deletes records in the table connected to this context.
-     * @param {MaybeArray<TTableModel>=} records 
+     * @param {MaybeArray&lt;TTableModel>=} records 
      * Records to delete using their primary key(s) or undefined if using `.where()`.
      * @param {any|undefined} transaction
      * Transaction that is used instead of the connection object.
-     * @returns {Promise<number>} Number of rows deleted.
+     * @returns {Promise&lt;number>} Number of rows deleted.
      */
     async #delete(records=undefined, transaction=undefined) {
         const { numRowsAffected } = await this.#handlers.delete.handle(this.#promise, { records, transaction });
@@ -471,11 +499,11 @@ export class KinshipTable {
 
     /**
      * Insert records into the table.
-     * @param {MaybeArray<TTableModel>} records
+     * @param {MaybeArray&lt;TTableModel>} records
      * Record or records to insert into the database.
      * @param {any|undefined} transaction
      * Transaction that is used instead of the connection object.
-     * @returns {Promise<TTableModel[]>} 
+     * @returns {Promise&lt;TTableModel[]>} 
      * The same records that were inserted, with updated properties of any default values.  
      * __Default values include virtual columns, database defaults, and user defined defaults.__
      */
@@ -496,7 +524,7 @@ export class KinshipTable {
      * Truncate the table this context represents.
      * @param {any|undefined} transaction
      * Transaction that is used instead of the connection object.
-     * @returns {Promise<number>} Number of rows that were deleted.
+     * @returns {Promise&lt;number>} Number of rows that were deleted.
      */
     async #truncate(transaction=undefined) {
         const { numRowsAffected } = await this.#handlers.delete.handle(this.#promise, { transaction, truncate: true });
@@ -505,13 +533,13 @@ export class KinshipTable {
 
     /**
      * Update rows in the table.
-     * @param {MaybeArray<TTableModel>|((m: TTableModel) => Partial<TTableModel>|void)} recordsOrCallback 
+     * @param {MaybeArray&lt;TTableModel>|((m: TTableModel) => Partial&lt;TTableModel>|void)} recordsOrCallback 
      * A record, or an array of records to be updated on primary key 
      * or a callback that specifies which column should be updated to what value.
      * __If any record does not have a primary key, then that record is ignored in the update.__
      * @param {any|undefined} transaction
      * Transaction that is used instead of the connection object.
-     * @returns {Promise<number>} Number of updated rows.
+     * @returns {Promise&lt;number>} Number of updated rows.
      */
     async #update(recordsOrCallback, transaction=undefined) {
         if(typeof recordsOrCallback === 'function') {
@@ -584,16 +612,16 @@ export class KinshipTable {
     /**
      * Select which columns to retrieve on the next `.select()` transaction.  
      * This method will stack, meaning it will __NOT__ override previous `.choose()` calls.   
-     * @template {SelectedColumnsModel<TAliasModel>|({[k: string]: keyof TSelectedColumns})|TAliasModel} [TSelectedColumns=TAliasModel]
+     * @template {SelectedColumnsModel&lt;TAliasModel>|({[k: string]: keyof TSelectedColumns})|TAliasModel} [TSelectedColumns=TAliasModel]
      * The new model type that the context represents. (inferred from usage of `callback`)
-     * @param {(model: SpfSelectCallbackModel<TAliasModel>) => MaybeArray<keyof TSelectedColumns>|TSelectedColumns} callback
+     * @param {(model: SpfSelectCallbackModel&lt;TAliasModel>) => MaybeArray&lt;keyof TSelectedColumns>|TSelectedColumns} callback
      * Callback model that allows the user to select which columns to grab.  
-     * @returns {KinshipTable<TTableModel, (TSelectedColumns extends Required<TAliasModel>
+     * @returns {KinshipTable&lt;TTableModel, (TSelectedColumns extends Required&lt;TAliasModel>
      *  ? TAliasModel
-     *  : Reconstructed<TAliasModel, TSelectedColumns>)>}
+     *  : Reconstructed&lt;TAliasModel, TSelectedColumns>)>}
      * Reference to the same `KinshipContext`.
      */
-    /** @type {IKinshipTable<TTableModel, TAliasModel>['select']} */
+    /** @type {IKinshipTable&lt;TTableModel, TAliasModel>['select']} */
     select(callback) {
         const ctx = this.#newContext();
         ctx._afterResync((oldState) => ctx.#builders.choose.getState(oldState, callback));
@@ -603,14 +631,14 @@ export class KinshipTable {
     /**
      * Specify the columns to group the results on.  
      * This method will override any previous `.groupBy()` calls.
-     * @template {GroupedColumnsModel<TTableModel>} TGroupedColumns
+     * @template {GroupedColumnsModel&lt;TTableModel>} TGroupedColumns
      * The new model type that the context represents. (inferred from usage of `callback`)
-     * @param {(model: Aggregates) => MaybeArray<keyof TGroupedColumns>} callback
+     * @param {(model: Aggregates) => MaybeArray&lt;keyof TGroupedColumns>} callback
      * Property reference callback that is used to determine which column(s) and aggregates should be selected and grouped on.
-     * @returns {KinshipTable<TTableModel, Reconstructed<TAliasModel, TGroupedColumns>>}
+     * @returns {KinshipTable&lt;TTableModel, Reconstructed&lt;TAliasModel, TGroupedColumns>>}
      * Reference to the same `KinshipContext`.
      */
-    /** @type {IKinshipTable<TTableModel, TAliasModel>['groupBy']} */
+    /** @type {IKinshipTable&lt;TTableModel, TAliasModel>['groupBy']} */
     groupBy(callback) {
         const ctx = this.#newContext();
         ctx._afterResync((oldState) => ctx.#builders.groupBy.getState(oldState, callback));
@@ -620,15 +648,15 @@ export class KinshipTable {
     /**
      * Include configured related tables.  
      * This method will stack, meaning it will __NOT__ override previous `.include()` calls.   
-     * @template {IncludedColumnsModel<TTableModel>} TIncludedColumn
+     * @template {IncludedColumnsModel&lt;TTableModel>} TIncludedColumn
      * The new model type that the context represents. (inferred from usage of `callback`)
-     * @param {(model: {[K in keyof OnlyTableTypes<TTableModel>]: 
-     *   ThenIncludeCallback<
-     *     OnlyTableTypes<TTableModel>[K], K>
+     * @param {(model: {[K in keyof OnlyTableTypes&lt;TTableModel>]: 
+     *   ThenIncludeCallback&lt;
+     *     OnlyTableTypes&lt;TTableModel>[K], K>
      *   }) => void
      * } callback
      * Property reference callback that is used to determine which related tables should be included.
-     * @returns {KinshipTable<TTableModel, FriendlyType<TAliasModel & {[K in keyof TIncludedColumn as K extends keyof TTableModel ? K : never]: Exclude<TTableModel[K], undefined>}>>} 
+     * @returns {KinshipTable&lt;TTableModel, FriendlyType&lt;TAliasModel &amp; {[K in keyof TIncludedColumn as K extends keyof TTableModel ? K : never]: Exclude&lt;TTableModel[K], undefined>}>>} 
      * Reference to the same `KinshipContext`.
      */
     include(callback) {
@@ -642,7 +670,7 @@ export class KinshipTable {
      * This method will override any previous `.skip()` calls.
      * @param {number} numberOfRecords 
      * Number of rows to skip.
-     * @returns {KinshipTable<TTableModel, TAliasModel>}
+     * @returns {KinshipTable&lt;TTableModel, TAliasModel>}
      * Reference to the same `KinshipContext`.
      */
     skip(numberOfRecords) {
@@ -651,7 +679,7 @@ export class KinshipTable {
         return ctx;
     }
 
-    /** @type {IKinshipTable<TTableModel, TAliasModel>['orderBy']} */
+    /** @type {IKinshipTable&lt;TTableModel, TAliasModel>['orderBy']} */
     orderBy(callback) {
         const ctx = this.#newContext();
         ctx._afterResync((oldState) => ctx.#builders.orderBy.getState(oldState, callback));
@@ -663,7 +691,7 @@ export class KinshipTable {
      * This method will override any previous `.take()` calls.
      * @param {number} numberOfRecords 
      * Number of rows to retrieve.
-     * @returns {KinshipTable<TTableModel, TAliasModel>}
+     * @returns {KinshipTable&lt;TTableModel, TAliasModel>}
      * Reference to the same `KinshipContext`.
      */
     take(numberOfRecords) {
@@ -672,7 +700,7 @@ export class KinshipTable {
         return ctx;
     }
 
-    /** @type {IKinshipTable<TTableModel, TAliasModel>['where']} */
+    /** @type {IKinshipTable&lt;TTableModel, TAliasModel>['where']} */
     where(callback) {
         const ctx = this.#newContext();
         ctx._afterResync((oldState) => ctx.#where(callback, oldState));
@@ -712,7 +740,7 @@ export class KinshipTable {
                         ._append(field, table, `AND${oldState.negated ? ' NOT' : ''}`);
                 }
                 const chain = oldState.negated ? `WHERE NOT` : `WHERE`;
-                where = /** @type {typeof Where<any, any>} */ (Where)(
+                where = /** @type {typeof Where&lt;any, any>} */ (Where)(
                     this.#base,
                     field,
                     table,
@@ -734,7 +762,7 @@ export class KinshipTable {
 
     /**
      * Configure a one-to-one relationship from this table to another table.
-     * @param {HasOneCallback<TTableModel>} callback
+     * @param {HasOneCallback&lt;TTableModel>} callback
      * Property reference callback that gives context to functions for configuring which keys, 
      * as well as `.thenInclude()` for further configuring relationships.
      * @returns {this}
@@ -753,7 +781,7 @@ export class KinshipTable {
 
     /**
      * Configure a one-to-many relationship from this table to another table.
-     * @param {HasManyCallback<TTableModel>} callback 
+     * @param {HasManyCallback&lt;TTableModel>} callback 
      * Property reference callback that gives context to functions for configuring which keys, 
      * as well as `.thenInclude()` for further configuring relationships.
      * @returns {this}
@@ -777,11 +805,11 @@ export class KinshipTable {
     /**
      * Set a trigger for every record that gets deleted within the context, __after__ the delete occurs.  
      * __If a delete occurs explicitly (e.g., using `.where(...).delete()`), then this trigger will not fire.__
-     * @param {TriggerCallback<TTableModel>} callback
+     * @param {TriggerCallback&lt;TTableModel>} callback
      * Function that will be called before the insert for every record that is to be inserted.
      * @param {TriggerHookCallback=} hook
      * Function that is called once before the trigger and establishes static arguments to be available to `callback` within the `...args` parameter.
-     * @returns {InstanceType<KinshipDeleteHandler>['afterUnsubscribe']} Object that has two functions-- `once` and `unsubscribe`.
+     * @returns {InstanceType&lt;KinshipDeleteHandler>['afterUnsubscribe']} Object that has two functions-- `once` and `unsubscribe`.
      */
     afterDelete(callback, hook=undefined) {
         return this.#handlers.delete.after(callback, hook);
@@ -789,11 +817,11 @@ export class KinshipTable {
 
     /**
      * Set a trigger for every record that gets inserted into the context, __after__ the insert occurs.
-     * @param {TriggerCallback<TTableModel>} callback
+     * @param {TriggerCallback&lt;TTableModel>} callback
      * Function that will be called before the insert for every record that is to be inserted.
      * @param {TriggerHookCallback=} hook
      * Function that is called once before the trigger and establishes static arguments to be available to `callback` within the `...args` parameter.
-     * @returns {InstanceType<KinshipDeleteHandler>['afterUnsubscribe']} Object that has two functions-- `once` and `unsubscribe`.
+     * @returns {InstanceType&lt;KinshipDeleteHandler>['afterUnsubscribe']} Object that has two functions-- `once` and `unsubscribe`.
      */
     afterInsert(callback, hook=undefined) {
         return this.#handlers.insert.after(callback, hook);
@@ -801,11 +829,11 @@ export class KinshipTable {
 
     /**
      * Set a trigger for every record that returns from a query.
-     * @param {TriggerCallback<TTableModel>} callback
+     * @param {TriggerCallback&lt;TTableModel>} callback
      * Function that will be called after a query is completed.
      * @param {TriggerHookCallback=} hook
      * Function that is called once before the trigger and establishes static arguments to be available to `callback` within the `...args` parameter.
-     * @returns {InstanceType<KinshipQueryHandler>['afterUnsubscribe']} Object that has two functions-- `once` and `unsubscribe`.
+     * @returns {InstanceType&lt;KinshipQueryHandler>['afterUnsubscribe']} Object that has two functions-- `once` and `unsubscribe`.
      */
     afterQuery(callback, hook=undefined) {
         return this.#handlers.query.after(callback, hook);
@@ -814,11 +842,11 @@ export class KinshipTable {
     /**
      * Set a trigger for every record that gets updated within the context, __after__ the update occurs.  
      * __If an update occurs explicitly (e.g., using `.where(...).update(m => ({ a: 1 }))`), then this trigger will not fire.__
-     * @param {TriggerCallback<TTableModel>} callback
+     * @param {TriggerCallback&lt;TTableModel>} callback
      * Function that will be called before the insert for every record that is to be inserted.
      * @param {TriggerHookCallback=} hook
      * Function that is called once before the trigger and establishes static arguments to be available to `callback` within the `...args` parameter.
-     * @returns {InstanceType<KinshipDeleteHandler>['afterUnsubscribe']} Object that has two functions-- `once` and `unsubscribe`.
+     * @returns {InstanceType&lt;KinshipDeleteHandler>['afterUnsubscribe']} Object that has two functions-- `once` and `unsubscribe`.
      */
     afterUpdate(callback, hook=undefined) {
         return this.#handlers.update.after(callback, hook);
@@ -827,11 +855,11 @@ export class KinshipTable {
     /**
      * Set a trigger for every record explicitly given that gets deleted within the context, __before__ the delete occurs.  
      * __If a delete occurs explicitly (e.g., using `.where(...).delete()`), then this trigger will not fire.__  
-     * @param {TriggerCallback<TTableModel>} callback
+     * @param {TriggerCallback&lt;TTableModel>} callback
      * Function that will be called before the delete for every record that is to be deleted.
      * @param {TriggerHookCallback=} hook
      * Function that is called once before the trigger and establishes static arguments to be available to `callback` within the `...hookArgs` parameter.
-     * @returns {InstanceType<KinshipDeleteHandler>['beforeUnsubscribe']} Object that has two functions-- `once` and `unsubscribe`.
+     * @returns {InstanceType&lt;KinshipDeleteHandler>['beforeUnsubscribe']} Object that has two functions-- `once` and `unsubscribe`.
      */
     beforeDelete(callback, hook=undefined) {
         return this.#handlers.delete.before(callback, hook);
@@ -839,11 +867,11 @@ export class KinshipTable {
 
     /**
      * Set a trigger for every record that gets inserted into the context, __before__ the insert occurs.
-     * @param {TriggerCallback<TTableModel>} callback
+     * @param {TriggerCallback&lt;TTableModel>} callback
      * Function that will be called before the insert for every record that is to be inserted.
      * @param {TriggerHookCallback=} hook
      * Function that is called once before the trigger and establishes static arguments to be available to `callback` within the `...args` parameter.
-     * @returns {InstanceType<KinshipDeleteHandler>['beforeUnsubscribe']} Object that has two functions-- `once` and `unsubscribe`.
+     * @returns {InstanceType&lt;KinshipDeleteHandler>['beforeUnsubscribe']} Object that has two functions-- `once` and `unsubscribe`.
      */
     beforeInsert(callback, hook=undefined) {
         return this.#handlers.insert.before(callback, hook);
@@ -852,11 +880,11 @@ export class KinshipTable {
     /**
      * Set a trigger for every record that gets updated within the context, __before__ the update occurs.  
      * __If an update occurs explicitly (e.g., using `.where(...).update(m => ({ a: 1 }))`), then this trigger will not fire.__
-     * @param {TriggerCallback<TTableModel>} callback
+     * @param {TriggerCallback&lt;TTableModel>} callback
      * Function that will be called before the update for every record that is to be updated.
      * @param {TriggerHookCallback=} hook
      * Function that is called once before the trigger and establishes static arguments to be available to `callback` within the `...args` parameter.
-     * @returns {InstanceType<KinshipDeleteHandler>['beforeUnsubscribe']} Object that has two functions-- `once` and `unsubscribe`.
+     * @returns {InstanceType&lt;KinshipDeleteHandler>['beforeUnsubscribe']} Object that has two functions-- `once` and `unsubscribe`.
      */
     beforeUpdate(callback, hook=undefined) {
         return this.#handlers.update.before(callback, hook);
@@ -999,11 +1027,11 @@ export class KinshipTable {
      * Creates a new context with the initial state set to the state of this state.
      * @template {object} [T=TTableModel]
      * @template {object} [U=TAliasModel]
-     * @returns {KinshipTable<T, U>}
+     * @returns {KinshipTable&lt;T, U>}
      */
     #newContext() {
         this.#connect();
-        /** @type {KinshipTable<T, U>} */
+        /** @type {KinshipTable&lt;T, U>} */
         //@ts-ignore One parameter constructor is only available to this getter.
         const ctx = new KinshipTable(this);
         return ctx;
@@ -1023,7 +1051,7 @@ export class KinshipTable {
     /**
      * @private
      * Wrapper for `this.#base.afterResync` to only trigger the callback once the context has caught up with asynchronous work. 
-     * @param {(oldState: State) => MaybePromise<State>} callback
+     * @param {(oldState: State) => MaybePromise&lt;State>} callback
      * Callback that returns the new state. 
      */
     _afterResync(callback) {
@@ -1081,7 +1109,7 @@ export class KinshipTable {
  * ```ts
  * const dbConnection = // ... preferred db connection
  * const cnn = adapter(dbConnection); // respective adapter
- * const ctx = new KinshipContext<{ id: number }>(cnn, "Foo");
+ * const ctx = new KinshipContext&lt;{ id: number }>(cnn, "Foo");
  * 
  * function doStuff() {
  *   throw new Error(`Uh oh!`);
@@ -1100,7 +1128,7 @@ export class KinshipTable {
  * ```
  * @param {KinshipAdapterConnection} adapterConnection
  * The adapter connection to your database.
- * @returns {{ execute: <TReturnType>(callback: (transaction: any|undefined) => MaybePromise<TReturnType>) => Promise<TReturnType> }}
+ * @returns {{ execute: &lt;TReturnType>(callback: (transaction: any|undefined) => MaybePromise&lt;TReturnType>) => Promise&lt;TReturnType> }}
  * Object with one property-- `execute`, which will accept a callback where all kinship
  */
 export function transaction(adapterConnection) {
@@ -1123,7 +1151,7 @@ export function transaction(adapterConnection) {
     }
 }
 
-/** @template {object} T @typedef {FriendlyType<OnlyDataTypes<T>>} OnlyDataTypes */
+/** @template {object} T @typedef {FriendlyType&lt;OnlyDataTypes&lt;T>>} OnlyDataTypes */
 
 /**
  * Various builders to handle clause methods that assist building the state of the context.
@@ -1154,13 +1182,35 @@ export function transaction(adapterConnection) {
  * @prop {number=} limit
  * @prop {number=} offset
  * @prop {SortByClauseProperty[]=} orderBy
- * @prop {(SelectClauseProperty & { aggregate?: string })[]} select
+ * @prop {(SelectClauseProperty &amp; { aggregate?: string })[]} select
  * @prop {WhereBuilder=} where
  */
 
 /**
  * Object that holds the final state of the context right before the command is sent to the adapter for processing.
- * @typedef {State & { conditions?: WhereClausePropertyArray }} AdapterReadyState
+ * @typedef {State &amp; { conditions?: WhereClausePropertyArray }} AdapterReadyState
  */
 
-/** @typedef {WhereClauseProperty} WhereClauseCondition */
+/** @typedef {WhereClauseProperty} WhereClauseCondition */</code></pre>
+        </article>
+    </section>
+
+
+
+
+</div>
+
+<nav>
+    <h2><a href="index.html">Home</a></h2><h3>Classes</h3><ul><li><a href="KinshipTable.html">KinshipTable</a></li></ul><h3>Global</h3><ul><li><a href="global.html#table">table</a></li><li><a href="global.html#transaction">transaction</a></li></ul>
+</nav>
+
+<br class="clear">
+
+<footer>
+    Documentation generated by <a href="https://github.com/jsdoc/jsdoc">JSDoc 4.0.4</a> on Wed Dec 18 2024 23:34:23 GMT-0600 (Central Standard Time)
+</footer>
+
+<script> prettyPrint(); </script>
+<script src="scripts/linenumber.js"> </script>
+</body>
+</html>

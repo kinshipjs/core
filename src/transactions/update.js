@@ -1,4 +1,6 @@
 //@ts-check
+/** @import { State } from "../context/context.js" */
+/** @import { WhereClausePropertyArray } from "../clauses/where.js" */
 
 import { KinshipColumnDoesNotExistError, KinshipInvalidPropertyTypeError, KinshipSyntaxError } from "../exceptions.js";
 import { KinshipExecutionHandler } from "./handler.js";
@@ -59,7 +61,7 @@ export class KinshipUpdateHandler extends KinshipExecutionHandler {
      * });
      * ```
      * @template {object|undefined} TTableModel
-     * @param {import("../context/context.js").State} state 
+     * @param {State} state 
      * @param {((m: TTableModel) => Partial<TTableModel>|void)} callback 
      * @returns {SerializationUpdateHandlerData}
      */
@@ -119,7 +121,7 @@ export class KinshipUpdateHandler extends KinshipExecutionHandler {
      * come back accurately.
      * @template {object|undefined} TTableModel
      * @param {TTableModel[]} records
-     * @returns {import("../clauses/where.js").WhereClausePropertyArray}
+     * @returns {WhereClausePropertyArray}
      */
     #getWhereConditions(records) {
         const pKeys = this.base.getPrimaryKeys();
@@ -187,7 +189,7 @@ export class KinshipUpdateHandler extends KinshipExecutionHandler {
  * Table the update is occurring on.
  * @prop {string[]} columns
  * Columns to be updated.  
- * @prop {import("../clauses/where.js").WhereClausePropertyArray} where
+ * @prop {WhereClausePropertyArray} where
  * Recursively nested array of objects where each object represents a condition.  
  * If the element is an array, then that means the condition is nested with the last element from that array.
  * @prop {SerializationUpdateHandlerExplicitData=} explicit

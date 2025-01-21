@@ -1,4 +1,6 @@
 //@ts-check
+/** @import { DataType } from "./types.js" */
+/** @import { UnionToIntersection } from "./superficial.js" */
 
 /**
  * Checks if the given string type, `K`, contains `TContainer`, and if so, returns `K`, otherwise it returns `never`.
@@ -47,10 +49,46 @@
 
 /**
  * Deflates a deeply nested object so all keys remap to some representation of where the key is located within the object.
+ * Turns all values of an object, including nested objects, to a string representation of the key path to that property.
+ * 
+ * e.g.,
+ * ```ts
+ * interface MyExampleInterface {
+ *   a: {
+ *     b: {
+ *       c: {
+ *         d: string
+ *       },
+ *       e: string
+ *     },
+ *     f: string
+ *   },
+ *   g: number
+ * };
+ * 
+ * type MyDeflatedExampleInterface = Deflate<MyExampleInterface, "", "$">
+ * 
+ * // MyDeflatedExampleInterface would look now like this
+ * interface ExpectedExampleInterface {
+ *   a: {
+ *     b: {
+ *       c: {
+ *         d: "a$b$c$d"
+ *       },
+ *       e: "a$b$e"
+ *     },
+ *     f: "a$f"
+ *   },
+ *   g: "g"
+ * }
+ * ```
  * @template {object} T
+ * Object to deflate
  * @template {string} [TPrepend=""]
+ * String to prepend to all new deflated property values
  * @template {string} [TSeparator="$$"]
- * @typedef {{[K in (keyof T) & string]-?: NonNullable<T[K]> extends import("./types.js").DataType
+ * String to separate each key in the path to that key.
+ * @typedef {{[K in (keyof T) & string]-?: NonNullable<T[K]> extends DataType
  *   ? `${TPrepend}${K}` 
  *   : NonNullable<T[K]> extends (infer U extends object)[]
  *     ? Deflate<U, `${TPrepend}${K}${TSeparator}`, TSeparator>
@@ -83,8 +121,13 @@
  */
 
 /**
+ * @type {Reinflated<Deflate<{ a: number, b: { c: string }}>, "a"|"b">}
+ */
+const x = {};
+
+/**
  * @template T
- * @typedef {T extends infer U ? import('./superficial.js').UnionToIntersection<{[K in keyof U]: U[K] }> : never} FriendlyType
+ * @typedef {T extends infer U ? UnionToIntersection<{[K in keyof U]: U[K] }> : never} FriendlyType
  */
 
 export default {};
